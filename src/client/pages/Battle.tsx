@@ -54,6 +54,14 @@ import {
   getMatchTimeLabel, computeStats, computeMvp,
 } from './Battle/battleUtils';
 
+/** 初回3ターンチュートリアル（issue #3）: ターン番号 → ガイド文言 */
+const TUTORIAL_STEPS: Record<number, { text: string; subText: string }> = {
+  1: { text: 'コマをタップ → 移動先をタップ', subText: 'まずはコマを動かしてみよう' },
+  2: { text: 'ボール保持コマ → パス', subText: '青リングの味方へパスできます' },
+  3: { text: '相手ゴール前でシュート', subText: '赤いシュートゾーンでシュート！' },
+};
+const TUTORIAL_LAST_TURN = 3;
+
 interface BattleProps {
   onNavigate: (page: Page) => void;
   matchId?: string;
@@ -423,8 +431,15 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (phaseTimeoutRef.current) { clearTimeout(phaseTimeoutRef.current); phaseTimeoutRef.current = null; }
   }, []);
 
+  // ── 初回3ターンチュートリアル（issue #3） ──
+  // COM対戦の初回プレイのみ。localStorage で既読管理し2回目以降スキップ。
+  const tutorialActiveRef = useRef(
+    isCom && !isComVsCom && (() => {
+      try { return localStorage.getItem('fcms_tutorial_done') !== '1'; } catch { return true; }
+    })(),
+  );
+
   // TURN_START → INPUT（1秒後、安全弁2秒）
-  const tutorialShownRef = useRef(false);
   useEffect(() => {
     if (state.turnPhase !== 'TURN_START' || state.status !== 'playing') return;
     clearPhaseTimeout();
@@ -432,17 +447,22 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (state.turn > 0 && !isComVsCom) {
       showOverlay(`Turn ${state.turn}`, { duration: 800, fontSize: 36 });
     }
-    // Turn 1 初回チュートリアルヒント（COM vs COM では非表示）
-    if (state.turn === 1 && !tutorialShownRef.current && !isComVsCom) {
-      tutorialShownRef.current = true;
+    // 初回3ターンチュートリアル（Turn 1=移動 / 2=パス / 3=シュート）
+    const tutorialStep = tutorialActiveRef.current ? TUTORIAL_STEPS[state.turn] : undefined;
+    if (tutorialStep) {
       setTimeout(() => {
-        showOverlay('コマタップ → 移動・ドリブル', {
-          subText: 'ボールタップ → パス・シュート',
-          duration: 2500, fontSize: 24,
+        showOverlay(tutorialStep.text, {
+          subText: tutorialStep.subText,
+          duration: 2800, fontSize: 24,
         });
-      }, 1200);
+      }, 1000);
+      if (state.turn >= TUTORIAL_LAST_TURN) {
+        tutorialActiveRef.current = false;
+        try { localStorage.setItem('fcms_tutorial_done', '1'); } catch { /* ignore */ }
+      }
     }
-    const normalDelay = isComVsCom ? 500 : (state.turn === 1 ? 4000 : 1000); // COM vs COMは高速化
+    const isTutorialTurn = !!tutorialStep;
+    const normalDelay = isComVsCom ? 500 : (state.turn === 1 ? 4000 : isTutorialTurn ? 2800 : 1000); // COM vs COMは高速化、チュートリアル中は猶予
     phaseTimeoutRef.current = setTimeout(() => {
       dispatch({ type: 'SAVE_SNAPSHOT' });
       dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });

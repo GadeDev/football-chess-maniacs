@@ -212,6 +212,7 @@ public/
 | ショップ インゴット制（2026-06-04） | コマはインゴット（ゲーム内通貨）で購入。インゴットはプラットフォーム決済で購入→Webhookでウォレット加算。価格はコスト帯別1〜3インゴット（pieceCostToIngots）。下記「ショップ/インゴット」参照 | ✅ |
 | createGoalKickPieces テスト（2026-06-04） | ゴールキック後処理の純粋関数テスト5件追加（22枚生成/守備GKがボール保持/away守備GK/座標重複なし/守備コマ自陣） | ✅ |
 | インゲーム操作改善（2026-06-04） | パスモード時の盤面ハイライト追加（味方=青リング/スルーパス空きHEX=シアン/シュートゾーン=赤）、パス/シュート中は移動範囲を抑制、ボール保持コマのパス/ドリブルメニュー大型化+対象コマ黄リング強調。下記「インゲーム操作（v3.2）」参照 | ✅ |
+| 初回3ターンチュートリアル（2026-06-04, issue #3） | COM対戦の初回プレイのみ Turn 1=移動 / 2=パス / 3=シュート のガイドを順に表示。localStorage `fcms_tutorial_done` で既読管理し2回目以降スキップ。comVsCom非表示 | ✅ |
 
 ---
 
@@ -438,6 +439,10 @@ public/
 - **ボール保持コマのパス/ドリブルメニュー**（`HexBoard.tsx` ballActionMenu）:
   - [⚽パス][🏃ドリブル] 大型ボタン（116×58px, 19px, 2行）、対象コマに黄色グローリングを表示してメニューの所属を明示
   - メニュー位置はコマ上 -96px（上端はみ出し時は下 +64px）、HexBoard transform内・z-index 200
+- **初回3ターンチュートリアル**（`Battle.tsx` `TUTORIAL_STEPS`）:
+  - COM対戦の初回プレイのみ。Turn 1=コマ移動 / Turn 2=パス（青リング誘導）/ Turn 3=シュート のガイドを CenterOverlay で順に表示
+  - `tutorialActiveRef`（mount時に `isCom && !isComVsCom && localStorage 'fcms_tutorial_done' !== '1'` で判定）。3ターン目表示で既読フラグ書込み→以降スキップ
+  - チュートリアルターンは INPUT 遷移を 2800ms に延長（読む猶予）。comVsCom では非表示
 
 ### フォーメーション → バトル引継ぎ
 - Formation.tsx → `onFormationConfirm(FormationData)` → App.tsxのstate → Battle.tsxのprop
