@@ -44,10 +44,31 @@ export default function CeremonyLayer({
         @keyframes fcms-scale-out { 0% { opacity:1; transform:translate(-50%,-50%) scale(1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(0.8); } }
         @keyframes fcms-turn-flash { 0% { opacity:0; transform:translate(-50%,-50%) scale(0.8); } 30% { opacity:1; transform:translate(-50%,-50%) scale(1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(1); } }
         @keyframes fcms-whistle { 0%,100% { transform:translate(-50%,-50%); } 10% { transform:translate(-48%,-50%); } 20% { transform:translate(-52%,-50%); } 30% { transform:translate(-49%,-50%); } 40% { transform:translate(-51%,-50%); } 50% { transform:translate(-50%,-50%); } }
+        @keyframes fcms-wipe { 0% { transform:translateX(-105%); } 38% { transform:translateX(0); } 62% { transform:translateX(0); } 100% { transform:translateX(105%); } }
+        @keyframes fcms-wipe-label { 0%,28% { opacity:0; transform:translate(-50%,-50%) translateX(-30px); } 42% { opacity:1; transform:translate(-50%,-50%) translateX(0); } 60% { opacity:1; } 72% { opacity:0; } 100% { opacity:0; } }
       `}</style>
+      {/* ゴールキック ワイプ（裏でコマ再配置） */}
+      {ceremony === 'goalkick' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 210, pointerEvents: 'none', overflow: 'hidden' }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(105deg, #0a1f12 0%, #123d22 50%, #0a1f12 100%)',
+            transform: 'translateX(-105%)',
+            animation: 'fcms-wipe 1.4s cubic-bezier(0.7,0,0.3,1) forwards',
+          }} />
+          <div style={{
+            position: 'absolute', left: '50%', top: '50%',
+            fontSize: 44, fontWeight: 900, color: '#fff', letterSpacing: 4,
+            textShadow: '0 2px 24px rgba(0,0,0,0.8)', whiteSpace: 'nowrap',
+            animation: 'fcms-wipe-label 1.4s ease-out forwards',
+          }}>
+            ゴールキック
+          </div>
+        </div>
+      )}
       <div style={{
         position: 'fixed', inset: 0,
-        background: ceremony === 'turn' ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)',
+        background: ceremony === 'turn' ? 'rgba(0,0,0,0.35)' : ceremony === 'goalkick' ? 'transparent' : 'rgba(0,0,0,0.7)',
         zIndex: 200,
         pointerEvents: (ceremony === 'fulltime' && showResultBtn) || ceremony === 'halftime_sub' ? 'auto' : 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

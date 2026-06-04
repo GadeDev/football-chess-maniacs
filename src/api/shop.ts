@@ -1,13 +1,15 @@
 // ============================================================
-// shop.ts — ショップAPI（カタログ閲覧 + 購入開始）
-// GET /api/shop/catalog — piece_master 一覧（フィルタ付き）
-// POST /api/shop/purchase — Platform経由で購入開始
+// shop.ts — ショップAPI
+// GET  /api/shop/catalog  — piece_master 一覧（フィルタ付き）
+// GET  /api/shop/wallet   — インゴット残高
+// POST /api/shop/purchase — インゴットでコマ購入（D1で減算→付与）
+// POST /api/shop/ingots   — インゴットをPlatform決済で購入
 // ============================================================
 
 import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { callPlatformApi } from './auth';
-import { costToDisplay, pieceIdToSku, SHELF_NAMES } from '../types/piece';
+import { costToDisplay, pieceCostToIngots, SHELF_NAMES } from '../types/piece';
 import type { PieceMaster, ShopCatalogItem } from '../types/piece';
 
 const shop = new Hono<{
@@ -108,9 +110,27 @@ shop.get('/catalog', async (c) => {
 });
 
 /**
+ * GET /api/shop/wallet
+ * インゴット残高を返す（未作成ユーザーは 0）
+ */
+shop.get('/wallet', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  const row = await c.env.DB.prepare(
+    'SELECT ingots FROM user_wallets WHERE user_id = ?',
+  )
+    .bind(userId)
+    .first<{ ingots: number }>();
+
+  return c.json({ ingots: row?.ingots ?? 0 });
+});
+
+/**
  * POST /api/shop/purchase
  * Body: { piece_id: number }
- * Platform の /v1/commerce/purchase を呼んで checkout_url を返す
+ * インゴットを D1 で減算し、コマを付与する（サーバー権威）。
  */
 shop.post('/purchase', async (c) => {
   const userId = c.get('userId');
@@ -118,17 +138,23 @@ shop.post('/purchase', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const body = await c.req.json<{ piece_id: number }>();
-  if (!body.piece_id || typeof body.piece_id !== 'number') {
+  let body: { piece_id?: unknown };
+  try {
+    body = await c.req.json<{ piece_id?: unknown }>();
+  } catch {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'Invalid JSON' }, 400);
+  }
+  if (typeof body.piece_id !== 'number' || !Number.isInteger(body.piece_id)) {
     return c.json({ error: 'VALIDATION_ERROR', message: 'piece_id is required' }, 400);
   }
+  const pieceId = body.piece_id;
 
-  // piece_master 存在確認 + is_purchasable チェック
+  // piece_master 存在確認 + is_purchasable + cost
   const piece = await c.env.DB.prepare(
-    'SELECT piece_id, sku, is_purchasable FROM piece_master WHERE piece_id = ?',
+    'SELECT piece_id, cost, is_purchasable FROM piece_master WHERE piece_id = ?',
   )
-    .bind(body.piece_id)
-    .first<{ piece_id: number; sku: string; is_purchasable: number }>();
+    .bind(pieceId)
+    .first<{ piece_id: number; cost: number; is_purchasable: number }>();
 
   if (!piece) {
     return c.json({ error: 'INVALID_PIECE_ID', message: 'Piece not found' }, 400);
@@ -141,26 +167,109 @@ shop.post('/purchase', async (c) => {
   const existing = await c.env.DB.prepare(
     'SELECT 1 FROM user_pieces_v2 WHERE user_id = ? AND piece_id = ?',
   )
-    .bind(userId, body.piece_id)
+    .bind(userId, pieceId)
     .first();
 
   if (existing) {
     return c.json({ error: 'ALREADY_OWNED', message: 'You already own this piece' }, 409);
   }
 
-  // Platform API 呼び出し
+  const price = pieceCostToIngots(piece.cost);
+  const now = new Date().toISOString();
+
+  // 残高確認 + ガード付き減算（ingots >= price のときのみ成立）
+  const debit = await c.env.DB.prepare(
+    'UPDATE user_wallets SET ingots = ingots - ?, updated_at = ? WHERE user_id = ? AND ingots >= ?',
+  )
+    .bind(price, now, userId, price)
+    .run();
+
+  if (debit.meta.changes === 0) {
+    const wallet = await c.env.DB.prepare(
+      'SELECT ingots FROM user_wallets WHERE user_id = ?',
+    )
+      .bind(userId)
+      .first<{ ingots: number }>();
+    return c.json(
+      {
+        error: 'INSUFFICIENT_INGOTS',
+        message: 'Not enough ingots',
+        balance: wallet?.ingots ?? 0,
+        price,
+      },
+      402,
+    );
+  }
+
+  // コマ付与。失敗時はインゴットを返金
   try {
-    const sku = pieceIdToSku(body.piece_id);
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO user_pieces_v2 (user_id, piece_id, source, entitlement_id, acquired_at) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(userId, pieceId, 'purchase', null, now)
+      .run();
+  } catch (e) {
+    await c.env.DB.prepare(
+      'UPDATE user_wallets SET ingots = ingots + ?, updated_at = ? WHERE user_id = ?',
+    )
+      .bind(price, now, userId)
+      .run();
+    console.error('[shop] Grant failed, refunded ingots:', e);
+    return c.json({ error: 'INTERNAL_ERROR', message: 'Failed to grant piece' }, 500);
+  }
+
+  // 所持コマキャッシュ無効化
+  await c.env.KV.delete(`owned_pieces:${userId}`);
+
+  const balance = await c.env.DB.prepare(
+    'SELECT ingots FROM user_wallets WHERE user_id = ?',
+  )
+    .bind(userId)
+    .first<{ ingots: number }>();
+
+  return c.json({ piece_id: pieceId, price, balance: balance?.ingots ?? 0 }, 201);
+});
+
+/**
+ * POST /api/shop/ingots
+ * Body: { sku?: string }  — 省略時は標準インゴットバンドル
+ * Platform の /v1/commerce/purchase を呼んで checkout_url を返す。
+ * インゴットはプラットフォーム決済で購入し、Webhook 経由でウォレットに加算される。
+ */
+const DEFAULT_INGOT_SKU = 'fcms_ingots_standard';
+const ALLOWED_INGOT_SKUS = new Set([
+  'fcms_ingots_standard',
+  'fcms_ingots_plus',
+  'fcms_ingots_mega',
+]);
+
+shop.post('/ingots', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  let sku = DEFAULT_INGOT_SKU;
+  try {
+    const body = await c.req.json<{ sku?: string }>();
+    if (body.sku) {
+      if (!ALLOWED_INGOT_SKUS.has(body.sku)) {
+        return c.json({ error: 'INVALID_SKU', message: 'Unknown ingot SKU' }, 400);
+      }
+      sku = body.sku;
+    }
+  } catch {
+    // ボディなし → デフォルトSKU
+  }
+
+  try {
     const result = await callPlatformApi<{
       purchase_id: string;
       checkout_url: string;
       status: string;
     }>(c.env, '/v1/commerce/purchase', {
       method: 'POST',
-      body: JSON.stringify({
-        sku,
-        user_id: userId,
-      }),
+      body: JSON.stringify({ sku, user_id: userId }),
     });
 
     return c.json(
@@ -172,8 +281,8 @@ shop.post('/purchase', async (c) => {
       201,
     );
   } catch (e) {
-    console.error('[shop] Purchase API error:', e);
-    return c.json({ error: 'INTERNAL_ERROR', message: 'Failed to initiate purchase' }, 500);
+    console.error('[shop] Ingot purchase API error:', e);
+    return c.json({ error: 'INTERNAL_ERROR', message: 'Failed to initiate ingot purchase' }, 500);
   }
 });
 

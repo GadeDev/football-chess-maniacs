@@ -376,7 +376,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
         currentPreset={currentPreset}
         onPresetChange={handlePresetChange}
         onShowSlots={handleOpenSlots}
-        onBack={() => onNavigate('teamSelect')}
+        onBack={() => onNavigate('title')}
         isPremium={isPremium}
         premiumMessage={premiumMessage}
       />
@@ -432,7 +432,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
 
       {/* ═══ フッター ═══ */}
       <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', justifyContent: 'center' }}>
-        <button onClick={() => onNavigate('teamSelect')} style={btnStyle('#334155')}>戻る</button>
+        <button onClick={() => onNavigate('title')} style={btnStyle('#334155')}>戻る</button>
         <button
           onClick={() => {
             if (onFormationConfirm) {

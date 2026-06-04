@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { verifyHmacSignature } from './auth';
 import { timingSafeEqual } from '../middleware/crypto_utils';
-import { skuToPieceId } from '../types/piece';
+import { skuToPieceId, INGOT_SKU_AMOUNTS } from '../types/piece';
 import type { WebhookPurchasePayload } from '../types/piece';
 
 const webhooks = new Hono<{
@@ -75,7 +75,37 @@ webhooks.post('/purchase', async (c) => {
     return c.json({ error: 'VALIDATION_ERROR', message: 'Missing user_id or sku' }, 400);
   }
 
-  // 4. SKU → piece_id 変換
+  const now = new Date().toISOString();
+
+  // 4-A. インゴットSKU → ウォレットに加算（entitlement.created のみ）
+  const ingotAmount = INGOT_SKU_AMOUNTS[data.sku];
+  if (ingotAmount !== undefined) {
+    let result = 'ok';
+    try {
+      if (event_type === 'entitlement.created') {
+        await c.env.DB.prepare(
+          `INSERT INTO user_wallets (user_id, ingots, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET ingots = ingots + ?, updated_at = ?`,
+        )
+          .bind(data.user_id, ingotAmount, now, ingotAmount, now)
+          .run();
+      } else {
+        // インゴット(consumable)は revoke 対象外
+        result = `ingot ${event_type} ignored`;
+      }
+    } catch (e) {
+      result = `error: ${e instanceof Error ? e.message : String(e)}`;
+      console.error('[webhook/purchase] Ingot credit error:', e);
+    }
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO webhook_deliveries_received (delivery_id, event_type, received_at, processed, result) VALUES (?, ?, ?, 1, ?)',
+    )
+      .bind(deliveryId, event_type, now, result)
+      .run();
+    return c.json({ ok: true });
+  }
+
+  // 4-B. SKU → piece_id 変換
   const pieceId = skuToPieceId(data.sku);
   if (pieceId === null) {
     return c.json({ error: 'INVALID_SKU', message: `Unknown SKU: ${data.sku}` }, 400);
@@ -93,7 +123,6 @@ webhooks.post('/purchase', async (c) => {
   }
 
   // 6. イベント処理
-  const now = new Date().toISOString();
   let result = 'ok';
 
   try {

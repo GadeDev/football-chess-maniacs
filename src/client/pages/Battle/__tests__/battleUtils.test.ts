@@ -9,6 +9,7 @@ import {
   createDefaultHomePieces,
   createDefaultAwayPieces,
   createInitialPieces,
+  createGoalKickPieces,
   getAccuratePassRange,
   isShootZoneForPiece,
   getMatchTimeLabel,
@@ -17,6 +18,7 @@ import {
   HALF_LINE_ROW,
   DEFAULT_TEMPLATE,
 } from '../battleUtils';
+import { MAX_ROW } from '../../../types';
 import type { PieceData, FormationPiece, GameEvent } from '../../../types';
 
 // ────────────────────────────────────────────────────────────
@@ -206,6 +208,55 @@ describe('createInitialPieces', () => {
     const away = createDefaultAwayPieces();
     // DEFAULT_TEMPLATE[0] = GK at row 1 → away row = 33 - 1 = 32
     expect(away[0].coord.row).toBe(33 - DEFAULT_TEMPLATE[0].row);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// createGoalKickPieces
+// ────────────────────────────────────────────────────────────
+describe('createGoalKickPieces', () => {
+  it('全22枚のコマを返す', () => {
+    const base = createInitialPieces();
+    const result = createGoalKickPieces(base, 'home');
+    expect(result).toHaveLength(22);
+  });
+
+  it('守備チームのGKがボールを保持', () => {
+    const base = createInitialPieces();
+    const result = createGoalKickPieces(base, 'home');
+    const gk = result.find(p => p.team === 'home' && p.position === 'GK' && !p.isBench);
+    expect(gk?.hasBall).toBe(true);
+    // 他のコマはボールを持たない
+    expect(result.filter(p => p.hasBall)).toHaveLength(1);
+  });
+
+  it('away守備時はawayのGKがボールを保持', () => {
+    const base = createInitialPieces();
+    const result = createGoalKickPieces(base, 'away');
+    const gk = result.find(p => p.team === 'away' && p.position === 'GK' && !p.isBench);
+    expect(gk?.hasBall).toBe(true);
+    expect(result.filter(p => p.hasBall)).toHaveLength(1);
+  });
+
+  it('フィールドコマ同士が同じ座標に重ならない', () => {
+    const base = createInitialPieces();
+    const result = createGoalKickPieces(base, 'home');
+    const fieldPieces = result.filter(p => !p.isBench);
+    const coords = fieldPieces.map(p => `${p.coord.col},${p.coord.row}`);
+    expect(new Set(coords).size).toBe(coords.length);
+  });
+
+  it('守備チームのコマは自陣側に配置される（home守備）', () => {
+    const base = createInitialPieces();
+    const result = createGoalKickPieces(base, 'home');
+    // home自陣 = row小さい側。GK以外のフィールドコマも自陣寄り
+    const homeField = result.filter(p => p.team === 'home' && !p.isBench);
+    homeField.forEach(p => {
+      expect(p.coord.row).toBeLessThanOrEqual(MAX_ROW);
+      expect(p.coord.row).toBeGreaterThanOrEqual(0);
+    });
+    const homeGk = homeField.find(p => p.position === 'GK');
+    expect(homeGk!.coord.row).toBeLessThanOrEqual(3);
   });
 });
 

@@ -56,6 +56,7 @@ export default function Piece({ piece, x, y, isSelected, hasOrder, order, myTeam
   const half = size / 2;
   const side: Side = piece.team === myTeam ? 'ally' : 'enemy';
   const isAlly = piece.team === myTeam;
+  const selectedScale = isSelected ? 1.28 : 1;
 
   // §1-2 状態別
   const opacity = hasOrder && !isSelected ? 0.55 : 1;
@@ -84,8 +85,10 @@ export default function Piece({ piece, x, y, isSelected, hasOrder, order, myTeam
         pointerEvents: 'auto',
         overflow: 'visible', // ボールアイコンがコマの外に出ても表示されるように
         zIndex: isSelected ? 20 : 10,
+        transform: `scale(${selectedScale})`,
+        transformOrigin: '50% 50%',
         // §5-1 フェーズ1 コマ移動アニメーション 0.8s
-        transition: 'left 0.8s ease-out, top 0.8s ease-out, opacity 0.2s',
+        transition: 'left 0.8s ease-out, top 0.8s ease-out, opacity 0.2s, transform 0.16s ease-out',
       }}
       data-piece-id={piece.id}
     >
@@ -97,6 +100,31 @@ export default function Piece({ piece, x, y, isSelected, hasOrder, order, myTeam
         hasBall={piece.hasBall}
         onBallClick={isAlly && piece.hasBall && onBallClick ? () => onBallClick(piece.id) : undefined}
       />
+
+      {isSelected && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: -22,
+            transform: 'translateX(-50%)',
+            padding: '2px 7px',
+            borderRadius: 6,
+            border: '1px solid rgba(250,204,21,0.75)',
+            background: 'rgba(15, 23, 42, 0.92)',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 800,
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+            textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+            boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+            pointerEvents: 'none',
+          }}
+        >
+          {piece.position} ★{piece.cost}
+        </div>
+      )}
 
       {/* 大きいボールアイコン（コマ右上に配置、味方ボール保持者のみ） */}
       {piece.hasBall && isAlly && onBallClick && (

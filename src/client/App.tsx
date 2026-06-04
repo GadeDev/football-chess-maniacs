@@ -10,7 +10,6 @@ import { SettingsProvider } from './contexts/SettingsContext';
 
 import Title from './pages/Title';
 import ModeSelect from './pages/ModeSelect';
-import TeamSelect from './pages/TeamSelect';
 import Formation from './pages/Formation';
 import Matching from './pages/Matching';
 import Battle from './pages/Battle';
@@ -23,7 +22,6 @@ import RankingScreen from './screens/RankingScreen';
 import CollectionScreen from './screens/CollectionScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import DifficultySelectScreen from './screens/DifficultySelectScreen';
 import FriendMatchScreen from './screens/FriendMatchScreen';
 import PresetTeamsScreen from './screens/PresetTeamsScreen';
 import ReplayScreen from './screens/ReplayScreen';
@@ -31,6 +29,7 @@ import ReplayScreen from './screens/ReplayScreen';
 import type { PresetTeam } from '../data/presetTeams';
 import type { PieceData, GameEvent } from './types';
 import { MAX_ROW } from './types';
+import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 
 /** リプレイ用ターンスナップショット */
 interface TurnSnapshot {
@@ -74,16 +73,53 @@ export default function App() {
   // リプレイデータ（C9）
   const [replayTurns, setReplayTurns] = useState<TurnSnapshot[]>([]);
 
+  // 前回の対戦設定（速い層）。タイトルの「前回の編成で対戦」で復元
+  const [lastSetup, setLastSetup] = useState<LastSetup | null>(() => loadLastSetup());
+
   const navigate = useCallback((p: Page) => setPage(p), []);
 
-  const handleSelectMode = useCallback((mode: GameMode) => {
+  // マッチング開始の共通処理: 状態反映 + 前回設定の永続化 + 遷移
+  const startMatch = useCallback(
+    (mode: GameMode, difficulty: ComDifficulty, formation: FormationData | null) => {
+      setGameMode(mode);
+      setComDifficulty(difficulty);
+      setFormationData(formation);
+      const setup: LastSetup = { gameMode: mode, comDifficulty: difficulty, formationData: formation };
+      saveLastSetup(setup);
+      setLastSetup(setup);
+      setPage('matching');
+    },
+    [],
+  );
+
+  // タイトル「前回の編成で対戦」: 前回設定でマッチングへ直行
+  const handleQuickMatch = useCallback(() => {
+    if (!lastSetup) return;
+    startMatch(lastSetup.gameMode, lastSetup.comDifficulty, lastSetup.formationData);
+  }, [lastSetup, startMatch]);
+
+  // 対戦セットアップ「編成して開始」: モード/難易度を保持して編成画面へ
+  const handleStartWithFormation = useCallback((mode: GameMode, difficulty: ComDifficulty) => {
     setGameMode(mode);
+    setComDifficulty(difficulty);
+    setPage('formation');
   }, []);
 
-  const handleFormationConfirm = useCallback((data: FormationData) => {
-    setFormationData(data);
-    setPage('matching');
-  }, []);
+  // 対戦セットアップ「この設定で開始」/「観戦を開始」: 既存（前回）編成で直行
+  const handleStartNow = useCallback(
+    (mode: GameMode, difficulty: ComDifficulty) => {
+      startMatch(mode, difficulty, mode === 'comVsCom' ? null : formationData);
+    },
+    [startMatch, formationData],
+  );
+
+  // 編成画面の「マッチング開始」: 編成を保存してマッチングへ
+  const handleFormationConfirm = useCallback(
+    (data: FormationData) => {
+      startMatch(gameMode, comDifficulty, data);
+    },
+    [startMatch, gameMode, comDifficulty],
+  );
 
   // サーバーサイドCOM用のトークン（POST /match/com が返すuserId）
   const [comAuthToken, setComAuthToken] = useState<string | null>(null);
@@ -102,12 +138,8 @@ export default function App() {
     setPage('result');
   }, []);
 
-  const handleSelectDifficulty = useCallback((diff: ComDifficulty) => {
-    setComDifficulty(diff);
-  }, []);
-
   const handleSelectPresetTeam = useCallback((team: PresetTeam) => {
-    setFormationData({
+    const formation: FormationData = {
       starters: team.pieces.map((piece) => ({
         id: `preset-${team.id}-${piece.pieceId}`,
         position: piece.position,
@@ -116,24 +148,9 @@ export default function App() {
         row: MAX_ROW - piece.row,
       })),
       bench: [],
-    });
-    setGameMode('com');
-    setPage('matching');
-  }, []);
-
-  // ModeSelect からの遷移: COM/comVsCom時は難易度選択を挟む
-  // mode引数で選択されたモードを直接受け取り、state更新のタイミングに依存しない
-  const handleModeSelectNavigate = useCallback((p: Page, mode?: GameMode) => {
-    if (p === 'teamSelect' && mode === 'comVsCom') {
-      // COM観戦: チーム選択・編成をスキップして直接マッチングへ
-      setFormationData(null);
-      setPage('matching');
-    } else if (p === 'teamSelect' && mode === 'com') {
-      setPage('difficultySelect');
-    } else {
-      setPage(p);
-    }
-  }, []);
+    };
+    startMatch('com', comDifficulty, formation);
+  }, [startMatch, comDifficulty]);
 
   return (
     <SettingsProvider>
@@ -158,11 +175,18 @@ export default function App() {
       `}</style>
 
       <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-        {page === 'title' && <Title onNavigate={navigate} />}
-        {page === 'modeSelect' && (
-          <ModeSelect onNavigate={handleModeSelectNavigate} onSelectMode={handleSelectMode} />
+        {page === 'title' && (
+          <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
         )}
-        {page === 'teamSelect' && <TeamSelect onNavigate={navigate} />}
+        {page === 'modeSelect' && (
+          <ModeSelect
+            initialMode={gameMode}
+            initialDifficulty={comDifficulty}
+            onStartWithFormation={handleStartWithFormation}
+            onStartNow={handleStartNow}
+            onBack={() => navigate('title')}
+          />
+        )}
         {page === 'formation' && (
           <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} />
         )}
@@ -210,14 +234,11 @@ export default function App() {
         {page === 'replay' && (
           <Replay onNavigate={navigate} matchId={matchId ?? undefined} />
         )}
-        {page === 'shop' && <ShopScreen onNavigate={navigate} />}
+        {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken} />}
         {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
         {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
         {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
         {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
-        {page === 'difficultySelect' && (
-          <DifficultySelectScreen onNavigate={navigate} onSelectDifficulty={handleSelectDifficulty} />
-        )}
         {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
         {page === 'presetTeams' && (
           <PresetTeamsScreen onNavigate={navigate} onSelectPresetTeam={handleSelectPresetTeam} />

@@ -73,6 +73,11 @@ export const MINIGAME_COUNTDOWN_INTERVAL_MS = 1000;
 export const MINIGAME_FK_PK_COUNTDOWN = 5;
 export const MINIGAME_CK_COUNTDOWN = 10;
 
+/** ゴールキック ワイプ演出タイミング (ms) */
+export const GOALKICK_WIPE_TOTAL_MS = 1400;
+/** ワイプが画面を覆い切ったタイミング（この瞬間に裏で再配置） */
+export const GOALKICK_WIPE_COVER_MS = 560;
+
 /** フェーズ演出タイミング (ms) */
 export const PHASE_TIMINGS = [800, 500, 500, 500, 500]; // Phase0-4
 export const TOTAL_ANIMATION_MS = PHASE_TIMINGS.reduce((a, b) => a + b, 0); // 2800
@@ -111,7 +116,7 @@ export type MiniGameState =
   | { type: 'pk'; coord: HexCoord; kickerPiece: PieceData; gkPiece: PieceData; isKicker: boolean; fouledTeam: Team };
 
 /** 演出フェーズ型 */
-export type CeremonyPhase = 'kickoff' | 'kickoff2nd' | 'halftime' | 'halftime_sub' | 'secondhalf' | 'fulltime' | 'turn' | 'goal' | null;
+export type CeremonyPhase = 'kickoff' | 'kickoff2nd' | 'halftime' | 'halftime_sub' | 'secondhalf' | 'fulltime' | 'turn' | 'goal' | 'goalkick' | null;
 
 // ============================================================
 // 純粋関数
@@ -272,6 +277,63 @@ export function createGoalRestartPieces(
     fw.hasBall = true;
   }
   return resetPieces;
+}
+
+/**
+ * ゴールキック用コマ配置。
+ * 守備側（クリアした側）がGKでボールを持ち自陣でビルドアップ、
+ * 攻撃側はハーフライン付近まで引いてプレス陣形を組む。
+ *
+ * depth = 自陣ゴールラインからの距離（home: row=depth, away: row=MAX_ROW-depth）
+ */
+export function createGoalKickPieces(currentPieces: PieceData[], defenseTeam: Team): PieceData[] {
+  // 守備側（ゴールキックを行う側）: 自陣でコンパクトに展開
+  const DEF_DEPTH: Record<Position, number> = {
+    GK: 1, DF: 5, SB: 6, VO: 9, MF: 11, OM: 13, WG: 12, FW: 15,
+  };
+  // 攻撃側（プレスする側）: 自陣ゴールから前進しハーフライン付近を圧縮
+  const ATK_DEPTH: Record<Position, number> = {
+    GK: 1, DF: 14, SB: 14, VO: 17, MF: 18, OM: 20, WG: 19, FW: 21,
+  };
+  // ポジション別の列プール（同ポジ複数を左右に振り分け）
+  const COLS: Record<Position, number[]> = {
+    GK: [10], DF: [7, 13, 4, 16], SB: [2, 18, 5, 15], VO: [10, 8, 12],
+    MF: [7, 13, 5, 15], OM: [10, 8, 12], WG: [4, 16, 2, 18], FW: [8, 12, 6, 14],
+  };
+
+  const rowFor = (team: Team, depth: number) => (team === 'home' ? depth : MAX_ROW - depth);
+  const occupied = new Set<string>();
+  const counter = new Map<string, number>();
+
+  // 既占有HEXとの衝突回避（列を左右にずらす）
+  const resolveCoord = (col: number, row: number): { col: number; row: number } => {
+    const tryOffsets = [0, 1, -1, 2, -2, 3, -3];
+    for (const dc of tryOffsets) {
+      const c = Math.max(0, Math.min(21, col + dc));
+      const key = `${c},${row}`;
+      if (!occupied.has(key)) { occupied.add(key); return { col: c, row }; }
+    }
+    occupied.add(`${col},${row}`);
+    return { col, row };
+  };
+
+  const result = currentPieces.map((p) => {
+    if (p.isBench) return { ...p, hasBall: false };
+    const isDef = p.team === defenseTeam;
+    const depth = (isDef ? DEF_DEPTH : ATK_DEPTH)[p.position];
+    const colPool = COLS[p.position];
+    const key = `${p.team}|${p.position}`;
+    const idx = counter.get(key) ?? 0;
+    counter.set(key, idx + 1);
+    const coord = resolveCoord(colPool[idx % colPool.length], rowFor(p.team, depth));
+    return { ...p, coord, hasBall: false };
+  });
+
+  // ボールは守備側GK（不在時は守備側の任意FP）
+  const gk = result.find(p => p.team === defenseTeam && p.position === 'GK' && !p.isBench)
+    ?? result.find(p => p.team === defenseTeam && !p.isBench);
+  if (gk) gk.hasBall = true;
+  return result;
 }
 
 /** 正確パス距離（§7-3: 基本6HEX, コスト3+1, OM+1） */

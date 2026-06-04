@@ -33,6 +33,10 @@ interface OverlayProps {
   hoverCoord: HexCoord | null;
   /** シュート可能範囲のHEX（シュートモード時にハイライト表示） */
   shootRangeHexes?: HexCoord[];
+  /** パス可能な味方コマのHEX（パスモード時に青リング表示） */
+  passTargetHexes?: HexCoord[];
+  /** スルーパス可能な空きHEX（パスモード時にシアン表示） */
+  throughPassHexes?: HexCoord[];
   /** ロングパス警告を表示するorder pieceId → パス距離 */
   longPassWarnings?: Map<string, number>;
   /** 演出フェーズ中のイベントアイコン表示（§5-1b） */
@@ -62,6 +66,10 @@ const COLORS = {
   throughPassLine: 'rgba(0, 210, 210, 0.70)', // スルーパスコース: シアン点線
   shootRange: 'rgba(255, 60, 60, 0.15)',     // シュート可能範囲
   shootRangeOutline: 'rgba(255, 60, 60, 0.35)',
+  passTargetFill: 'rgba(60, 140, 255, 0.22)',   // パス可能な味方: 薄い青
+  passTargetRing: 'rgba(60, 140, 255, 0.95)',   // パス可能な味方: 青リング
+  throughPassFill: 'rgba(0, 210, 210, 0.16)',   // スルーパス可能な空きHEX: 薄いシアン
+  throughPassOutline: 'rgba(0, 210, 210, 0.45)',
   offsideLine: 'rgba(255, 220, 40, 0.55)',   // オフサイドライン: 黄色点線
   zoneBorder: 'rgba(255,255,255,0.12)',      // ゾーン境界線
   longPassWarning: '#ff8800',                // ロングパス警告
@@ -89,6 +97,7 @@ const ZOC_STRIPE_STEP = 6;
 const ZOC_STRIPE_WIDTH = 2;
 const ZONE_BORDER_WIDTH = 1;
 const MOVE_RANGE_OUTLINE_WIDTH = 1;
+const PASS_TARGET_RING_WIDTH = 3;
 
 export default function Overlay({
   width,
@@ -104,6 +113,8 @@ export default function Overlay({
   showZoneBorders,
   hoverCoord,
   shootRangeHexes = [],
+  passTargetHexes = [],
+  throughPassHexes = [],
   longPassWarnings,
   phaseEffects = [],
   ballTrails = [],
@@ -160,6 +171,26 @@ export default function Overlay({
         drawHex(ctx, cell.x, cell.y, HEX_R, COLORS.moveRange);
       }
       drawHexOutline(ctx, cell.x, cell.y, HEX_R, COLORS.moveRangeOutline, MOVE_RANGE_OUTLINE_WIDTH);
+    }
+
+    // ================================================================
+    // 3b. スルーパス可能な空きHEX（シアン）— パスモード時
+    // ================================================================
+    for (const hex of throughPassHexes) {
+      const cell = findCell(hex);
+      if (!cell) continue;
+      drawHex(ctx, cell.x, cell.y, HEX_R, COLORS.throughPassFill);
+      drawHexOutline(ctx, cell.x, cell.y, HEX_R, COLORS.throughPassOutline, MOVE_RANGE_OUTLINE_WIDTH);
+    }
+
+    // ================================================================
+    // 3c. パス可能な味方コマ（青リング）— パスモード時
+    // ================================================================
+    for (const hex of passTargetHexes) {
+      const cell = findCell(hex);
+      if (!cell) continue;
+      drawHex(ctx, cell.x, cell.y, HEX_R, COLORS.passTargetFill);
+      drawHexOutline(ctx, cell.x, cell.y, HEX_R, COLORS.passTargetRing, PASS_TARGET_RING_WIDTH);
     }
 
     // ================================================================
@@ -319,7 +350,7 @@ export default function Overlay({
   }, [
     width, height, highlightHexes, zocHexes, offsideLine,
     selectedPieceId, actionMode, orders, pieces, hexMap,
-    showZoneBorders, hoverCoord, shootRangeHexes, longPassWarnings,
+    showZoneBorders, hoverCoord, shootRangeHexes, passTargetHexes, throughPassHexes, longPassWarnings,
     phaseEffects, ballTrails,
   ]);
 

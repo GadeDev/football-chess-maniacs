@@ -1,195 +1,343 @@
 // ============================================================
 // ShopScreen.tsx — ショップ画面（B2）
-// パック購入・演出・コマ獲得
+// コマはインゴットで購入。インゴットはプラットフォーム決済で購入する。
 // ============================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
+  authToken?: string;
 }
 
 const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW'];
 
-interface PackDef {
-  id: string;
+/** コスト帯 → インゴット価格（ランク帯: 低=1, 中=2, 高=3） */
+function ingotPrice(cost: Cost): number {
+  if (cost >= 3) return 3;
+  if (cost >= 2) return 2;
+  return 1;
+}
+
+function costDisplay(cost: Cost): string {
+  if (cost === 3) return 'SS';
+  if (cost === 2.5) return '2+';
+  if (cost === 1.5) return '1+';
+  return String(cost);
+}
+
+interface CatalogItem {
+  pieceId: number;
   name: string;
-  price: number;
-  count: number;
-  desc: string;
-  color: string;
+  position: Position;
+  cost: Cost;
+  imageUrl?: string;
+  owned: boolean;
 }
 
-const PACKS: PackDef[] = [
-  { id: 'standard', name: 'スタンダードパック', price: 100, count: 3, desc: 'コスト1~2のコマ3枚', color: '#4488cc' },
-  { id: 'premium', name: 'プレミアムパック', price: 300, count: 5, desc: 'コスト1~3のコマ5枚 (2.5以上確定1枚)', color: '#cc8800' },
-  { id: 'position', name: 'ポジション指定パック', price: 200, count: 3, desc: '指定ポジションのコマ3枚', color: '#44aa44' },
-];
-
-const COST_RATES_STANDARD: { cost: Cost; weight: number }[] = [
-  { cost: 1, weight: 40 }, { cost: 1.5, weight: 30 }, { cost: 2, weight: 30 },
-];
-
-const COST_RATES_PREMIUM: { cost: Cost; weight: number }[] = [
-  { cost: 1, weight: 35 }, { cost: 1.5, weight: 25 }, { cost: 2, weight: 20 },
-  { cost: 2.5, weight: 12 }, { cost: 3, weight: 8 },
-];
-
-function weightedRandom(rates: { cost: Cost; weight: number }[]): Cost {
-  const total = rates.reduce((s, r) => s + r.weight, 0);
-  let roll = Math.random() * total;
-  for (const r of rates) {
-    roll -= r.weight;
-    if (roll <= 0) return r.cost;
-  }
-  return rates[rates.length - 1].cost;
+interface RawCatalogItem {
+  piece_id: number;
+  name_ja?: string;
+  name_en?: string;
+  position: string;
+  cost: number;
+  image_url?: string | null;
+  is_owned?: boolean;
 }
 
-interface PulledPiece { position: Position; cost: Cost }
-
-function pullPack(packId: string, _posFilter?: Position): PulledPiece[] {
-  const result: PulledPiece[] = [];
-  if (packId === 'standard') {
-    for (let i = 0; i < 3; i++) {
-      result.push({ position: ALL_POSITIONS[Math.floor(Math.random() * 8)], cost: weightedRandom(COST_RATES_STANDARD) });
-    }
-  } else if (packId === 'premium') {
-    // 1枚目は2.5以上確定
-    const highCosts: Cost[] = [2.5, 3];
-    result.push({
-      position: ALL_POSITIONS[Math.floor(Math.random() * 8)],
-      cost: highCosts[Math.floor(Math.random() * 2)],
-    });
-    for (let i = 1; i < 5; i++) {
-      result.push({ position: ALL_POSITIONS[Math.floor(Math.random() * 8)], cost: weightedRandom(COST_RATES_PREMIUM) });
-    }
-  } else {
-    const pos = _posFilter ?? 'FW';
-    for (let i = 0; i < 3; i++) {
-      result.push({ position: pos, cost: weightedRandom(COST_RATES_PREMIUM) });
+/** バックエンド未接続時のローカルカタログ（開発・デモ用） */
+function buildFallbackCatalog(): CatalogItem[] {
+  const costs: Cost[] = [1, 1.5, 2, 2.5, 3];
+  const items: CatalogItem[] = [];
+  let id = 1;
+  for (const pos of ALL_POSITIONS) {
+    for (const cost of costs) {
+      items.push({
+        pieceId: id++,
+        name: `${pos} ${costDisplay(cost)}`,
+        position: pos,
+        cost,
+        owned: false,
+      });
     }
   }
-  return result;
+  return items;
 }
 
-export default function ShopScreen({ onNavigate }: ShopScreenProps) {
-  const [coins, setCoins] = useState(1000);
-  const [pulled, setPulled] = useState<PulledPiece[] | null>(null);
-  const [animIdx, setAnimIdx] = useState(-1);
-  const [posFilter, setPosFilter] = useState<Position>('FW');
+export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [posFilter, setPosFilter] = useState<Position | 'ALL'>('ALL');
+  const [acquired, setAcquired] = useState<CatalogItem | null>(null);
+  const [buyingIngots, setBuyingIngots] = useState(false);
+  const [buyingId, setBuyingId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const handleBuy = useCallback((pack: PackDef) => {
-    if (coins < pack.price) return;
-    setCoins(prev => prev - pack.price);
-    const pieces = pullPack(pack.id, posFilter);
-    setPulled(pieces);
-    setAnimIdx(0);
-    // 順番に表示
-    pieces.forEach((_, i) => {
-      if (i > 0) setTimeout(() => setAnimIdx(i), i * 600);
-    });
-  }, [coins, posFilter]);
+  const authHeaders = useMemo<Record<string, string>>(() => {
+    const h: Record<string, string> = {};
+    if (authToken) h.Authorization = `Bearer ${authToken}`;
+    return h;
+  }, [authToken]);
 
-  const handleClose = useCallback(() => {
-    setPulled(null);
-    setAnimIdx(-1);
-  }, []);
+  // 残高取得（プラットフォーム連携: D1ウォレット）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/shop/wallet', { headers: authHeaders });
+        if (!res.ok) throw new Error(`wallet ${res.status}`);
+        const data = (await res.json()) as { ingots: number };
+        if (!cancelled) setBalance(data.ingots);
+      } catch {
+        if (!cancelled) setBalance(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders]);
+
+  // カタログ取得（API → 失敗時フォールバック）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/shop/catalog?limit=200', { headers: authHeaders });
+        if (!res.ok) throw new Error(`catalog ${res.status}`);
+        const data = (await res.json()) as { items: RawCatalogItem[] };
+        if (cancelled) return;
+        const mapped: CatalogItem[] = data.items.map((r) => ({
+          pieceId: r.piece_id,
+          name: r.name_ja || r.name_en || `${r.position} ${r.cost}`,
+          position: r.position.toUpperCase() as Position,
+          cost: r.cost as Cost,
+          imageUrl: r.image_url ?? undefined,
+          owned: Boolean(r.is_owned),
+        }));
+        setCatalog(mapped);
+      } catch {
+        if (!cancelled) setCatalog(buildFallbackCatalog());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders]);
+
+  const handleBuyPiece = useCallback(async (item: CatalogItem) => {
+    if (item.owned || buyingId !== null) return;
+    if (!authToken) {
+      setToast('プラットフォームにログインしてください');
+      return;
+    }
+    const price = ingotPrice(item.cost);
+    if (balance !== null && balance < price) {
+      setToast('インゴットが足りません');
+      return;
+    }
+    setBuyingId(item.pieceId);
+    try {
+      const res = await fetch('/api/shop/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ piece_id: item.pieceId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { balance?: number; error?: string };
+      if (res.status === 201) {
+        if (typeof data.balance === 'number') setBalance(data.balance);
+        setCatalog((prev) => prev.map((c) => (c.pieceId === item.pieceId ? { ...c, owned: true } : c)));
+        setAcquired(item);
+      } else if (res.status === 402) {
+        if (typeof data.balance === 'number') setBalance(data.balance);
+        setToast('インゴットが足りません');
+      } else if (res.status === 409) {
+        setCatalog((prev) => prev.map((c) => (c.pieceId === item.pieceId ? { ...c, owned: true } : c)));
+        setToast('すでに所持しています');
+      } else {
+        setToast('購入に失敗しました');
+      }
+    } catch {
+      setToast('通信エラーが発生しました');
+    } finally {
+      setBuyingId(null);
+    }
+  }, [authToken, authHeaders, balance, buyingId]);
+
+  const handleBuyIngots = useCallback(async () => {
+    setBuyingIngots(true);
+    try {
+      const res = await fetch('/api/shop/ingots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(`ingots ${res.status}`);
+      const data = (await res.json()) as { checkout_url?: string };
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+      throw new Error('no checkout_url');
+    } catch {
+      setToast('プラットフォームに接続できませんでした');
+    } finally {
+      setBuyingIngots(false);
+    }
+  }, [authHeaders]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const visible = useMemo(
+    () => (posFilter === 'ALL' ? catalog : catalog.filter((c) => c.position === posFilter)),
+    [catalog, posFilter],
+  );
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      minHeight: '100%', padding: '24px 16px', gap: 20, overflowY: 'auto',
+      minHeight: '100%', padding: '20px 16px', gap: 16, overflowY: 'auto',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      {/* ヘッダー */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 400, alignItems: 'center' }}>
+      {/* ヘッダー: タイトル + インゴット残高 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 460, alignItems: 'center' }}>
         <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>SHOP</h2>
-        <div style={{ background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.3)', borderRadius: 20, padding: '6px 16px', fontSize: 14, color: '#ffd700', fontWeight: 'bold' }}>
-          {coins} Coin
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(110,180,255,0.12)', border: '1px solid rgba(110,180,255,0.35)',
+            borderRadius: 20, padding: '6px 14px', fontSize: 14, color: '#9ecbff', fontWeight: 'bold',
+          }}>
+            <span style={{ fontSize: 15 }}>◆</span>
+            {balance === null ? '—' : balance.toLocaleString()}
+          </div>
+          <button onClick={handleBuyIngots} disabled={buyingIngots} style={{
+            padding: '7px 14px', borderRadius: 20, border: 'none',
+            background: buyingIngots ? '#444' : 'linear-gradient(135deg, #4a9eff, #2563eb)',
+            color: '#fff', fontSize: 13, fontWeight: 'bold',
+            cursor: buyingIngots ? 'default' : 'pointer', whiteSpace: 'nowrap',
+          }}>
+            {buyingIngots ? '接続中…' : '+ インゴットを購入'}
+          </button>
         </div>
       </div>
 
-      {/* パック一覧 */}
-      {!pulled && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 400 }}>
-          {PACKS.map(pack => (
-            <div key={pack.id} style={{
-              background: 'rgba(255,255,255,0.04)', border: `1px solid ${pack.color}33`,
-              borderRadius: 12, padding: 16,
-            }}>
-              <div style={{ fontSize: 16, fontWeight: 'bold', color: pack.color }}>{pack.name}</div>
-              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{pack.desc}</div>
-              {pack.id === 'position' && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                  {ALL_POSITIONS.map(pos => (
-                    <button key={pos} onClick={() => setPosFilter(pos)} style={{
-                      padding: '2px 8px', borderRadius: 4, fontSize: 11, cursor: 'pointer',
-                      border: posFilter === pos ? '1px solid #44aa44' : '1px solid rgba(255,255,255,0.1)',
-                      background: posFilter === pos ? 'rgba(68,170,68,0.2)' : 'transparent',
-                      color: posFilter === pos ? '#44aa44' : '#888',
-                    }}>
-                      {pos}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button onClick={() => handleBuy(pack)} disabled={coins < pack.price} style={{
-                marginTop: 12, padding: '10px 20px', borderRadius: 8, border: 'none',
-                background: coins < pack.price ? '#333' : pack.color,
-                color: coins < pack.price ? '#666' : '#fff',
-                fontSize: 14, fontWeight: 'bold', cursor: coins < pack.price ? 'default' : 'pointer',
-                width: '100%',
-              }}>
-                {pack.price} Coin で購入
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div style={{ fontSize: 12, color: '#7a86a8', width: '100%', maxWidth: 460 }}>
+        コマはインゴット ◆ で購入できます。インゴットはプラットフォームで購入します。
+      </div>
 
-      {/* 開封演出 */}
-      {pulled && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, width: '100%', maxWidth: 400,
-        }}>
-          <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ffd700' }}>PACK OPEN!</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {pulled.map((p, i) => (
-              <div key={i} style={{
-                opacity: i <= animIdx ? 1 : 0,
-                transform: i <= animIdx ? 'scale(1)' : 'scale(0.5)',
-                transition: 'all 0.4s ease-out',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              }}>
-                <div style={{
-                  padding: 8, borderRadius: 12,
-                  background: p.cost >= 2.5 ? 'rgba(255,215,0,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: p.cost >= 2.5 ? '1px solid rgba(255,215,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                }}>
-                  <PieceIcon cost={p.cost} position={p.position} side="ally" />
-                </div>
-                <div style={{ fontSize: 11, color: '#aaa' }}>{p.position}</div>
-              </div>
-            ))}
-          </div>
-          <button onClick={handleClose} style={{
-            padding: '10px 32px', borderRadius: 8, border: 'none',
-            background: '#44aa44', color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+      {/* ポジションフィルター */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: '100%', maxWidth: 460 }}>
+        {(['ALL', ...ALL_POSITIONS] as const).map((pos) => (
+          <button key={pos} onClick={() => setPosFilter(pos)} style={{
+            padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+            border: posFilter === pos ? '1px solid #4a9eff' : '1px solid rgba(255,255,255,0.1)',
+            background: posFilter === pos ? 'rgba(74,158,255,0.2)' : 'transparent',
+            color: posFilter === pos ? '#9ecbff' : '#888', fontWeight: posFilter === pos ? 'bold' : 'normal',
           }}>
-            OK
+            {pos === 'ALL' ? 'すべて' : pos}
           </button>
-        </div>
+        ))}
+      </div>
+
+      {/* コマカタログ */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+        gap: 10, width: '100%', maxWidth: 460,
+      }}>
+        {visible.map((item) => {
+          const price = ingotPrice(item.cost);
+          const isSS = item.cost >= 2.5;
+          const isBuying = buyingId === item.pieceId;
+          const affordable = balance === null || balance >= price;
+          const canBuy = !item.owned && affordable && buyingId === null;
+          return (
+            <div key={item.pieceId} style={{
+              background: isSS ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.04)',
+              border: isSS ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 12, padding: 12,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            }}>
+              <PieceIcon cost={item.cost} position={item.position} side="ally" />
+              <div style={{ fontSize: 12, color: '#ddd', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+                {item.name}
+              </div>
+              <div style={{ fontSize: 11, color: isSS ? '#ffd700' : '#8aa', }}>
+                {item.position} · {costDisplay(item.cost)}
+              </div>
+              {item.owned ? (
+                <div style={{
+                  marginTop: 2, padding: '7px 0', width: '100%', textAlign: 'center',
+                  borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#888',
+                  fontSize: 12, fontWeight: 'bold',
+                }}>
+                  所持済み
+                </div>
+              ) : (
+                <button onClick={() => handleBuyPiece(item)} disabled={!canBuy} style={{
+                  marginTop: 2, padding: '7px 0', width: '100%',
+                  borderRadius: 8, border: 'none',
+                  background: canBuy ? (isSS ? '#cc9a00' : '#2563eb') : '#333',
+                  color: canBuy ? '#fff' : '#666',
+                  fontSize: 12, fontWeight: 'bold', cursor: canBuy ? 'pointer' : 'default',
+                }}>
+                  {isBuying ? '購入中…' : `◆ ${price}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {visible.length === 0 && (
+        <div style={{ color: '#666', fontSize: 13, padding: 32 }}>コマを読み込み中…</div>
       )}
 
       <button onClick={() => onNavigate('title')} style={{
-        padding: '8px 24px', background: 'transparent',
+        marginTop: 8, padding: '8px 24px', background: 'transparent',
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer',
       }}>
         戻る
       </button>
+
+      {/* 獲得演出 */}
+      {acquired && (
+        <div onClick={() => setAcquired(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 300,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+          cursor: 'pointer',
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ffd700', letterSpacing: 2 }}>GET!</div>
+          <div style={{
+            padding: 16, borderRadius: 16,
+            background: acquired.cost >= 2.5 ? 'rgba(255,215,0,0.12)' : 'rgba(255,255,255,0.06)',
+            border: acquired.cost >= 2.5 ? '1px solid rgba(255,215,0,0.5)' : '1px solid rgba(255,255,255,0.12)',
+            animation: 'fcms-shop-pop 0.4s ease-out',
+          }}>
+            <PieceIcon cost={acquired.cost} position={acquired.position} side="ally" />
+          </div>
+          <div style={{ fontSize: 15, color: '#fff', fontWeight: 'bold' }}>{acquired.name}</div>
+          <div style={{ fontSize: 12, color: '#888' }}>タップして閉じる</div>
+          <style>{`@keyframes fcms-shop-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }`}</style>
+        </div>
+      )}
+
+      {/* トースト */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '10px 20px',
+          borderRadius: 8, fontSize: 13, zIndex: 310, border: '1px solid rgba(255,255,255,0.15)',
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

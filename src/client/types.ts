@@ -130,7 +130,6 @@ export type ComDifficulty = 'beginner' | 'regular' | 'maniac';
 export type Page =
   | 'title'
   | 'modeSelect'
-  | 'teamSelect'
   | 'formation'
   | 'matching'
   | 'battle'
@@ -142,7 +141,6 @@ export type Page =
   | 'collection'
   | 'profile'
   | 'settings'
-  | 'difficultySelect'
   | 'friendMatch'
   | 'presetTeams'
   | 'replayViewer';

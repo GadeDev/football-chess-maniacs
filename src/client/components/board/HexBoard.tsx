@@ -71,6 +71,10 @@ function findNearestHex(bx: number, by: number): HexCell | null {
   return bestDist <= HEX_CLICK_RADIUS_SQ ? best : null;
 }
 
+function stateActionModeIsPassive(actionMode: ActionMode): boolean {
+  return actionMode === null || actionMode === 'move';
+}
+
 // ================================================================
 
 interface HexBoardProps {
@@ -94,6 +98,10 @@ interface HexBoardProps {
   flipY?: boolean;
   /** シュート可能範囲のHEX */
   shootRangeHexes?: HexCoord[];
+  /** パス可能な味方コマのHEX（パスモード時） */
+  passTargetHexes?: HexCoord[];
+  /** スルーパス可能な空きHEX（パスモード時） */
+  throughPassHexes?: HexCoord[];
   /** ロングパス警告 */
   longPassWarnings?: Map<string, number>;
   /** フェーズ演出エフェクト（§5-1b） */
@@ -133,6 +141,8 @@ export default function HexBoard({
   myTeam = 'home',
   flipY = false,
   shootRangeHexes = [],
+  passTargetHexes = [],
+  throughPassHexes = [],
   longPassWarnings,
   phaseEffects = [],
   ballTrails = [],
@@ -202,6 +212,16 @@ export default function HexBoard({
     if (!flipY) return shootRangeHexes;
     return shootRangeHexes.map(h => ({ col: h.col, row: MAX_ROW - h.row }));
   }, [shootRangeHexes, flipY]);
+
+  const displayPassTargetHexes = useMemo(() => {
+    if (!flipY) return passTargetHexes;
+    return passTargetHexes.map(h => ({ col: h.col, row: MAX_ROW - h.row }));
+  }, [passTargetHexes, flipY]);
+
+  const displayThroughPassHexes = useMemo(() => {
+    if (!flipY) return throughPassHexes;
+    return throughPassHexes.map(h => ({ col: h.col, row: MAX_ROW - h.row }));
+  }, [throughPassHexes, flipY]);
 
   /** 表示用フェーズエフェクト（flipY反転済み） */
   const displayPhaseEffects = useMemo(() => {
@@ -299,9 +319,14 @@ export default function HexBoard({
           return;
         }
 
-        // ボール保持者が選択中 → 全クリックをアクション処理に転送
-        // （handleHexClick側でドリブル/パス/シュートを自動判定）
+        // ボール保持者が選択中:
+        // - モード未選択で別コマをタップした場合は選択切替
+        // - 空きHEX、またはパス/シュート等の明示モード中はアクション処理へ
         if (selectedPc?.hasBall) {
+          if (pieceOnHex && stateActionModeIsPassive(actionMode)) {
+            onSelectPiece(pieceOnHex.id);
+            return;
+          }
           onHexClick(gameCoord);
           return;
         }
@@ -324,7 +349,7 @@ export default function HexBoard({
         onSelectPiece(null);
       }
     },
-    [pieces, selectedPieceId, onSelectPiece, onHexClick, screenToBoard, wasDragging, flipRow],
+    [pieces, selectedPieceId, actionMode, onSelectPiece, onHexClick, screenToBoard, wasDragging, flipRow],
   );
 
   // ── PC マウスホバー（§3-6 予測線） ──
@@ -424,6 +449,8 @@ export default function HexBoard({
           showZoneBorders={showZoneBorders}
           hoverCoord={hoverCoord}
           shootRangeHexes={displayShootRangeHexes}
+          passTargetHexes={displayPassTargetHexes}
+          throughPassHexes={displayThroughPassHexes}
           longPassWarnings={longPassWarnings}
           phaseEffects={displayPhaseEffects}
           ballTrails={flipY ? ballTrails.map(t => ({
@@ -492,38 +519,46 @@ export default function HexBoard({
           if (!piece) return null;
           const cell = cellLookup.get(`${piece.coord.col},${piece.coord.row}`);
           if (!cell) return null;
-          const aboveY = cell.y - 70;
-          const menuY = aboveY < 10 ? cell.y + 50 : aboveY; // 上端はみ出し→下に
-          const menuX = Math.max(120, Math.min(cell.x, BOARD_WIDTH - 120)); // 左右はみ出し防止
+          const placeBelow = cell.y - 96 < 10;
+          const menuY = placeBelow ? cell.y + 64 : cell.y - 96; // 上端はみ出し→下に
+          const menuX = Math.max(140, Math.min(cell.x, BOARD_WIDTH - 140)); // 左右はみ出し防止
+          const btnStyle = (from: string, to: string): React.CSSProperties => ({
+            minWidth: 116, minHeight: 58, padding: '10px 20px', borderRadius: 14, border: '2px solid rgba(255,255,255,0.85)',
+            background: `linear-gradient(135deg, ${from}, ${to})`, color: '#fff',
+            fontSize: 19, fontWeight: 'bold', cursor: 'pointer', lineHeight: 1.15,
+            boxShadow: '0 5px 18px rgba(0,0,0,0.6)',
+          });
           return (
-            <div
-              style={{
-                position: 'absolute', left: menuX, top: menuY,
-                transform: 'translateX(-50%)',
-                display: 'flex', gap: 6, zIndex: 200, pointerEvents: 'auto',
-              }}
-              onPointerDown={e => e.stopPropagation()}
-              onClick={e => e.stopPropagation()}
-            >
-              <button
-                onPointerDown={(e) => { e.stopPropagation(); onActionPass?.(); }}
+            <React.Fragment>
+              {/* 対象コマを示すハイライトリング */}
+              <div
                 style={{
-                  minWidth: 90, minHeight: 44, padding: '8px 16px', borderRadius: 10, border: 'none',
-                  background: 'linear-gradient(135deg, #2563EB, #3B82F6)', color: '#fff',
-                  fontSize: 15, fontWeight: 'bold', cursor: 'pointer',
-                  boxShadow: '0 3px 12px rgba(0,0,0,0.5)',
+                  position: 'absolute', left: cell.x, top: cell.y,
+                  width: 64, height: 64, transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%', border: '3px solid #FACC15',
+                  boxShadow: '0 0 16px rgba(250,204,21,0.95)',
+                  zIndex: 199, pointerEvents: 'none',
                 }}
-              >⚽ パス</button>
-              <button
-                onPointerDown={(e) => { e.stopPropagation(); onActionDribble?.(); }}
+              />
+              <div
                 style={{
-                  minWidth: 90, minHeight: 44, padding: '8px 16px', borderRadius: 10, border: 'none',
-                  background: 'linear-gradient(135deg, #16A34A, #22C55E)', color: '#fff',
-                  fontSize: 15, fontWeight: 'bold', cursor: 'pointer',
-                  boxShadow: '0 3px 12px rgba(0,0,0,0.5)',
+                  position: 'absolute', left: menuX, top: menuY,
+                  transform: 'translate(-50%, -50%)',
+                  display: 'flex', gap: 10, zIndex: 200, pointerEvents: 'auto',
                 }}
-              >🏃 ドリブル</button>
-            </div>
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+              >
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); onActionPass?.(); }}
+                  style={btnStyle('#2563EB', '#3B82F6')}
+                >⚽<br />パス</button>
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); onActionDribble?.(); }}
+                  style={btnStyle('#16A34A', '#22C55E')}
+                >🏃<br />ドリブル</button>
+              </div>
+            </React.Fragment>
           );
         })()}
 

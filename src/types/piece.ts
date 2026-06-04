@@ -134,3 +134,19 @@ export function skuToPieceId(sku: string): number | null {
 export function pieceIdToSku(pieceId: number): string {
   return `fcms_piece_${String(pieceId).padStart(3, '0')}`;
 }
+
+// ── インゴット（ゲーム内通貨）──
+
+/** インゴットSKU → 付与インゴット数（プラットフォーム購入で加算）*/
+export const INGOT_SKU_AMOUNTS: Record<string, number> = {
+  fcms_ingots_standard: 5,
+  fcms_ingots_plus: 12,
+  fcms_ingots_mega: 30,
+};
+
+/** コスト帯 → コマ価格（インゴット）。低=1 / 中=2 / 高=3 */
+export function pieceCostToIngots(cost: number): number {
+  if (cost >= 3) return 3;
+  if (cost >= 2) return 2;
+  return 1;
+}

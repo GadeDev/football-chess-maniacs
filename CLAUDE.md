@@ -209,6 +209,9 @@ public/
 | D1マイグレーション（2026-04-22） | 0001_initial.sql: matches/teams/user_pieces/user_ratings テーブル + インデックス | ✅ |
 | Cloudflareデプロイ（2026-04-22） | Workers/DO(new_sqlite_classes)/D1/KV/R2/Queue/AI 本番反映（football-chess-maniacs.yanagiho.workers.dev） | ✅ |
 | コマPNG画像差し替え（2026-04-24） | PieceIcon.tsxをSVGプレースホルダーからPNGトークン画像に差し替え。getPieceAssetPath()ヘルパー追加、SVGオーバーレイ（選択リング/バッジ/ボール）維持、style幅サイズ上書き対応 | ✅ |
+| ショップ インゴット制（2026-06-04） | コマはインゴット（ゲーム内通貨）で購入。インゴットはプラットフォーム決済で購入→Webhookでウォレット加算。価格はコスト帯別1〜3インゴット（pieceCostToIngots）。下記「ショップ/インゴット」参照 | ✅ |
+| createGoalKickPieces テスト（2026-06-04） | ゴールキック後処理の純粋関数テスト5件追加（22枚生成/守備GKがボール保持/away守備GK/座標重複なし/守備コマ自陣） | ✅ |
+| インゲーム操作改善（2026-06-04） | パスモード時の盤面ハイライト追加（味方=青リング/スルーパス空きHEX=シアン/シュートゾーン=赤）、パス/シュート中は移動範囲を抑制、ボール保持コマのパス/ドリブルメニュー大型化+対象コマ黄リング強調。下記「インゲーム操作（v3.2）」参照 | ✅ |
 
 ---
 
@@ -231,6 +234,16 @@ public/
   - `characters_200.csv` / `characters_200.md` — 200人マスター名簿(全Era統合)
   - `naming_guidelines.md` — 命名ガイドライン(File No.規則、ISO国コード)
   - `piece_image_prompts.md` — キャラ画像生成プロンプト集
+
+### ショップ/インゴット（2026-06-04）
+- **2通貨モデル**: コマはインゴット（ゲーム内通貨）で購入。インゴット自体はプラットフォーム決済で購入。
+- **コマ価格**: コスト帯別 1〜3 インゴット（`pieceCostToIngots`: 低=1 / 中=2 / 高=3。`src/types/piece.ts`）
+- **インゴット購入**: `POST /api/shop/ingots` → プラットフォーム `/v1/commerce/purchase` を呼び `checkout_url` を返す。SKU は `fcms_ingots_standard/plus/mega`（`INGOT_SKU_AMOUNTS` = 5/12/30、要プラットフォームカタログ整合）
+- **加算経路**: Platform決済完了 → `entitlement.created` Webhook（`POST /webhook/purchase`、HMAC検証+冪等化）→ `user_wallets.ingots` に加算（インゴットは consumable のため revoke 無視）
+- **コマ購入**: `POST /api/shop/purchase`（サーバー権威）— `user_wallets` をガード付き減算（`ingots >= price`）→ `user_pieces_v2` に付与。付与失敗時はインゴット返金。残高不足は 402、所持済みは 409
+- **残高管理は FCMS の D1**: マイグレーション `0003_ingot_wallet.sql`（`user_wallets` テーブル）。本番反映には `wrangler d1 migrations apply` が必要
+- **クライアント**: `ShopScreen.tsx`（`authToken` prop）— `/api/shop/wallet` で残高、`/api/shop/catalog` でカタログ取得。コマ購入ボタン `◆N`、「+ インゴットを購入」で checkout_url へ遷移
+- **未検証（ユーザー指示で課金検証は後回し）**: 実プラットフォーム接続/JWT付きE2E、インゴットパック数量・SKU名のプラットフォームカタログ整合
 
 ### 攻撃方向（重要）
 - **home → row 33 方向に攻撃**（ball.ts: `GOAL_ROW.home = 33`）
@@ -414,6 +427,17 @@ public/
   - それ以外 → ドリブル
 - **明示モード**: ドリブル(D), パス(Q), シュート(W) キー/ボタンで切替
 - アクションガイドテキストが画面下部に表示
+
+### インゲーム操作（v3.2 — 2026-06-04 ハイライト強化）
+- **パスモード時の盤面ハイライト**（`Battle.tsx` で算出 → `HexBoard.tsx`/`Overlay.tsx` で描画）:
+  - `passTargetHexes`（青リング+薄青）: パス可能な味方コマ（`getAccuratePassRange` 以内）
+  - `throughPassHexes`（シアン）: スルーパス可能な空きHEX（pass range内、シュートゾーン除外）
+  - `shootRangeHexes`（赤）: シューターがシュートゾーンにいる場合のゴール周辺。パスモード中も表示
+  - パス/シュートモード中は移動範囲（緑 `highlightHexes`）を抑制して情報を絞る
+  - 全ハイライトは `flipY`（home視点反転）対応（HexBoard内で `displayXxxHexes` に変換）
+- **ボール保持コマのパス/ドリブルメニュー**（`HexBoard.tsx` ballActionMenu）:
+  - [⚽パス][🏃ドリブル] 大型ボタン（116×58px, 19px, 2行）、対象コマに黄色グローリングを表示してメニューの所属を明示
+  - メニュー位置はコマ上 -96px（上端はみ出し時は下 +64px）、HexBoard transform内・z-index 200
 
 ### フォーメーション → バトル引継ぎ
 - Formation.tsx → `onFormationConfirm(FormationData)` → App.tsxのstate → Battle.tsxのprop

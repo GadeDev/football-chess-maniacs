@@ -41,13 +41,14 @@ import {
   FULLTIME_RESULT_BTN_DELAY_MS, TURN_FLASH_MS, GOAL_CEREMONY_MS,
   RECONNECT_BANNER_MS, SAFETY_TIMEOUT_MS, REPLAY_DURATION,
   MINIGAME_COUNTDOWN_INTERVAL_MS, MINIGAME_FK_PK_COUNTDOWN, MINIGAME_CK_COUNTDOWN,
+  GOALKICK_WIPE_TOTAL_MS, GOALKICK_WIPE_COVER_MS,
   SHOOT_ZONE_HOME_MIN_ROW, SHOOT_ZONE_AWAY_MAX_ROW,
   GOAL_COL_MIN, GOAL_COL_MAX, GOAL_ROW_RANGE,
   PHASE_TIMINGS, TOTAL_ANIMATION_MS,
   // Types
   type MiniGameState, type CeremonyPhase,
   // Functions
-  createInitialPieces, createGoalRestartPieces, toEnginePiece,
+  createInitialPieces, createGoalRestartPieces, createGoalKickPieces, toEnginePiece,
   clientOrderToEngine, enginePiecesToClient,
   computeReachableHexes, isShootZoneForPiece, getAccuratePassRange,
   getMatchTimeLabel, computeStats, computeMvp,
@@ -513,10 +514,50 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   // ── A2: 移動範囲（selectedPiece の移動可能HEX） ──
   const highlightHexes = useMemo(() => {
     if (!selectedPiece || isInputDisabled) return [];
+    // パス/シュートモード中は移動範囲（緑）を出さない（パス先・シュート先のハイライトに集中）
+    if (state.actionMode === 'pass' || state.actionMode === 'shoot') return [];
     const ep = toEnginePiece(selectedPiece);
     const isDribbling = selectedPiece.hasBall;
     return computeReachableHexes(ep, isDribbling, boardContext);
-  }, [selectedPiece, isInputDisabled, boardContext]);
+  }, [selectedPiece, isInputDisabled, boardContext, state.actionMode]);
+
+  // ── パスモード: パス可能な味方コマ（青リング） ──
+  const passTargetHexes = useMemo(() => {
+    if (!selectedPiece || isInputDisabled || state.actionMode !== 'pass') return [];
+    const accurateRange = getAccuratePassRange(selectedPiece);
+    return state.board.pieces
+      .filter(
+        (p) =>
+          p.team === state.myTeam &&
+          p.id !== selectedPiece.id &&
+          !p.isBench &&
+          hexDistance(selectedPiece.coord, p.coord) <= accurateRange,
+      )
+      .map((p) => ({ col: p.coord.col, row: p.coord.row }));
+  }, [selectedPiece, isInputDisabled, state.actionMode, state.board.pieces, state.myTeam]);
+
+  // ── パスモード: スルーパス可能な空きHEX（シアン）。シュートゾーンは除外（赤で別表示） ──
+  const throughPassHexes = useMemo(() => {
+    if (!selectedPiece || isInputDisabled || state.actionMode !== 'pass') return [];
+    const accurateRange = getAccuratePassRange(selectedPiece);
+    const occupied = new Set(
+      state.board.pieces.filter((p) => !p.isBench).map((p) => `${p.coord.col},${p.coord.row}`),
+    );
+    const pos = selectedPiece.position;
+    const result: HexCoord[] = [];
+    const { col: sc, row: sr } = selectedPiece.coord;
+    for (let col = sc - accurateRange; col <= sc + accurateRange; col++) {
+      for (let row = sr - accurateRange; row <= sr + accurateRange; row++) {
+        const coord = { col, row };
+        if (!boardContext.isValidHex(coord)) continue;
+        if (occupied.has(`${col},${row}`)) continue;
+        if (hexDistance(selectedPiece.coord, coord) > accurateRange) continue;
+        if (isShootZoneForPiece(coord, state.myTeam, pos)) continue;
+        result.push(coord);
+      }
+    }
+    return result;
+  }, [selectedPiece, isInputDisabled, state.actionMode, state.board.pieces, state.myTeam, boardContext]);
 
   // ── A3: ZOC表示（選択コマがある時のみ） ──
   const zocHexes = useMemo(() => {
@@ -546,7 +587,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   // ── A4: シュート可能範囲HEX（シュートモード時に表示） ──
   const shootRangeHexes = useMemo(() => {
     if (!selectedPiece) return [];
-    if (state.actionMode !== 'shoot' && !(selectedPiece.hasBall && state.actionMode === null)) return [];
+    if (state.actionMode !== 'shoot' && state.actionMode !== 'pass' && !(selectedPiece.hasBall && state.actionMode === null)) return [];
     // highlightHexes（移動可能範囲）のうちシュートゾーンに入るHEXを返す
     // + 現在位置がシュートゾーンなら現在位置のゴール方向HEXも含める
     const pos = selectedPiece.position;
@@ -788,6 +829,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'shoot', targetHex: coord } });
       } else if (state.actionMode === 'dribble') {
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'dribble', targetHex: coord } });
+      } else if (state.actionMode === 'move') {
+        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: hasBall ? 'dribble' : 'move', targetHex: coord } });
       } else if (state.actionMode === 'throughPass') {
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'throughPass', targetHex: coord } });
       } else if (hasBall) {
@@ -1241,15 +1284,23 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               const defenseTeam: Team = ckAttackTeam === 'home' ? 'away' : 'home';
               // 簡易CK解決: 攻撃側が50%でボール獲得
               const attackerWon = Math.random() < 0.5;
-              const ballTeam = attackerWon ? ckAttackTeam : defenseTeam;
-              const holder = state.board.pieces.find(p => p.team === ballTeam && !p.isBench && p.position !== 'GK')
-                ?? state.board.pieces.find(p => p.team === ballTeam && !p.isBench);
-              showOverlay(attackerWon ? 'CK: 攻撃成功' : 'CK: 守備成功', { duration: 1000, fontSize: 36 });
-              await wait(1000);
-              const ballState = setBallHolder(state.board.pieces, holder?.id ?? null);
+              showOverlay(attackerWon ? 'CK: 攻撃成功' : 'CK: 守備クリア', { duration: 800, fontSize: 36 });
+              await wait(800);
+              let boardPieces: PieceData[];
+              let freeBallHex: HexCoord | null = null;
+              if (attackerWon) {
+                const holder = state.board.pieces.find(p => p.team === ckAttackTeam && !p.isBench && p.position !== 'GK')
+                  ?? state.board.pieces.find(p => p.team === ckAttackTeam && !p.isBench);
+                const ballState = setBallHolder(state.board.pieces, holder?.id ?? null);
+                boardPieces = ballState.pieces;
+                freeBallHex = ballState.freeBallHex;
+              } else {
+                // 守備クリア = ゴールキック: 専用陣形に再配置（COM観戦はワイプ演出を省略）
+                boardPieces = createGoalKickPieces(state.board.pieces, defenseTeam);
+              }
               dispatch({
                 type: 'SET_BOARD',
-                board: { pieces: ballState.pieces, freeBallHex: ballState.freeBallHex },
+                board: { pieces: boardPieces, freeBallHex },
                 turn: state.turn,
                 scoreHome: newScoreHome,
                 scoreAway: newScoreAway,
@@ -1569,7 +1620,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   }, [miniGame, state, dispatch, clearReplayTimers, formationData, showOverlay, pickComGkZone, isComVsCom]);
 
   // ── A7: CKミニゲーム完了ハンドラ（ゾーン対決を解決してボール所持者を設定） ──
-  const handleCKComplete = useCallback((data: import('../components/minigame/CKGame').CKInput) => {
+  const handleCKComplete = useCallback(async (data: import('../components/minigame/CKGame').CKInput) => {
     if (!miniGame || miniGame.type !== 'ck') return;
 
     const attackTeam = miniGame.attackTeam;
@@ -1622,46 +1673,65 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       zoneResults.push(`${CK_ZONE_LABELS[zone]}: ★${atkCost} vs ★${defCost} → ${mark}`);
     }
 
-    // 2ゾーン以上勝てば攻撃側がボール獲得、それ以外は守備側GKがボール獲得
-    const attackerWon = attackWins >= 2;
-    const ballTeam = attackerWon ? attackTeam : defenseTeam;
-
-    // ボール保持者を設定: 勝った側の適切なコマ
-    let newHolderId: string | null = null;
-    if (attackerWon) {
-      // 攻撃成功: 攻撃側FWまたは最初のFP
-      const candidate = currentPieces.find(p => p.team === ballTeam && p.position === 'FW' && !p.isBench)
-        ?? currentPieces.find(p => p.team === ballTeam && !p.isBench && p.position !== 'GK');
-      newHolderId = candidate?.id ?? null;
-    } else {
-      // 守備成功: GKがボール獲得
-      const gk = currentPieces.find(p => p.team === ballTeam && p.position === 'GK' && !p.isBench);
-      newHolderId = gk?.id ?? currentPieces.find(p => p.team === ballTeam && !p.isBench)?.id ?? null;
-    }
-
-    // 結果フィードバック
-    const resultTitle = attackerWon ? 'ヘディングチャンス!' : 'クリア成功!';
-    const resultColor = attackerWon ? '#ffd700' : '#4ade80';
-    showOverlay(resultTitle, {
-      subText: `${zoneResults.join('\n')}\n${attackWins}/3ゾーン勝利`,
-      duration: 2000, color: resultColor, fontSize: 40,
-    });
-
-    // ボール状態を更新
-    const ballState = setBallHolder(currentPieces, newHolderId);
-    dispatch({
-      type: 'SET_BOARD',
-      board: { pieces: ballState.pieces, freeBallHex: ballState.freeBallHex },
-      turn: state.turn,
-      scoreHome: state.scoreHome,
-      scoreAway: state.scoreAway,
-    });
+    // 結果判定: 3勝=ゴール / 2勝=ヘディングチャンス(攻撃継続) / それ以下=守備クリア=ゴールキック
+    const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    const zoneSummary = `${zoneResults.join('\n')}\n${attackWins}/3ゾーン勝利`;
 
     setMiniGame(null);
     setMiniGameCountdown(MINIGAME_CK_COUNTDOWN);
-    dispatch({ type: 'NEXT_TURN' });
     clearReplayTimers();
-  }, [miniGame, state.board.pieces, state.turn, state.scoreHome, state.scoreAway, dispatch, clearReplayTimers, showOverlay, comDifficulty]);
+
+    // ── 3ゾーン全勝: ゴール → キックオフ再配置 ──
+    if (attackWins === 3) {
+      const newScoreHome = state.scoreHome + (attackTeam === 'home' ? 1 : 0);
+      const newScoreAway = state.scoreAway + (attackTeam === 'away' ? 1 : 0);
+      showOverlay('GOAL!!', {
+        subText: `${newScoreHome} - ${newScoreAway}`,
+        duration: GOAL_CEREMONY_MS, color: '#FFD700', fontSize: 64, glow: true,
+      });
+      setCeremony('goal');
+      await wait(GOAL_CEREMONY_MS);
+      setCeremony(null);
+      // 失点した守備側がキックオフ
+      const resetPieces = createGoalRestartPieces(formationData, defenseTeam, currentPieces);
+      dispatch({
+        type: 'SET_BOARD',
+        board: { pieces: resetPieces },
+        turn: state.turn, scoreHome: newScoreHome, scoreAway: newScoreAway,
+      });
+      dispatch({ type: 'NEXT_TURN' });
+      return;
+    }
+
+    // ── 2ゾーン勝利: ヘディングチャンス（攻撃継続・コマ位置はそのまま） ──
+    if (attackWins === 2) {
+      const candidate = currentPieces.find(p => p.team === attackTeam && p.position === 'FW' && !p.isBench)
+        ?? currentPieces.find(p => p.team === attackTeam && !p.isBench && p.position !== 'GK');
+      showOverlay('ヘディングチャンス!', { subText: zoneSummary, duration: 2000, color: '#ffd700', fontSize: 40 });
+      const ballState = setBallHolder(currentPieces, candidate?.id ?? null);
+      dispatch({
+        type: 'SET_BOARD',
+        board: { pieces: ballState.pieces, freeBallHex: ballState.freeBallHex },
+        turn: state.turn, scoreHome: state.scoreHome, scoreAway: state.scoreAway,
+      });
+      dispatch({ type: 'NEXT_TURN' });
+      return;
+    }
+
+    // ── 1ゾーン以下: 守備クリア = ゴールキック（ワイプ演出 → 専用再配置） ──
+    showOverlay('クリア成功!', { subText: zoneSummary, duration: 1600, color: '#4ade80', fontSize: 40 });
+    setCeremony('goalkick');
+    await wait(GOALKICK_WIPE_COVER_MS); // ワイプが画面を覆い切る瞬間まで待つ
+    const gkPieces = createGoalKickPieces(currentPieces, defenseTeam);
+    dispatch({
+      type: 'SET_BOARD',
+      board: { pieces: gkPieces, freeBallHex: null },
+      turn: state.turn, scoreHome: state.scoreHome, scoreAway: state.scoreAway,
+    });
+    await wait(GOALKICK_WIPE_TOTAL_MS - GOALKICK_WIPE_COVER_MS);
+    setCeremony(null);
+    dispatch({ type: 'NEXT_TURN' });
+  }, [miniGame, state.board.pieces, state.turn, state.scoreHome, state.scoreAway, dispatch, clearReplayTimers, showOverlay, comDifficulty, formationData, setCeremony]);
 
   // PC: 右クリックコンテキストメニュー（§3-2）
   const handleContextMenu = useCallback(
@@ -1742,9 +1812,10 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       case 'throughPass': return 'スルーパス先をタップ';
       case 'shoot': return 'シュート先をタップ';
       case 'dribble': return 'ドリブル先をタップ';
+      case 'move': return hasBall ? 'ドリブル先をタップ' : '移動先をタップ';
       case 'substitute': return '交代先のベンチを選択';
       default:
-        if (hasBall) return 'コマ=ドリブル / ⚽=パス・シュート';
+        if (hasBall) return '空きHEX=ドリブル / パス・シュートは下のボタン';
         return '移動先をタップ';
     }
   }, [selectedPiece, state.actionMode, state.orders, ballActionMenu, state.board.freeBallHex]);
@@ -1939,6 +2010,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             myTeam={state.myTeam}
             flipY={state.myTeam === 'home'}
             shootRangeHexes={shootRangeHexes}
+            passTargetHexes={passTargetHexes}
+            throughPassHexes={throughPassHexes}
             longPassWarnings={longPassWarnings}
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}
@@ -1966,27 +2039,34 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             maxHeight: '70%',
             overflowY: 'auto',
           }}>
-            {unorderedPieces.map((piece) => (
-              <button
-                key={piece.id}
-                onClick={(e) => { e.stopPropagation(); handleSelectPiece(piece.id); }}
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: '50%',
-                  border: `2px solid ${POSITION_COLORS[piece.position]}40`,
-                  background: 'rgba(20,20,40,0.85)',
-                  color: POSITION_COLORS[piece.position],
-                  fontSize: 9,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  padding: 0,
-                  flexShrink: 0,
-                }}
-              >
-                {piece.position}
-              </button>
-            ))}
+            {unorderedPieces.map((piece) => {
+              const isSelectedQuick = piece.id === state.selectedPieceId;
+              return (
+                <button
+                  key={piece.id}
+                  onClick={(e) => { e.stopPropagation(); handleSelectPiece(piece.id); }}
+                  style={{
+                    width: isSelectedQuick ? 38 : 30,
+                    height: isSelectedQuick ? 38 : 30,
+                    borderRadius: '50%',
+                    border: isSelectedQuick
+                      ? '2px solid #facc15'
+                      : `2px solid ${POSITION_COLORS[piece.position]}60`,
+                    background: isSelectedQuick ? 'rgba(250,204,21,0.18)' : 'rgba(20,20,40,0.85)',
+                    color: isSelectedQuick ? '#fff' : POSITION_COLORS[piece.position],
+                    fontSize: isSelectedQuick ? 10 : 9,
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    padding: 0,
+                    flexShrink: 0,
+                    boxShadow: isSelectedQuick ? '0 0 12px rgba(250,204,21,0.55)' : undefined,
+                    transition: 'width 0.12s ease-out, height 0.12s ease-out, background 0.12s',
+                  }}
+                >
+                  {piece.position}
+                </button>
+              );
+            })}
           </div>
 
           {/* §2-3 相手コマ情報ポップアップ */}
@@ -2023,7 +2103,56 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           )}
         </div>
 
-        {/* §2-4 アクションバー（60px）— 交代時ベンチスライドアップ付き */}
+        {/* §2-5 選択状態 + 操作ガイド */}
+        <div style={{
+          minHeight: 50,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '6px 12px',
+          background: 'rgba(15, 23, 42, 0.96)',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          fontSize: 13,
+          gap: 10,
+          flexShrink: 0,
+        }}>
+          {selectedPiece ? (
+            <>
+              <div style={{
+                minWidth: 76,
+                padding: '5px 8px',
+                borderRadius: 8,
+                border: `1px solid ${POSITION_COLORS[selectedPiece.position]}99`,
+                background: `${POSITION_COLORS[selectedPiece.position]}22`,
+                color: POSITION_COLORS[selectedPiece.position],
+                fontWeight: 900,
+                textAlign: 'center',
+                lineHeight: 1.1,
+              }}>
+                <div style={{ fontSize: 15 }}>{selectedPiece.position}</div>
+                <div style={{ fontSize: 11, color: '#facc15', marginTop: 2 }}>★{selectedPiece.cost}</div>
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 700 }}>
+                  {selectedPiece.hasBall ? 'ボール保持中' : state.orders.has(selectedPiece.id) ? '命令済み' : '選択中'}
+                </div>
+                <div style={{
+                  color: '#94a3b8',
+                  fontSize: 12,
+                  marginTop: 3,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {actionGuide}
+                </div>
+              </div>
+            </>
+          ) : (
+            <span style={{ color: '#94a3b8' }}>{actionGuide}</span>
+          )}
+        </div>
+
+        {/* §2-4 アクションバー — 交代時ベンチスライドアップ付き */}
         <ActionBar
           selectedPiece={selectedPiece}
           actionMode={state.actionMode}
@@ -2037,31 +2166,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           onConfirm={handleConfirm}
           onSubstitute={handleSubstitute}
         />
-
-        {/* §2-5 情報バー（40px） — 選択状態 + アクションガイド */}
-        <div style={{
-          height: 40,
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 12px',
-          background: 'rgba(20, 20, 40, 0.95)',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          fontSize: 13,
-          gap: 8,
-          flexShrink: 0,
-        }}>
-          {selectedPiece ? (
-            <>
-              <span style={{ color: POSITION_COLORS[selectedPiece.position], fontWeight: 'bold' }}>
-                {selectedPiece.position}★{selectedPiece.cost}
-              </span>
-              {selectedPiece.hasBall && <span style={{ color: '#8cf' }}>⚽</span>}
-              <span style={{ color: '#64748b', fontSize: 11 }}>{actionGuide}</span>
-            </>
-          ) : (
-            <span style={{ color: '#555' }}>{actionGuide}</span>
-          )}
-        </div>
       </div>
     );
   }
@@ -2121,6 +2225,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             myTeam={state.myTeam}
             flipY={state.myTeam === 'home'}
             shootRangeHexes={shootRangeHexes}
+            passTargetHexes={passTargetHexes}
+            throughPassHexes={throughPassHexes}
             longPassWarnings={longPassWarnings}
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}

@@ -126,11 +126,11 @@ export default function ResultScreen({
       {/* ボタン */}
       <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         <ResultButton label="リプレイを見る" onClick={() => onNavigate('replayViewer')} />
-        {gameMode === 'com' && (
-          <ResultButton label="もう一度" primary onClick={() => onNavigate('formation')} />
-        )}
-        {gameMode === 'comVsCom' && (
+        {(gameMode === 'com' || gameMode === 'comVsCom') && (
           <ResultButton label="もう一度" primary onClick={() => onNavigate('matching')} />
+        )}
+        {gameMode === 'com' && (
+          <ResultButton label="編成を変える" onClick={() => onNavigate('formation')} />
         )}
         <ResultButton label="ホームに戻る" onClick={() => onNavigate('title')} />
       </div>

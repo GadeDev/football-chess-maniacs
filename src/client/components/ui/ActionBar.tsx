@@ -38,6 +38,7 @@ export default function ActionBar({
   const hasBall = selectedPiece?.hasBall ?? false;
   const hasSelection = selectedPiece !== null;
   const showBench = actionMode === 'substitute' && hasSelection;
+  const moveActive = hasSelection && !hasBall && (actionMode === null || actionMode === 'move');
 
   return (
     <div style={{ position: 'relative' }}>
@@ -105,7 +106,7 @@ export default function ActionBar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
-          height: 60,
+          height: 66,
           background: 'rgba(20, 20, 40, 0.95)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
           padding: '0 8px',
@@ -115,6 +116,14 @@ export default function ActionBar({
         {/* 戻す / 全取消 (長押しで全取消) */}
         <ActionButton label="戻す" onClick={onUndo} disabled={!hasOrders} />
         <ActionButton label="全取消" onClick={onClearAll} disabled={!hasOrders} danger />
+
+        {/* 移動モード（ボール非保持時の基本操作を明示） */}
+        <ActionButton
+          label="移動"
+          onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
+          disabled={!hasSelection || hasBall}
+          active={moveActive}
+        />
 
         {/* ドリブルモード（ボール保持時のみ） */}
         <ActionButton
@@ -176,11 +185,12 @@ function ActionButton({
       disabled={disabled}
       style={{
         flex: 1,
-        height: 44,
-        maxWidth: 80,
+        height: 48,
+        minWidth: 0,
+        maxWidth: 76,
         border: 'none',
         borderRadius: 8,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 'bold',
         cursor: disabled ? 'default' : 'pointer',
         background: primary
