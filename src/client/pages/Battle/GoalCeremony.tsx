@@ -5,8 +5,15 @@
 // ceremony === 'goal' の間だけマウントされる前提（マウント=演出開始）。
 // ============================================================
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Team } from '../../types';
+import { GOAL_CEREMONY_MS } from './battleUtils';
+
+// ── 演出タイミング ──
+/** タメ: 暗転のみで静止する時間。この後に着弾（フラッシュ/スラム）が来る */
+const TAME_MS = 320;
+/** 退場: 演出終了のこの時間前から文字・帯が抜けていく */
+const EXIT_MS = 220;
 
 interface GoalCeremonyProps {
   scorerTeam: Team;
@@ -86,8 +93,9 @@ function useConfetti(canvasRef: React.RefObject<HTMLCanvasElement | null>, color
     };
 
     let raf = 0;
-    const t1 = window.setTimeout(() => spawn(130), 150);
-    const t2 = window.setTimeout(() => spawn(70), 750);
+    // タメ(TAME_MS)後の着弾に合わせてバースト
+    const t1 = window.setTimeout(() => spawn(130), TAME_MS + 150);
+    const t2 = window.setTimeout(() => spawn(70), TAME_MS + 750);
 
     const g = 0.22 * dpr;
     const step = () => {
@@ -128,32 +136,49 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
   const speedlines = useMemo(() => buildSpeedlines(), []);
   useConfetti(canvasRef, palette.confetti);
 
+  // 退場フェーズ: 終了EXIT_MS前から文字・帯がフレームアウト
+  const [exiting, setExiting] = useState(false);
+  useEffect(() => {
+    if (reducedMotion) return;
+    const t = window.setTimeout(() => setExiting(true), Math.max(0, GOAL_CEREMONY_MS - EXIT_MS));
+    return () => window.clearTimeout(t);
+  }, []);
+
   const homeLit = scorerTeam === 'home';
+  const tame = (extra: number) => `${TAME_MS + extra}ms`;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 220, pointerEvents: 'none', overflow: 'hidden' }}>
       <style>{`
+        @keyframes gc-dim-in { from { opacity:0; } to { opacity:1; } }
         @keyframes gc-flash { 0% { opacity:0; } 8% { opacity:.95; } 30% { opacity:.5; } 100% { opacity:0; } }
         @keyframes gc-sl-spin { to { transform:translate(-50%,-50%) rotate(360deg); } }
+        @keyframes gc-sl-in { from { opacity:0; } to { opacity:.9; } }
         @keyframes gc-band-in { 0% { transform:skewY(-6deg) scaleX(0); } 100% { transform:skewY(-6deg) scaleX(1); } }
         @keyframes gc-word-slam { 0% { transform:scale(4) rotate(-7deg); opacity:0; } 55% { transform:scale(.92) rotate(-4deg); opacity:1; } 75% { transform:scale(1.06) rotate(-5deg); } 100% { transform:scale(1) rotate(-5deg); opacity:1; } }
         @keyframes gc-sub-in { from { opacity:0; transform:translate(-50%,0) translateY(8px); letter-spacing:.7em; } to { opacity:1; transform:translate(-50%,0); letter-spacing:.45em; } }
         @keyframes gc-score-bump { 0% { transform:scale(1); } 30% { transform:scale(2); filter:drop-shadow(0 0 14px currentColor); } 100% { transform:scale(1); } }
+        @keyframes gc-word-out { to { transform:scale(1.4) rotate(-5deg) translateX(60%); opacity:0; } }
+        @keyframes gc-band-out { to { transform:skewY(-6deg) scaleX(0); opacity:0; } }
+        @keyframes gc-fade-out { to { opacity:0; } }
       `}</style>
 
-      {/* dimmer（中心は抜く） */}
+      {/* dimmer（中心は抜く）: タメ=暗転フェードインで静止を作る */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'radial-gradient(ellipse 90% 55% at 50% 45%, transparent 26%, rgba(2,4,7,.82) 100%)',
         opacity: 1,
+        animation: reducedMotion ? 'none'
+          : exiting ? `gc-fade-out ${EXIT_MS}ms ease-in both`
+          : 'gc-dim-in .3s ease-out both',
       }} />
 
-      {/* flash */}
+      {/* flash: タメ後の「着弾」 */}
       <div style={{
         position: 'absolute', inset: 0,
         background: palette.hi,
         opacity: 0,
-        animation: reducedMotion ? 'none' : 'gc-flash .55s ease-out',
+        animation: reducedMotion ? 'none' : `gc-flash .55s ease-out ${tame(0)} both`,
       }} />
 
       {/* 紙吹雪 */}
@@ -167,8 +192,10 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
           position: 'absolute', left: '50%', top: '45%',
           width: '200vmax', height: '200vmax',
           transform: 'translate(-50%,-50%)',
-          opacity: reducedMotion ? 0.35 : 0.9,
-          animation: reducedMotion ? 'none' : 'gc-sl-spin 7s linear infinite',
+          opacity: reducedMotion ? 0.35 : undefined,
+          animation: reducedMotion ? 'none'
+            : exiting ? `gc-sl-spin 7s linear infinite, gc-fade-out ${EXIT_MS}ms ease-in both`
+            : `gc-sl-spin 7s linear infinite, gc-sl-in .25s ease-out ${tame(0)} both`,
         }}
       />
 
@@ -179,7 +206,9 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
         boxShadow: `0 0 60px ${palette.main}aa`,
         transform: 'skewY(-6deg) scaleX(1)',
         transformOrigin: 'center',
-        animation: reducedMotion ? 'none' : 'gc-band-in .28s cubic-bezier(.2,.9,.2,1)',
+        animation: reducedMotion ? 'none'
+          : exiting ? `gc-band-out ${EXIT_MS}ms ease-in both`
+          : `gc-band-in .28s cubic-bezier(.2,.9,.2,1) ${tame(0)} both`,
       }} />
 
       {/* GOOAL! */}
@@ -193,7 +222,9 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
           fontSize: 'clamp(56px,17vw,96px)', letterSpacing: '.01em', color: '#fff',
           WebkitTextStroke: `2.5px ${INK}`,
           textShadow: `0 0 26px ${palette.hi}, 4px 4px 0 ${INK}, 8px 8px 0 rgba(0,0,0,.35)`,
-          animation: reducedMotion ? 'none' : 'gc-word-slam .42s cubic-bezier(.15,1.6,.3,1) .07s both',
+          animation: reducedMotion ? 'none'
+            : exiting ? `gc-word-out ${EXIT_MS}ms ease-in both`
+            : `gc-word-slam .42s cubic-bezier(.15,1.6,.3,1) ${tame(70)} both`,
           transform: reducedMotion ? 'rotate(-5deg)' : undefined,
         }}>
           GOOAL!
@@ -205,21 +236,23 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
         position: 'absolute', left: '50%', top: '63%', transform: 'translate(-50%,0)',
         display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'center',
         fontVariantNumeric: 'tabular-nums',
-        animation: reducedMotion ? 'none' : 'gc-sub-in .3s ease-out .3s both',
+        animation: reducedMotion ? 'none'
+          : exiting ? `gc-fade-out ${EXIT_MS}ms ease-in both`
+          : `gc-sub-in .3s ease-out ${tame(300)} both`,
       }}>
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.home.hi }}>HOME</span>
         <span style={{
           fontSize: 32, fontWeight: 900, lineHeight: 1,
           fontFamily: "'Arial Black','Hiragino Sans W8',sans-serif",
           color: homeLit ? PALETTES.home.hi : '#dfe7ee', display: 'inline-block',
-          animation: (!reducedMotion && homeLit) ? 'gc-score-bump .7s cubic-bezier(.2,2.4,.4,1) .35s' : 'none',
+          animation: (!reducedMotion && homeLit && !exiting) ? `gc-score-bump .7s cubic-bezier(.2,2.4,.4,1) ${tame(350)}` : 'none',
         }}>{scoreHome}</span>
         <span style={{ color: '#3c4a55', fontSize: 22, fontWeight: 700 }}>–</span>
         <span style={{
           fontSize: 32, fontWeight: 900, lineHeight: 1,
           fontFamily: "'Arial Black','Hiragino Sans W8',sans-serif",
           color: !homeLit ? PALETTES.away.hi : '#dfe7ee', display: 'inline-block',
-          animation: (!reducedMotion && !homeLit) ? 'gc-score-bump .7s cubic-bezier(.2,2.4,.4,1) .35s' : 'none',
+          animation: (!reducedMotion && !homeLit && !exiting) ? `gc-score-bump .7s cubic-bezier(.2,2.4,.4,1) ${tame(350)}` : 'none',
         }}>{scoreAway}</span>
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.away.hi }}>AWAY</span>
       </div>

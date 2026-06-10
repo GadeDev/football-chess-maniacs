@@ -3,7 +3,7 @@
 // ============================================================
 
 import React from 'react';
-import type { CeremonyPhase } from './battleUtils';
+import type { CeremonyPhase, GoalCelebrationInfo } from './battleUtils';
 import type { PieceData, GameEvent, MatchEndData, MatchStats, MvpInfo, Team, Page } from '../../types';
 import HalftimeSubPanel from '../../components/ui/HalftimeSubPanel';
 import GoalCeremony from './GoalCeremony';
@@ -15,7 +15,7 @@ interface CeremonyLayerProps {
   showResultBtn: boolean;
   scoreHome: number;
   scoreAway: number;
-  goalScorer: Team | null;
+  goalCelebration: GoalCelebrationInfo | null;
   turn: number;
   myTeam: Team;
   // Halftime sub panel
@@ -32,19 +32,20 @@ interface CeremonyLayerProps {
 }
 
 export default function CeremonyLayer({
-  ceremony, showResultBtn, scoreHome, scoreAway, goalScorer, turn, myTeam,
+  ceremony, showResultBtn, scoreHome, scoreAway, goalCelebration, turn, myTeam,
   pieces, halftimeSubsUsed, onHalftimeSubstitute, onHalftimeReady, halftimeCountdown,
   cumulativeEvents, boardPieces, onMatchEnd, onNavigate,
 }: CeremonyLayerProps) {
   if (!ceremony) return null;
 
   // GOAL! はリッチ専用演出（チームカラー別カットイン）に委譲
+  // スコアは演出開始時に固定したスナップショットを使う（stateの加点は演出後のため）
   if (ceremony === 'goal') {
     return (
       <GoalCeremony
-        scorerTeam={goalScorer ?? 'home'}
-        scoreHome={scoreHome}
-        scoreAway={scoreAway}
+        scorerTeam={goalCelebration?.team ?? 'home'}
+        scoreHome={goalCelebration?.scoreHome ?? scoreHome}
+        scoreAway={goalCelebration?.scoreAway ?? scoreAway}
       />
     );
   }

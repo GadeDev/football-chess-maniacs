@@ -46,12 +46,13 @@ class SoundManager {
   setEnabled(enabled: boolean) { this.enabled = enabled; }
   setVolume(vol: number) { this.volume = Math.max(0, Math.min(1, vol / 100)); }
 
-  /** ゴール演出用の歓声スウェル（バンドパスノイズのフェードイン→アウト） */
-  playGoalCelebration(durationSec = 2.4) {
+  /** ゴール演出用の歓声スウェル（バンドパスノイズのフェードイン→アウト）
+   *  delaySec: GoalCeremonyのタメ(TAME_MS=320ms)と同期し、着弾の瞬間に歓声が爆発する */
+  playGoalCelebration(durationSec = 2.4, delaySec = 0.32) {
     if (!this.enabled) return;
     try {
       const ctx = this.getCtx();
-      const t = ctx.currentTime;
+      const t = ctx.currentTime + delaySec;
       const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * durationSec), ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;

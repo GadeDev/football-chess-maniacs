@@ -215,6 +215,7 @@ public/
 | インゲーム操作改善（2026-06-04） | パスモード時の盤面ハイライト追加（味方=青リング/スルーパス空きHEX=シアン/シュートゾーン=赤）、パス/シュート中は移動範囲を抑制、ボール保持コマのパス/ドリブルメニュー大型化+対象コマ黄リング強調。下記「インゲーム操作（v3.2）」参照 | ✅ |
 | 初回3ターンチュートリアル（2026-06-04, issue #3） | COM対戦の初回プレイのみ Turn 1=移動 / 2=パス / 3=シュート のガイドを順に表示。localStorage `fcms_tutorial_done` で既読管理し2回目以降スキップ。comVsCom非表示 | ✅ |
 | リッチGOAL演出（2026-06-11） | `GoalCeremony.tsx` 新規。得点チームカラー別カットイン（集中線/カラーバンド/GOOAL!スラム/フラッシュ/紙吹雪canvas/スコアバウンド）。`SoundManager.playGoalCelebration()` 歓声スウェル追加。`GOAL_CEREMONY_MS` 2000→2600ms。下記「対戦画面の演出」参照 | ✅ |
+| GOAL演出スコア表示修正+タメ/退場（2026-06-11） | 演出中に加点前スコアが表示される回帰を修正（`goalCelebration` state でスナップショット伝播、型は `GoalCelebrationInfo`）。タメ（暗転320ms→着弾、歓声スウェルも同期）と退場アニメ（終了220ms前に文字フレームアウト）を追加 | ✅ |
 
 ---
 
@@ -381,7 +382,8 @@ public/
 - **SECOND HALF**: ハーフタイム後、スケールアウト→初期配置リセット→awayキックオフ→後半開始
 - **FULL TIME**: 試合終了時、スケールイン + 振動 + スコア + 「結果を見る」ボタン
 - **GOAL!**（`GoalCeremony.tsx`）: ゴール時、得点チームカラー別のリッチカットイン（回転集中線 + スキューしたカラーバンド + `GOOAL!`スラム文字 + チームカラーのフラッシュ + canvas紙吹雪3箇所バースト + スコアバウンド）。`ceremony === 'goal'` で `CeremonyLayer` が早期returnして委譲。`soundManager.playGoalCelebration()` 歓声スウェル付き（2.6秒）→両チーム初期配置リスタート→失点チームキックオフ
-  - 得点チームは `goalScorer` state（Battle.tsx）で伝播。通常ゴール（`goalScoredRef.scorerTeam`）とCKゴール（`attackTeam`）の2経路。FK/PK（プレイヤー操作/COM vs COM）ゴールは従来通り `showOverlay('GOAL!!')` のまま（ceremony非経由）
+  - シーケンス: タメ（暗転フェードインのみ `TAME_MS=320ms`）→着弾（フラッシュ/バンド/スラム/歓声爆発。歓声は `playGoalCelebration` の `delaySec=0.32` で同期）→紙吹雪→退場（終了 `EXIT_MS=220ms` 前から文字が右へ抜け帯が収縮）
+  - スコアは `goalCelebration` state（`GoalCelebrationInfo`: team + 加点後スコアのスナップショット）で伝播。stateの加点（`SET_BOARD`）は演出後のため、演出中も正しい新スコアを表示する。通常ゴール（`goalScoredRef.scorerTeam`）とCKゴール（`attackTeam`）の2経路。FK/PK（プレイヤー操作/COM vs COM）ゴールは従来通り `showOverlay('GOAL!!')` のまま（ceremony非経由）
   - `prefers-reduced-motion` 対応（アニメ抑制）。カメラズーム/シェイクはHexBoard側未対応のため未実装
 - **Turn X**: 通常ターン切替のフラッシュ（1.2秒）
 - **実行**: ターン確定後→「実行」バナー表示（2.5秒）→次ターン。resolving中はタイマー停止+確定ボタン無効。8秒安全タイムアウト

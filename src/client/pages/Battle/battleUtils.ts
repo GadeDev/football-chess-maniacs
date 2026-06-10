@@ -67,6 +67,12 @@ export const SECOND_HALF_DELAY_MS = 4500;
 export const FULLTIME_RESULT_BTN_DELAY_MS = 3000;
 export const TURN_FLASH_MS = 1200;
 export const GOAL_CEREMONY_MS = 2600;
+/** GOAL演出に渡す得点スナップショット（演出中はstateのスコア更新前のため、確定値をここで固定する） */
+export interface GoalCelebrationInfo {
+  team: Team;
+  scoreHome: number;
+  scoreAway: number;
+}
 export const RECONNECT_BANNER_MS = 3000;
 export const SAFETY_TIMEOUT_MS = 8000;
 export const MINIGAME_COUNTDOWN_INTERVAL_MS = 1000;
