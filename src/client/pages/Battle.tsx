@@ -295,6 +295,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
   // ── 演出フェーズ管理 ──
   const [ceremony, setCeremony] = useState<CeremonyPhase>(null);
+  const [goalScorer, setGoalScorer] = useState<Team | null>(null);
   const [showResultBtn, setShowResultBtn] = useState(false);
 
   // キックオフ演出（試合開始時）
@@ -1346,10 +1347,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           // リプレイ正常完了 → 安全タイマーをクリア（二重NEXT_TURN防止）
           clearReplayTimers();
           if (goalScoredRef.current.scored) {
-            showOverlay('GOAL!!', {
-              subText: `${newScoreHome} - ${newScoreAway}`,
-              duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
-            });
+            setGoalScorer(goalScoredRef.current.scorerTeam);
+            soundManager.playGoalCelebration();
             setCeremony('goal');
             await wait(GOAL_CEREMONY_MS);
             setCeremony(null);
@@ -1705,10 +1704,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (attackWins === 3) {
       const newScoreHome = state.scoreHome + (attackTeam === 'home' ? 1 : 0);
       const newScoreAway = state.scoreAway + (attackTeam === 'away' ? 1 : 0);
-      showOverlay('GOAL!!', {
-        subText: `${newScoreHome} - ${newScoreAway}`,
-        duration: GOAL_CEREMONY_MS, color: '#FFD700', fontSize: 64, glow: true,
-      });
+      setGoalScorer(attackTeam);
+      soundManager.playGoalCelebration();
       setCeremony('goal');
       await wait(GOAL_CEREMONY_MS);
       setCeremony(null);
@@ -1789,6 +1786,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       showResultBtn={showResultBtn}
       scoreHome={state.scoreHome}
       scoreAway={state.scoreAway}
+      goalScorer={goalScorer}
       turn={state.turn}
       myTeam={state.myTeam}
       pieces={state.board.pieces}

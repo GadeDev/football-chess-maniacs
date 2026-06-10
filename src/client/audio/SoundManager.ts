@@ -46,6 +46,35 @@ class SoundManager {
   setEnabled(enabled: boolean) { this.enabled = enabled; }
   setVolume(vol: number) { this.volume = Math.max(0, Math.min(1, vol / 100)); }
 
+  /** ゴール演出用の歓声スウェル（バンドパスノイズのフェードイン→アウト） */
+  playGoalCelebration(durationSec = 2.4) {
+    if (!this.enabled) return;
+    try {
+      const ctx = this.getCtx();
+      const t = ctx.currentTime;
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * durationSec), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = 0.35;
+      const low = ctx.createBiquadFilter();
+      low.type = 'lowpass'; low.frequency.value = 2600;
+      const gain = ctx.createGain();
+      const peak = 0.4 * this.volume;
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.exponentialRampToValueAtTime(peak, t + 0.18);
+      gain.gain.setValueAtTime(peak, t + durationSec * 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + durationSec);
+      src.connect(band).connect(low).connect(gain).connect(ctx.destination);
+      src.start(t);
+      src.stop(t + durationSec);
+    } catch {
+      // Audio not available
+    }
+  }
+
   play(id: SoundId) {
     if (!this.enabled) return;
     const def = SOUND_DEFS[id];

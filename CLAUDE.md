@@ -80,7 +80,8 @@ src/
     │   ├── Battle.tsx         # 対戦画面（processTurn接続済・演出・ゴールリスタート・flipY）
     │   ├── Battle/
     │   │   ├── battleUtils.ts # Battle用純粋関数・定数・型（createInitialPieces等）
-    │   │   └── CeremonyLayer.tsx # 試合演出オーバーレイ（KICK OFF/HALF TIME/GOAL!/FULL TIME）
+    │   │   ├── CeremonyLayer.tsx # 試合演出オーバーレイ（KICK OFF/HALF TIME/FULL TIME、GOAL!はGoalCeremonyに委譲）
+    │   │   └── GoalCeremony.tsx # リッチGOAL演出（チームカラー別カットイン: 集中線/カラーバンド/GOOAL!スラム/フラッシュ/紙吹雪canvas/スコアバウンド）
     │   ├── HalfTime.tsx       # ハーフタイム
     │   ├── Result.tsx         # 結果画面
     │   └── Replay.tsx         # リプレイ画面
@@ -213,6 +214,7 @@ public/
 | createGoalKickPieces テスト（2026-06-04） | ゴールキック後処理の純粋関数テスト5件追加（22枚生成/守備GKがボール保持/away守備GK/座標重複なし/守備コマ自陣） | ✅ |
 | インゲーム操作改善（2026-06-04） | パスモード時の盤面ハイライト追加（味方=青リング/スルーパス空きHEX=シアン/シュートゾーン=赤）、パス/シュート中は移動範囲を抑制、ボール保持コマのパス/ドリブルメニュー大型化+対象コマ黄リング強調。下記「インゲーム操作（v3.2）」参照 | ✅ |
 | 初回3ターンチュートリアル（2026-06-04, issue #3） | COM対戦の初回プレイのみ Turn 1=移動 / 2=パス / 3=シュート のガイドを順に表示。localStorage `fcms_tutorial_done` で既読管理し2回目以降スキップ。comVsCom非表示 | ✅ |
+| リッチGOAL演出（2026-06-11） | `GoalCeremony.tsx` 新規。得点チームカラー別カットイン（集中線/カラーバンド/GOOAL!スラム/フラッシュ/紙吹雪canvas/スコアバウンド）。`SoundManager.playGoalCelebration()` 歓声スウェル追加。`GOAL_CEREMONY_MS` 2000→2600ms。下記「対戦画面の演出」参照 | ✅ |
 
 ---
 
@@ -378,7 +380,9 @@ public/
 - **HALF TIME**: 前半終了時、スケールイン + スコア表示（金色）
 - **SECOND HALF**: ハーフタイム後、スケールアウト→初期配置リセット→awayキックオフ→後半開始
 - **FULL TIME**: 試合終了時、スケールイン + 振動 + スコア + 「結果を見る」ボタン
-- **GOAL!**: ゴール時、金色テキスト + スコア表示（2秒）→両チーム初期配置リスタート→失点チームキックオフ
+- **GOAL!**（`GoalCeremony.tsx`）: ゴール時、得点チームカラー別のリッチカットイン（回転集中線 + スキューしたカラーバンド + `GOOAL!`スラム文字 + チームカラーのフラッシュ + canvas紙吹雪3箇所バースト + スコアバウンド）。`ceremony === 'goal'` で `CeremonyLayer` が早期returnして委譲。`soundManager.playGoalCelebration()` 歓声スウェル付き（2.6秒）→両チーム初期配置リスタート→失点チームキックオフ
+  - 得点チームは `goalScorer` state（Battle.tsx）で伝播。通常ゴール（`goalScoredRef.scorerTeam`）とCKゴール（`attackTeam`）の2経路。FK/PK（プレイヤー操作/COM vs COM）ゴールは従来通り `showOverlay('GOAL!!')` のまま（ceremony非経由）
+  - `prefers-reduced-motion` 対応（アニメ抑制）。カメラズーム/シェイクはHexBoard側未対応のため未実装
 - **Turn X**: 通常ターン切替のフラッシュ（1.2秒）
 - **実行**: ターン確定後→「実行」バナー表示（2.5秒）→次ターン。resolving中はタイマー停止+確定ボタン無効。8秒安全タイムアウト
 

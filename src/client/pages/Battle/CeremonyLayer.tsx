@@ -6,6 +6,7 @@ import React from 'react';
 import type { CeremonyPhase } from './battleUtils';
 import type { PieceData, GameEvent, MatchEndData, MatchStats, MvpInfo, Team, Page } from '../../types';
 import HalftimeSubPanel from '../../components/ui/HalftimeSubPanel';
+import GoalCeremony from './GoalCeremony';
 import { MAX_SUBSTITUTIONS } from './battleUtils';
 import { computeStats, computeMvp } from './battleUtils';
 
@@ -14,6 +15,7 @@ interface CeremonyLayerProps {
   showResultBtn: boolean;
   scoreHome: number;
   scoreAway: number;
+  goalScorer: Team | null;
   turn: number;
   myTeam: Team;
   // Halftime sub panel
@@ -30,11 +32,22 @@ interface CeremonyLayerProps {
 }
 
 export default function CeremonyLayer({
-  ceremony, showResultBtn, scoreHome, scoreAway, turn, myTeam,
+  ceremony, showResultBtn, scoreHome, scoreAway, goalScorer, turn, myTeam,
   pieces, halftimeSubsUsed, onHalftimeSubstitute, onHalftimeReady, halftimeCountdown,
   cumulativeEvents, boardPieces, onMatchEnd, onNavigate,
 }: CeremonyLayerProps) {
   if (!ceremony) return null;
+
+  // GOAL! はリッチ専用演出（チームカラー別カットイン）に委譲
+  if (ceremony === 'goal') {
+    return (
+      <GoalCeremony
+        scorerTeam={goalScorer ?? 'home'}
+        scoreHome={scoreHome}
+        scoreAway={scoreAway}
+      />
+    );
+  }
 
   return (
     <>
@@ -68,7 +81,7 @@ export default function CeremonyLayer({
       )}
       <div style={{
         position: 'fixed', inset: 0,
-        background: ceremony === 'turn' ? 'rgba(0,0,0,0.35)' : ceremony === 'goalkick' ? 'transparent' : 'rgba(0,0,0,0.7)',
+        background: ceremony === 'turn' ? 'rgba(0,0,0,0.35)' : ceremony === 'goalkick' ? 'transparent' : 'rgba(0,0,0,0.7)', // 'goal' は早期returnで別演出
         zIndex: 200,
         pointerEvents: (ceremony === 'fulltime' && showResultBtn) || ceremony === 'halftime_sub' ? 'auto' : 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -196,22 +209,6 @@ export default function CeremonyLayer({
                 結果を見る
               </button>
             )}
-          </div>
-        )}
-
-        {/* GOAL! */}
-        {ceremony === 'goal' && (
-          <div style={{
-            position: 'absolute', left: '50%', top: '50%',
-            textAlign: 'center',
-            animation: 'fcms-scale-in 0.6s ease-out forwards',
-          }}>
-            <div style={{ fontSize: 52, fontWeight: 900, color: '#FFD700', letterSpacing: 4, textShadow: '0 4px 32px rgba(255,215,0,0.5), 0 2px 24px rgba(0,0,0,0.8)' }}>
-              GOAL!
-            </div>
-            <div style={{ fontSize: 28, color: '#fff', marginTop: 16, fontWeight: 700, letterSpacing: 6 }}>
-              {scoreHome} - {scoreAway}
-            </div>
           </div>
         )}
 
