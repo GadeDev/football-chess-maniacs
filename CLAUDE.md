@@ -216,6 +216,7 @@ public/
 | 初回3ターンチュートリアル（2026-06-04, issue #3） | COM対戦の初回プレイのみ Turn 1=移動 / 2=パス / 3=シュート のガイドを順に表示。localStorage `fcms_tutorial_done` で既読管理し2回目以降スキップ。comVsCom非表示 | ✅ |
 | リッチGOAL演出（2026-06-11） | `GoalCeremony.tsx` 新規。得点チームカラー別カットイン（集中線/カラーバンド/GOOAL!スラム/フラッシュ/紙吹雪canvas/スコアバウンド）。`SoundManager.playGoalCelebration()` 歓声スウェル追加。`GOAL_CEREMONY_MS` 2000→2600ms。下記「対戦画面の演出」参照 | ✅ |
 | GOAL演出スコア表示修正+タメ/退場（2026-06-11） | 演出中に加点前スコアが表示される回帰を修正（`goalCelebration` state でスナップショット伝播、型は `GoalCelebrationInfo`）。タメ（暗転320ms→着弾、歓声スウェルも同期）と退場アニメ（終了220ms前に文字フレームアウト）を追加 | ✅ |
+| タックル着弾バースト（2026-06-11） | `board/ImpactBurst.tsx` 新規（中イベント層）。タックル成功=白リング+金スパーク(impact)、競合=灰の土煙(dust)。`phaseEffects` に `burst?: 'impact'\|'dust'` を追加し、HexBoardがOverlay(Canvas)とは別にDOMで該当HEX位置に約0.6秒再生。flipY対応はdisplayPhaseEffects経由で自動。`prefers-reduced-motion` 時は非表示 | ✅ |
 
 ---
 

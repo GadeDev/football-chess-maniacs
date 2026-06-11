@@ -15,6 +15,7 @@ import type { PieceData, HexCoord, HexCell, OrderData, ActionMode } from '../../
 import { MAX_ROW } from '../../types';
 import hexMapData from '../../data/hex_map.json';
 import Piece from './Piece';
+import ImpactBurst from './ImpactBurst';
 import type { BallTrail } from './Overlay';
 import Overlay from './Overlay';
 import FlyingBall, { type FlyingBallData } from '../FlyingBall';
@@ -104,8 +105,8 @@ interface HexBoardProps {
   throughPassHexes?: HexCoord[];
   /** ロングパス警告 */
   longPassWarnings?: Map<string, number>;
-  /** フェーズ演出エフェクト（§5-1b） */
-  phaseEffects?: Array<{ coord: HexCoord; icon: string; color: string; text?: string }>;
+  /** フェーズ演出エフェクト（§5-1b）。burst指定でImpactBurst(DOM)も再生 */
+  phaseEffects?: Array<{ coord: HexCoord; icon: string; color: string; text?: string; burst?: 'impact' | 'dust' }>;
   /** ボール軌跡（EXECUTIONフェーズ中に描画） */
   ballTrails?: BallTrail[];
   /** フリーボール位置（誰も持っていない場合に表示） */
@@ -459,6 +460,20 @@ export default function HexBoard({
             to: { col: t.to.col, row: MAX_ROW - t.to.row },
           })) : ballTrails}
         />
+
+        {/* ── 着弾バースト（中イベント層）: burst指定のフェーズエフェクト位置で再生 ── */}
+        {displayPhaseEffects.filter(e => e.burst).map((e, i) => {
+          const cell = cellLookup.get(`${e.coord.col},${e.coord.row}`);
+          if (!cell) return null;
+          return (
+            <ImpactBurst
+              key={`burst-${e.coord.col}-${e.coord.row}-${e.burst}-${i}`}
+              x={cell.x}
+              y={cell.y}
+              kind={e.burst!}
+            />
+          );
+        })}
 
         {/* ════════════════════════════════════════
             レイヤー 3: コマレイヤー（§6-1）

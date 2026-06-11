@@ -525,7 +525,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
   // ── A10: フェーズ演出 ──
   const [resolvingPhase, setResolvingPhase] = useState(-1); // -1 = not in animation
-  const [phaseEffects, setPhaseEffects] = useState<Array<{ coord: HexCoord; icon: string; color: string; text?: string }>>([]);
+  const [phaseEffects, setPhaseEffects] = useState<Array<{ coord: HexCoord; icon: string; color: string; text?: string; burst?: 'impact' | 'dust' }>>([]);
   const [ballTrails, setBallTrails] = useState<BallTrail[]>([]);
   const [flyingBall, setFlyingBall] = useState<FlyingBallData | null>(null);
   const [ballActionMenu, setBallActionMenu] = useState<string | null>(null); // pieceId or null
@@ -1053,13 +1053,13 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           for (const ev of evts) {
             if (ev.type === 'COLLISION') {
               const ce = ev as CollisionEvent;
-              p1Effects.push({ coord: ce.coord, icon: '💪', color: '#fff', text: '' });
+              p1Effects.push({ coord: ce.coord, icon: '💪', color: '#fff', text: '', burst: 'dust' });
               p1Effects.push({ coord: ce.coord, icon: '💫', color: '#aaa', text: '' });
             }
             if (ev.type === 'TACKLE') {
               const te = ev as TackleEvent;
               if (te.result.success) {
-                p1Effects.push({ coord: te.coord, icon: '⚔', color: '#fff', text: 'TACKLE' });
+                p1Effects.push({ coord: te.coord, icon: '⚔', color: '#fff', text: 'TACKLE', burst: 'impact' });
                 const tkr = te.result.tackler;
                 showOverlay('TACKLE!', {
                   subText: `${tkr.position} \u2605${tkr.cost}`,
