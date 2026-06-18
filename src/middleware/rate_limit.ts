@@ -23,7 +23,19 @@ export const RATE_LIMITS = {
   matching: { windowSeconds: 60, maxRequests: 5, prefix: 'rl:match' } satisfies RateLimitConfig,
   /** ショップAPI: 10req/分 */
   shop: { windowSeconds: 60, maxRequests: 10, prefix: 'rl:shop' } satisfies RateLimitConfig,
+  /** COMセッション作成: 3req/分/IP */
+  comSessionCreateMinute: { windowSeconds: 60, maxRequests: 3, prefix: 'rl:com:create:min' } satisfies RateLimitConfig,
+  /** COMセッション作成: 20req/時/IP */
+  comSessionCreateHour: { windowSeconds: 60 * 60, maxRequests: 20, prefix: 'rl:com:create:hour' } satisfies RateLimitConfig,
 } as const;
+
+export function getClientIp(c: Context<{ Bindings: Env['Bindings']; Variables: { userId: string } }>): string {
+  const cfIp = c.req.header('CF-Connecting-IP')?.trim();
+  if (cfIp) return cfIp;
+  const forwardedFor = c.req.header('X-Forwarded-For')?.split(',')[0]?.trim();
+  if (forwardedFor) return forwardedFor;
+  return 'unknown';
+}
 
 /**
  * KVベースのレート制限ミドルウェアを生成
@@ -31,7 +43,7 @@ export const RATE_LIMITS = {
 export function rateLimitMiddleware(config: RateLimitConfig) {
   return async (c: Context<{ Bindings: Env['Bindings']; Variables: { userId: string } }>, next: Next) => {
     // userIdがない場合はIPベースでレート制限（未認証エンドポイント対応）
-    const userId = c.get('userId') ?? c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For')?.split(',')[0]?.trim();
+    const userId = c.get('userId') ?? getClientIp(c);
     if (!userId) {
       return c.json({ error: 'Rate limit identifier unavailable' }, 400);
     }

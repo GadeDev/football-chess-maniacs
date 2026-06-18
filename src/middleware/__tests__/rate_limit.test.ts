@@ -3,7 +3,7 @@
 // ============================================================
 
 import { describe, it, expect } from 'vitest';
-import { WebSocketRateLimiter } from '../rate_limit';
+import { getClientIp, WebSocketRateLimiter } from '../rate_limit';
 
 describe('WebSocketRateLimiter', () => {
   it('10メッセージまで許可する', () => {
@@ -60,5 +60,32 @@ describe('WebSocketRateLimiter', () => {
     for (let i = 0; i < 10; i++) limiter2.check();
     // consecutiveExceedsは0からカウントし直すので warn=false
     expect(limiter2.check()).toEqual({ allowed: false, warn: false });
+  });
+});
+
+describe('getClientIp', () => {
+  function context(headers: Record<string, string | undefined>) {
+    return {
+      req: {
+        header: (name: string) => headers[name] ?? headers[name.toLowerCase()],
+      },
+    } as never;
+  }
+
+  it('CF-Connecting-IPを優先する', () => {
+    expect(getClientIp(context({
+      'CF-Connecting-IP': '203.0.113.10',
+      'X-Forwarded-For': '198.51.100.2, 198.51.100.3',
+    }))).toBe('203.0.113.10');
+  });
+
+  it('X-Forwarded-Forの先頭を使う', () => {
+    expect(getClientIp(context({
+      'X-Forwarded-For': '198.51.100.2, 198.51.100.3',
+    }))).toBe('198.51.100.2');
+  });
+
+  it('IPが取れない場合はunknownを返す', () => {
+    expect(getClientIp(context({}))).toBe('unknown');
   });
 });

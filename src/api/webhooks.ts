@@ -6,7 +6,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { verifyHmacSignature } from './auth';
-import { timingSafeEqual } from '../middleware/crypto_utils';
 import { skuToPieceId, INGOT_SKU_AMOUNTS } from '../types/piece';
 import type { WebhookPurchasePayload } from '../types/piece';
 
@@ -40,29 +39,23 @@ webhooks.post('/purchase', async (c) => {
   }
   const signature = signatureHeader.slice(sigPrefix.length);
 
-  const valid = await verifyHmacSignature(body, signature, c.env.PLATFORM_HMAC_SECRET);
+  let valid = false;
+  try {
+    valid = await verifyHmacSignature(body, signature, c.env.PLATFORM_HMAC_SECRET);
+  } catch {
+    valid = false;
+  }
   if (!valid) {
     return c.json({ error: 'WEBHOOK_SIGNATURE_INVALID', message: 'Signature mismatch' }, 401);
   }
 
-  // 2. 冪等性チェック (X-Webhook-Delivery-Id)
+  // 2. Delivery-Id 必須チェック（署名検証後にのみ扱う）
   const deliveryId = c.req.header('X-Webhook-Delivery-Id');
   if (!deliveryId) {
     return c.json({ error: 'VALIDATION_ERROR', message: 'Missing Delivery-Id' }, 400);
   }
 
-  const existing = await c.env.DB.prepare(
-    'SELECT delivery_id FROM webhook_deliveries_received WHERE delivery_id = ?',
-  )
-    .bind(deliveryId)
-    .first();
-
-  if (existing) {
-    // 既に処理済み → 冪等に200を返す
-    return c.json({ ok: true, duplicate: true });
-  }
-
-  // 3. ペイロードパース
+  // 3. ペイロードパース + 最低限の妥当性検証
   let payload: WebhookPurchasePayload;
   try {
     payload = JSON.parse(body) as WebhookPurchasePayload;
@@ -71,11 +64,45 @@ webhooks.post('/purchase', async (c) => {
   }
 
   const { event_type, data } = payload;
-  if (!data?.user_id || !data?.sku) {
+  if (typeof event_type !== 'string' || event_type.length === 0) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'Missing event_type' }, 400);
+  }
+  if (typeof data?.user_id !== 'string' || data.user_id.length === 0 || typeof data?.sku !== 'string' || data.sku.length === 0) {
     return c.json({ error: 'VALIDATION_ERROR', message: 'Missing user_id or sku' }, 400);
   }
 
   const now = new Date().toISOString();
+
+  // 4. 実処理前に deliveryId をclaimする。changes=1のリクエストだけが副作用を実行できる。
+  const claimResult = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO webhook_deliveries_received
+       (delivery_id, event_type, received_at, processed, result)
+     VALUES (?, ?, ?, 0, 'processing')`,
+  )
+    .bind(deliveryId, event_type, now)
+    .run();
+
+  if ((claimResult.meta?.changes ?? 0) === 0) {
+    const existing = await c.env.DB.prepare(
+      'SELECT processed, result FROM webhook_deliveries_received WHERE delivery_id = ?',
+    )
+      .bind(deliveryId)
+      .first<{ processed: number; result: string | null }>();
+
+    if (existing?.processed === 1) {
+      return c.json({ ok: true, duplicate: true, result: existing.result ?? undefined });
+    }
+
+    return c.json({ error: 'WEBHOOK_IN_PROGRESS', duplicate: true }, 409);
+  }
+
+  async function markProcessed(result: string): Promise<void> {
+    await c.env.DB.prepare(
+      'UPDATE webhook_deliveries_received SET processed = 1, result = ? WHERE delivery_id = ?',
+    )
+      .bind(result, deliveryId)
+      .run();
+  }
 
   // 4-A. インゴットSKU → ウォレットに加算（entitlement.created のみ）
   const ingotAmount = INGOT_SKU_AMOUNTS[data.sku];
@@ -97,17 +124,14 @@ webhooks.post('/purchase', async (c) => {
       result = `error: ${e instanceof Error ? e.message : String(e)}`;
       console.error('[webhook/purchase] Ingot credit error:', e);
     }
-    await c.env.DB.prepare(
-      'INSERT OR IGNORE INTO webhook_deliveries_received (delivery_id, event_type, received_at, processed, result) VALUES (?, ?, ?, 1, ?)',
-    )
-      .bind(deliveryId, event_type, now, result)
-      .run();
+    await markProcessed(result);
     return c.json({ ok: true });
   }
 
   // 4-B. SKU → piece_id 変換
   const pieceId = skuToPieceId(data.sku);
   if (pieceId === null) {
+    await markProcessed('invalid sku');
     return c.json({ error: 'INVALID_SKU', message: `Unknown SKU: ${data.sku}` }, 400);
   }
 
@@ -119,6 +143,7 @@ webhooks.post('/purchase', async (c) => {
     .first();
 
   if (!piece) {
+    await markProcessed('invalid piece_id');
     return c.json({ error: 'INVALID_PIECE_ID', message: `Unknown piece_id: ${pieceId}` }, 400);
   }
 
@@ -148,11 +173,7 @@ webhooks.post('/purchase', async (c) => {
   }
 
   // 7. 配信記録を保存
-  await c.env.DB.prepare(
-    'INSERT OR IGNORE INTO webhook_deliveries_received (delivery_id, event_type, received_at, processed, result) VALUES (?, ?, ?, 1, ?)',
-  )
-    .bind(deliveryId, event_type, now, result)
-    .run();
+  await markProcessed(result);
 
   // 8. KV キャッシュ無効化
   await c.env.KV.delete(`owned_pieces:${data.user_id}`);

@@ -54,7 +54,11 @@ export class Matchmaking extends DurableObject<Env['Bindings']> {
 
     let userId: string;
     try {
-      const result = await verifyWebSocketToken(token, this.env.PLATFORM_JWKS_URL);
+      const result = await verifyWebSocketToken(token, this.env.PLATFORM_JWKS_URL, {
+        issuer: this.env.PLATFORM_JWT_ISSUER,
+        audience: this.env.PLATFORM_JWT_AUDIENCE,
+        clockSkewSeconds: 60,
+      });
       userId = result.userId;
     } catch (e) {
       return new Response(`Authentication failed: ${(e as Error).message}`, { status: 401 });

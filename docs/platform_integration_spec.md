@@ -561,9 +561,15 @@ Content-Type: application/json
 1. `X-Webhook-Signature` を HMAC-SHA256 で検証
    - Secret は `PLATFORM_WEBHOOK_SECRET` (Workers Secret)
    - 署名不一致: 401 を返す(即時)
-2. `X-Webhook-Delivery-Id` で冪等性確保
-   - 既に処理済みの delivery_id なら 200 OK を即返す(冪等)
-3. `sku` から `piece_id` を抽出
+   - timestamp は payload 例に含まれるが、署名対象として明示されるまでは単独検証しない
+2. `X-Webhook-Delivery-Id` を必須チェック
+3. JSON parse と `event_type` / `data.user_id` / `data.sku` の最低限検証
+4. `INSERT OR IGNORE INTO webhook_deliveries_received ... processed=0, result='processing'` で処理権をclaim
+   - `changes=0` かつ `processed=1` なら 200 OK を返す(冪等)
+   - `changes=0` かつ `processed=0` なら同時処理中として副作用を実行せず再送に任せる
+5. claim できたリクエストだけがwallet/piece更新などの副作用を実行
+6. 実処理後に `processed=1`, `result='ok'` 等へ更新
+7. `sku` から `piece_id` を抽出
    - パターン: `/^fcms_piece_(\d{3})$/`
    - マッチしない: 400 INVALID_SKU
 4. `piece_master` に存在するか確認 → ない: 400 UNKNOWN_PIECE
@@ -1650,10 +1656,12 @@ POSTリクエスト全て `Idempotency-Key` ヘッダー必須(Platform側の規
 ## A-2. FCMS側(環境変数)
 
 追加する Workers Secrets:
-- `PLATFORM_BASE_URL` (例: `https://platform.football-century.com`)
+- `PLATFORM_API_BASE` (例: `https://platform.football-century.com`)
 - `PLATFORM_JWKS_URL` (例: `${PLATFORM_BASE_URL}/.well-known/jwks.json`)
-- `PLATFORM_WEBHOOK_SECRET` (HMAC共通鍵)
-- `PLATFORM_API_KEY` (サーバー間通信用、もしあれば)
+- `PLATFORM_JWT_ISSUER`
+- `PLATFORM_JWT_AUDIENCE`
+- `PLATFORM_HMAC_SECRET` (HMAC共通鍵)
+- `PLATFORM_SERVICE_API_KEY` (サーバー間通信用)
 
 ## A-3. R2バケット
 

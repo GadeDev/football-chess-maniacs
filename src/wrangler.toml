@@ -54,5 +54,7 @@ AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
 
 # ── Secrets (set via `wrangler secret put`) ──
 # PLATFORM_JWKS_URL
+# PLATFORM_JWT_ISSUER
+# PLATFORM_JWT_AUDIENCE
 # PLATFORM_SERVICE_API_KEY
 # PLATFORM_HMAC_SECRET

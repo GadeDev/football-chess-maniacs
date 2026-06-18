@@ -12,16 +12,24 @@ let cacheExpiry = 0;
 let fetchingPromise: Promise<Map<string, CryptoKey>> | null = null;
 
 interface JwtHeader {
-  alg: string;
-  kid: string;
+  alg?: unknown;
+  kid?: unknown;
 }
 
-interface JwtPayload {
+export interface JwtPayload {
   sub: string;    // ユーザーID
   exp: number;    // 有効期限 (unix seconds)
   iat: number;    // 発行時刻
   iss: string;    // 発行者
+  aud: string | string[];
+  nbf?: number;
   [key: string]: unknown;
+}
+
+export interface JwtVerifyOptions {
+  issuer: string;
+  audience: string;
+  clockSkewSeconds?: number;
 }
 
 /** base64url → ArrayBuffer */
@@ -81,12 +89,17 @@ async function fetchJwks(jwksUrl: string): Promise<Map<string, CryptoKey>> {
 export async function verifyJwt(
   token: string,
   jwksUrl: string,
+  options: JwtVerifyOptions,
 ): Promise<JwtPayload> {
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('Invalid JWT format');
 
   const headerJson = new TextDecoder().decode(base64UrlDecode(parts[0]));
   const header: JwtHeader = JSON.parse(headerJson);
+  if (header.alg !== 'RS256') throw new Error('Unsupported JWT alg');
+  if (typeof header.kid !== 'string' || header.kid.length === 0) {
+    throw new Error('Missing JWT kid');
+  }
 
   const keys = await fetchJwks(jwksUrl);
   const key = keys.get(header.kid);
@@ -106,11 +119,35 @@ export async function verifyJwt(
   const payloadJson = new TextDecoder().decode(base64UrlDecode(parts[1]));
   const payload: JwtPayload = JSON.parse(payloadJson);
 
-  // 有効期限チェック
+  const skew = options.clockSkewSeconds ?? 0;
   const now = Math.floor(Date.now() / 1000);
-  if (payload.exp <= now) throw new Error('JWT expired');
+  if (typeof payload.exp !== 'number') throw new Error('Invalid JWT expiration');
+  if (payload.exp <= now - skew) throw new Error('JWT expired');
+  if (payload.nbf !== undefined) {
+    if (typeof payload.nbf !== 'number') throw new Error('Invalid JWT not-before');
+    if (payload.nbf > now + skew) throw new Error('JWT not active yet');
+  }
+  if (typeof payload.iss !== 'string' || payload.iss !== options.issuer) {
+    throw new Error('Invalid JWT issuer');
+  }
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
+    throw new Error('Invalid JWT subject');
+  }
+  if (typeof payload.aud === 'string') {
+    if (payload.aud !== options.audience) throw new Error('Invalid JWT audience');
+  } else if (Array.isArray(payload.aud)) {
+    if (!payload.aud.includes(options.audience)) throw new Error('Invalid JWT audience');
+  } else {
+    throw new Error('Invalid JWT audience');
+  }
 
   return payload;
+}
+
+export function resetJwksCacheForTests(): void {
+  cachedKeys = new Map();
+  cacheExpiry = 0;
+  fetchingPromise = null;
 }
 
 /**
@@ -126,7 +163,11 @@ export function jwtMiddleware() {
 
     const token = auth.slice(7);
     try {
-      const payload = await verifyJwt(token, c.env.PLATFORM_JWKS_URL);
+      const payload = await verifyJwt(token, c.env.PLATFORM_JWKS_URL, {
+        issuer: c.env.PLATFORM_JWT_ISSUER,
+        audience: c.env.PLATFORM_JWT_AUDIENCE,
+        clockSkewSeconds: 60,
+      });
       c.set('userId', payload.sub);
     } catch (e) {
       return c.json({ error: 'Authentication failed' }, 401);
@@ -144,9 +185,10 @@ export function jwtMiddleware() {
 export async function verifyWebSocketToken(
   token: string,
   jwksUrl: string,
+  verifyOptions: JwtVerifyOptions,
   expectedMatchPlayers?: string[],
 ): Promise<{ userId: string; payload: JwtPayload }> {
-  const payload = await verifyJwt(token, jwksUrl);
+  const payload = await verifyJwt(token, jwksUrl, verifyOptions);
 
   // 最低2時間の残存期間チェック（§7-2-b）
   const now = Math.floor(Date.now() / 1000);

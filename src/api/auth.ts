@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import type { Env } from '../worker';
 
 const auth = new Hono<{ Bindings: Env['Bindings']; Variables: { userId: string } }>();
+const DEFAULT_PLATFORM_API_TIMEOUT_MS = 15_000;
 
 /**
  * HMAC-SHA256署名を検証（§7-5）
@@ -44,17 +45,45 @@ function hexToBytes(hex: string): ArrayBuffer {
 export async function callPlatformApi<T>(
   env: Env['Bindings'],
   path: string,
-  options?: RequestInit,
+  options?: RequestInit & { timeoutMs?: number },
 ): Promise<T> {
-  const url = `${env.PLATFORM_API_BASE}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Service-API-Key': env.PLATFORM_SERVICE_API_KEY,
-      ...options?.headers,
-    },
-  });
+  const url = buildPlatformApiUrl(env, path);
+  const controller = new AbortController();
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_PLATFORM_API_TIMEOUT_MS;
+  let externalAbortHandler: (() => void) | undefined;
+  const timeoutId = setTimeout(() => controller.abort('Platform API timeout'), timeoutMs);
+
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      controller.abort(options.signal.reason);
+    } else {
+      externalAbortHandler = () => controller.abort(options.signal?.reason);
+      options.signal.addEventListener('abort', externalAbortHandler, { once: true });
+    }
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Service-API-Key': env.PLATFORM_SERVICE_API_KEY,
+        ...options?.headers,
+      },
+    });
+  } catch (e) {
+    if (controller.signal.aborted && controller.signal.reason === 'Platform API timeout') {
+      throw new Error('Platform API timeout');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+    if (options?.signal && externalAbortHandler) {
+      options.signal.removeEventListener('abort', externalAbortHandler);
+    }
+  }
 
   if (!res.ok) {
     throw new Error(`Platform API error: ${res.status} ${res.statusText}`);
@@ -73,6 +102,33 @@ export async function callPlatformApi<T>(
   }
 
   return JSON.parse(body) as T;
+}
+
+function buildPlatformApiUrl(env: Env['Bindings'], path: string): string {
+  let base: URL;
+  try {
+    base = new URL(env.PLATFORM_API_BASE);
+  } catch {
+    throw new Error('Invalid PLATFORM_API_BASE');
+  }
+
+  const allowInsecureLocal = env.ALLOW_INSECURE_PLATFORM_API === 'true';
+  const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(base.hostname);
+  if (base.protocol !== 'https:' && !(allowInsecureLocal && isLocalhost)) {
+    throw new Error('PLATFORM_API_BASE must use https');
+  }
+
+  try {
+    new URL(path);
+    throw new Error('Platform API path must be relative');
+  } catch (e) {
+    if (e instanceof Error && e.message === 'Platform API path must be relative') throw e;
+  }
+
+  const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`;
+  const relativePath = path.startsWith('/') ? path.slice(1) : path;
+  base.pathname = basePath;
+  return new URL(relativePath, base).toString();
 }
 
 /**

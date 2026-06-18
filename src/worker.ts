@@ -45,6 +45,10 @@ export interface Env {
     PLATFORM_JWKS_URL: string;
     PLATFORM_SERVICE_API_KEY: string;
     PLATFORM_HMAC_SECRET: string;
+    PLATFORM_JWT_ISSUER: string;
+    PLATFORM_JWT_AUDIENCE: string;
+    /** 開発時のみ http://localhost Platform API を許可 */
+    ALLOW_INSECURE_PLATFORM_API?: string;
   };
   Variables: {
     userId: string;
@@ -105,9 +109,11 @@ app.use('/match/*', async (c, next) => {
     return next();
   }
   // COM対戦セッション作成は認証不要（ログインなしでCOM対戦可能）
-  // レート制限のみ適用（DO大量生成の防止）
+  // 専用レート制限のみ適用（DO大量生成の防止）
   if (c.req.path === '/match/com' && c.req.method === 'POST') {
-    return rateLimitMiddleware(RATE_LIMITS.restApi)(c, next);
+    return rateLimitMiddleware(RATE_LIMITS.comSessionCreateMinute)(c, async () => {
+      await rateLimitMiddleware(RATE_LIMITS.comSessionCreateHour)(c, next);
+    });
   }
   // REST APIパスにはJWT認証を適用
   return jwtMiddleware()(c, next);
@@ -126,7 +132,11 @@ shopApp.use('*', async (c, next) => {
   if (auth?.startsWith('Bearer ')) {
     const token = auth.slice(7);
     try {
-      const payload = await verifyJwt(token, c.env.PLATFORM_JWKS_URL);
+      const payload = await verifyJwt(token, c.env.PLATFORM_JWKS_URL, {
+        issuer: c.env.PLATFORM_JWT_ISSUER,
+        audience: c.env.PLATFORM_JWT_AUDIENCE,
+        clockSkewSeconds: 60,
+      });
       c.set('userId', payload.sub);
     } catch {
       // JWT検証失敗でもカタログ閲覧は許可（userIdなし）

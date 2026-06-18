@@ -64,6 +64,11 @@ export class GameSession extends DurableObject<Env['Bindings']> {
         const result = await verifyWebSocketToken(
           token,
           this.env.PLATFORM_JWKS_URL,
+          {
+            issuer: this.env.PLATFORM_JWT_ISSUER,
+            audience: this.env.PLATFORM_JWT_AUDIENCE,
+            clockSkewSeconds: 60,
+          },
           players,
         );
         userId = result.userId;
