@@ -20,6 +20,7 @@ import type { BallTrail } from './Overlay';
 import Overlay from './Overlay';
 import FlyingBall, { type FlyingBallData } from '../FlyingBall';
 import { useControls, fitToContainer, type Transform } from './Controls';
+import { t } from '../../i18n';
 
 const hexMap = hexMapData as HexCell[];
 
@@ -567,11 +568,11 @@ export default function HexBoard({
                 <button
                   onPointerDown={(e) => { e.stopPropagation(); onActionPass?.(); }}
                   style={btnStyle('#2563EB', '#3B82F6')}
-                >⚽<br />パス</button>
+                >⚽<br />{t('hexboard.pass')}</button>
                 <button
                   onPointerDown={(e) => { e.stopPropagation(); onActionDribble?.(); }}
                   style={btnStyle('#16A34A', '#22C55E')}
-                >🏃<br />ドリブル</button>
+                >🏃<br />{t('hexboard.dribble')}</button>
               </div>
             </React.Fragment>
           );

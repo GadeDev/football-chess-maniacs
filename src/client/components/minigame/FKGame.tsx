@@ -5,6 +5,7 @@
 // ============================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { t, tn } from '../../i18n';
 
 interface FKGameProps {
   isAttacker: boolean;
@@ -22,12 +23,12 @@ export interface FKInput {
 }
 
 const ZONES = [
-  { label: '左上', key: 7 },
-  { label: '中上', key: 8 },
-  { label: '右上', key: 9 },
-  { label: '左下', key: 4 },
-  { label: '中下', key: 5 },
-  { label: '右下', key: 6 },
+  { labelKey: 'course.top_left', key: 7 },
+  { labelKey: 'course.top_center', key: 8 },
+  { labelKey: 'course.top_right', key: 9 },
+  { labelKey: 'course.bottom_left', key: 4 },
+  { labelKey: 'course.bottom_center', key: 5 },
+  { labelKey: 'course.bottom_right', key: 6 },
 ];
 
 export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kickerInfo, gkInfo }: FKGameProps) {
@@ -78,21 +79,21 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
     }}>
       {/* カウントダウン */}
       <div style={{ fontSize: 24, fontWeight: 'bold', color: countdown <= 2 ? '#ff4444' : '#fff' }}>
-        {isAttacker ? 'フリーキック！' : 'GKセーブ！'} - {countdown}秒
+        {isAttacker ? t('fk.title_attack') : t('fk.title_defend')} - {tn('fk.countdown', countdown)}
       </div>
 
       {/* 操作説明 */}
       <div style={{ fontSize: 14, color: '#ffd700', textAlign: 'center', lineHeight: 1.6 }}>
         {isAttacker
-          ? <>① ゴール6ゾーンから狙う方向を選択<br />② 直接シュート or ロブを選択して確定</>
-          : <>① GKが飛ぶ方向を6ゾーンから選択<br />② 壁の高さ（低い/高い）を選択して確定</>}
+          ? <>{t('fk.guide_atk_1')}<br />{t('fk.guide_atk_2')}</>
+          : <>{t('fk.guide_def_1')}<br />{t('fk.guide_def_2')}</>}
       </div>
 
       {/* キッカー/GK情報 */}
       <div style={{ fontSize: 14, color: '#aaa' }}>
         {isAttacker
-          ? `キッカー: ${kickerInfo.position} ★${kickerInfo.cost}`
-          : `GK: ${gkInfo.position} ★${gkInfo.cost}`}
+          ? t('fk.kicker_info', { position: kickerInfo.position, cost: kickerInfo.cost })
+          : t('fk.gk_info', { position: gkInfo.position, cost: gkInfo.cost })}
       </div>
 
       {/* ゴール6ゾーン */}
@@ -122,7 +123,7 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
               cursor: submitted ? 'default' : 'pointer',
             }}
           >
-            {zone.label}
+            {t(zone.labelKey)}
           </button>
         ))}
       </div>
@@ -144,7 +145,7 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
                 cursor: submitted ? 'default' : 'pointer',
               }}
             >
-              {type === 'direct' ? '直接' : 'ロブ'}
+              {type === 'direct' ? t('fk.kick_direct') : t('fk.kick_lob')}
             </button>
           ))}
         </div>
@@ -164,7 +165,7 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
                 cursor: submitted ? 'default' : 'pointer',
               }}
             >
-              壁{h === 'low' ? '低い' : '高い'}
+              {h === 'low' ? t('fk.wall_low') : t('fk.wall_high')}
             </button>
           ))}
         </div>
@@ -185,7 +186,7 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
           cursor: submitted || selectedZone === null ? 'default' : 'pointer',
         }}
       >
-        {submitted ? '待機中...' : '確定'}
+        {submitted ? t('fk.waiting') : t('fk.confirm')}
       </button>
     </div>
   );

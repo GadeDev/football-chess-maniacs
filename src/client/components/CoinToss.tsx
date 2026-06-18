@@ -4,6 +4,7 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
+import { t } from '../i18n';
 
 interface CoinTossProps {
   onComplete: (isHomeFirst: boolean) => void;
@@ -58,8 +59,8 @@ export default function CoinToss({ onComplete }: CoinTossProps) {
       }}>
         {phase === 'result' && (
           isHomeFirst
-            ? 'あなたが先攻です！'
-            : '相手が先攻です。あなたは後半キックオフです'
+            ? t('cointoss.home_first')
+            : t('cointoss.away_first')
         )}
       </div>
     </div>

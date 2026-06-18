@@ -5,15 +5,16 @@
 import React from 'react';
 import type { Page } from '../types';
 import { useSettings, type AppSettings } from '../contexts/SettingsContext';
+import { t } from '../i18n';
 
 interface SettingsScreenProps {
   onNavigate: (page: Page) => void;
 }
 
-const SPEED_OPTIONS: { value: AppSettings['animationSpeed']; label: string }[] = [
-  { value: 0.5, label: '遅い' },
-  { value: 1, label: '普通' },
-  { value: 2, label: '速い' },
+const SPEED_OPTIONS: { value: AppSettings['animationSpeed']; labelKey: string }[] = [
+  { value: 0.5, labelKey: 'settings.speed_slow' },
+  { value: 1, labelKey: 'settings.speed_normal' },
+  { value: 2, labelKey: 'settings.speed_fast' },
 ];
 
 export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
@@ -29,7 +30,7 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
 
       <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* アニメーション速度 */}
-        <Section title="アニメーション速度">
+        <Section title={t('settings.animation_speed')}>
           <div style={{ display: 'flex', gap: 8 }}>
             {SPEED_OPTIONS.map(opt => (
               <button key={opt.value} onClick={() => update({ animationSpeed: opt.value })} style={{
@@ -38,18 +39,18 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
                 background: settings.animationSpeed === opt.value ? 'rgba(68,136,204,0.2)' : 'transparent',
                 color: settings.animationSpeed === opt.value ? '#4488cc' : '#888',
               }}>
-                {opt.label} ({opt.value}x)
+                {t(opt.labelKey)} ({opt.value}x)
               </button>
             ))}
           </div>
         </Section>
 
         {/* サウンド */}
-        <Section title="サウンド">
+        <Section title={t('settings.sound')}>
           <ToggleRow label="BGM" checked={settings.bgmEnabled} onChange={v => update({ bgmEnabled: v })} />
-          <ToggleRow label="効果音" checked={settings.sfxEnabled} onChange={v => update({ sfxEnabled: v })} />
+          <ToggleRow label={t('settings.sfx')} checked={settings.sfxEnabled} onChange={v => update({ sfxEnabled: v })} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-            <span style={{ color: '#888', fontSize: 13, width: 50 }}>音量</span>
+            <span style={{ color: '#888', fontSize: 13, width: 50 }}>{t('settings.volume')}</span>
             <input type="range" min={0} max={100} value={settings.volume}
               onChange={e => update({ volume: Number(e.target.value) })}
               style={{ flex: 1, accentColor: '#4488cc' }}
@@ -59,16 +60,16 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         </Section>
 
         {/* 表示設定 */}
-        <Section title="表示設定">
-          <ToggleRow label="オフサイドライン常時表示" checked={settings.showOffsideLine} onChange={v => update({ showOffsideLine: v })} />
-          <ToggleRow label="ZOC表示" checked={settings.showZoc} onChange={v => update({ showZoc: v })} />
-          <ToggleRow label="パスライン警告" checked={settings.showPassWarning} onChange={v => update({ showPassWarning: v })} />
+        <Section title={t('settings.display')}>
+          <ToggleRow label={t('settings.always_show_offside_line')} checked={settings.showOffsideLine} onChange={v => update({ showOffsideLine: v })} />
+          <ToggleRow label={t('settings.show_zoc')} checked={settings.showZoc} onChange={v => update({ showZoc: v })} />
+          <ToggleRow label={t('settings.pass_line_warning')} checked={settings.showPassWarning} onChange={v => update({ showPassWarning: v })} />
         </Section>
 
         {/* その他 */}
-        <Section title="その他">
+        <Section title={t('settings.other')}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color: '#888', fontSize: 13, flex: 1 }}>言語</span>
+            <span style={{ color: '#888', fontSize: 13, flex: 1 }}>{t('settings.language')}</span>
             <select value={settings.language} onChange={e => update({ language: e.target.value as 'ja' | 'en' })} style={{
               background: '#1a1a3e', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 4, padding: '4px 8px', fontSize: 13,
@@ -78,8 +79,8 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
             </select>
           </div>
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#555' }}>
-            <span>利用規約</span>
-            <span>プライバシーポリシー</span>
+            <span>{t('settings.terms')}</span>
+            <span>{t('settings.privacy_policy')}</span>
             <span>Version 0.9.0 (Phase B)</span>
           </div>
         </Section>
@@ -90,7 +91,7 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer', marginBottom: 20,
       }}>
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

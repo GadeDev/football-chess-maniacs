@@ -10,6 +10,17 @@ import type { Page, FormationData } from '../types';
 import type { Cost, Position } from '../components/board/PieceIcon';
 import PieceIcon, { costToRank } from '../components/board/PieceIcon';
 import { useDeviceType } from '../hooks/useDeviceType';
+import { t } from '../i18n';
+
+/** コスト値 → 役割名キーのサフィックス（1→'1', 1.5→'1p', 2→'2', 2.5→'2p', 3→'3'） */
+const COST_KEY: Record<number, string> = { 1: '1', 1.5: '1p', 2: '2', 2.5: '2p', 3: '3' };
+
+/** ポジション×コストの役割名を i18n キーで解決 */
+function roleLabel(position: Position, cost: number): string {
+  const ck = COST_KEY[cost];
+  if (!ck) return '';
+  return t(`formation.role_${position.toLowerCase()}_${ck}`);
+}
 
 // ── 型定義 ─────────────────────────────────────────────────
 
@@ -53,17 +64,8 @@ const MAX_SLOTS = 10;
 const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW'];
 const ALL_COSTS: Cost[] = [1, 1.5, 2, 2.5, 3];
 
-/** コスト別の役割名（piece_allocation.md v2 §2） */
-const COST_LABELS: Record<Position, Record<number, string>> = {
-  GK: { 1: '控えGK', 1.5: '堅実なGK', 2: 'レギュラーGK', 2.5: '名手GK', 3: '守護神' },
-  DF: { 1: 'ローテ要員', 1.5: '準レギュラーCB', 2: '主力CB', 2.5: '鉄壁CB', 3: 'リベロ' },
-  SB: { 1: '控えSB', 1.5: '堅実なSB', 2: '攻撃参加SB', 2.5: '攻守兼備SB', 3: '攻撃的SB' },
-  VO: { 1: '守備専門', 1.5: '堅実なVO', 2: '攻守兼備', 2.5: '司令塔VO', 3: 'アンカー' },
-  MF: { 1: 'ローテ要員', 1.5: 'パス精度型', 2: '司令塔', 2.5: 'ゲームメーカー', 3: 'マエストロ' },
-  OM: { 1: '控えトップ下', 1.5: '堅実なOM', 2: '攻撃の核', 2.5: 'エース10番', 3: 'ファンタジスタ' },
-  WG: { 1: '控えWG', 1.5: 'スピード型', 2: 'バランス型', 2.5: 'テクニカル', 3: 'ドリブラー' },
-  FW: { 1: '控えFW', 1.5: 'ポスト型', 2: 'レギュラーFW', 2.5: 'エースFW', 3: '点取り屋' },
-};
+// コスト別の役割名（piece_allocation.md v2 §2）は i18n キー化済み。
+// roleLabel(position, cost) で formation.role_<pos>_<costkey> を解決する。
 
 // ── フォーメーションプリセット ───────────────────────────
 
@@ -147,8 +149,8 @@ function createInitialOwned(): OwnedPiece[] {
     { id: 'own-gk-1', position: 'GK', cost: 1, name: 'GK' },
     { id: 'own-df-1', position: 'DF', cost: 1, name: 'CB 1' },
     { id: 'own-df-2', position: 'DF', cost: 1, name: 'CB 2' },
-    { id: 'own-df-3', position: 'DF', cost: 1, name: 'SB左' },
-    { id: 'own-df-4', position: 'DF', cost: 1, name: 'SB右' },
+    { id: 'own-df-3', position: 'DF', cost: 1, name: t('formation.name_sb_left') },
+    { id: 'own-df-4', position: 'DF', cost: 1, name: t('formation.name_sb_right') },
     { id: 'own-mf-1', position: 'MF', cost: 1, name: 'MF 1' },
     { id: 'own-mf-2', position: 'MF', cost: 1, name: 'MF 2' },
     { id: 'own-mf-3', position: 'MF', cost: 1, name: 'MF 3' },
@@ -432,7 +434,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
 
       {/* ═══ フッター ═══ */}
       <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', justifyContent: 'center' }}>
-        <button onClick={() => onNavigate('title')} style={btnStyle('#334155')}>戻る</button>
+        <button onClick={() => onNavigate('title')} style={btnStyle('#334155')}>{t('common.back')}</button>
         <button
           onClick={() => {
             if (onFormationConfirm) {
@@ -451,7 +453,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
           disabled={!isValid}
           style={btnStyle(isValid ? '#16a34a' : '#334155', !isValid ? 0.5 : 1)}
         >
-          マッチング開始
+          {t('formation.start_matching')}
         </button>
       </div>
 
@@ -484,15 +486,15 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
   const costOver = totalCost > MAX_FIELD_COST;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>編成</h2>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>{t('formation.title')}</h2>
 
       {/* ステータスバッジ */}
       <span style={{ fontSize: 13, color: costOver ? '#ef4444' : '#4ade80', fontWeight: 600 }}>
-        コスト: {totalCost}/{MAX_FIELD_COST}
+        {t('formation.cost_ratio', { cost: totalCost, max: MAX_FIELD_COST })}
       </span>
-      <span style={{ fontSize: 13, color: '#94a3b8' }}>スタメン: {starterCount}/{MAX_STARTERS}</span>
-      <span style={{ fontSize: 13, color: '#94a3b8' }}>サブ: {benchCount}/{MAX_BENCH}</span>
-      {!hasGK && <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>GK未配置</span>}
+      <span style={{ fontSize: 13, color: '#94a3b8' }}>{t('formation.starters_ratio', { count: starterCount, max: MAX_STARTERS })}</span>
+      <span style={{ fontSize: 13, color: '#94a3b8' }}>{t('formation.bench_ratio', { count: benchCount, max: MAX_BENCH })}</span>
+      {!hasGK && <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>{t('formation.no_gk')}</span>}
 
       <div style={{ flex: 1 }} />
 
@@ -511,7 +513,7 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <button onClick={onShowSlots} style={{ ...btnStyle('#334155'), padding: '4px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
           <span role="img" aria-label="premium">{isPremium ? '\u{1F451}' : '\u{1F512}'}</span>
-          セーブ/ロード
+          {t('formation.save_load')}
         </button>
         {!isPremium && (
           <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.15)', padding: '1px 6px', borderRadius: 4 }}>
@@ -525,7 +527,7 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
             padding: '8px 14px', fontSize: 12, color: '#f59e0b', whiteSpace: 'nowrap',
             boxShadow: '0 4px 12px rgba(0,0,0,0.4)', zIndex: 50,
           }}>
-            {'\u{1F512}'} プレミアム機能です
+            {'\u{1F512}'} {t('formation.premium_required')}
           </div>
         )}
       </div>
@@ -647,7 +649,7 @@ function PitchView({ starters, selectedIdx, onSelect, onPitchTap }: {
         position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)',
         fontSize: 10, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', pointerEvents: 'none',
       }}>
-        ▲ 攻撃方向
+        {t('formation.attack_direction')}
       </div>
       {/* 選択中ヒント */}
       {selectedIdx !== null && (
@@ -655,7 +657,7 @@ function PitchView({ starters, selectedIdx, onSelect, onPitchTap }: {
           position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
           fontSize: 10, color: 'rgba(255,255,255,0.45)', whiteSpace: 'nowrap', pointerEvents: 'none',
         }}>
-          ピッチをタップして配置移動
+          {t('formation.tap_to_move')}
         </div>
       )}
 
@@ -710,7 +712,7 @@ function DetailPanel({ piece, onSwap, onDeselect }: {
         width: 120, height: 120, borderRadius: 16, background: 'rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 12,
       }}>
-        顔イラスト
+        {t('formation.face_illustration')}
       </div>
 
       <PieceIcon cost={piece.cost} position={piece.position} side="ally" selected />
@@ -718,10 +720,10 @@ function DetailPanel({ piece, onSwap, onDeselect }: {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>{piece.name}</div>
         <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>
-          {piece.position} ・ コスト {piece.cost} ({costToRank(piece.cost)})
+          {t('formation.piece_cost_line', { position: piece.position, cost: piece.cost, rank: costToRank(piece.cost) })}
         </div>
         <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-          {COST_LABELS[piece.position]?.[piece.cost] ?? ''}
+          {roleLabel(piece.position, piece.cost)}
         </div>
       </div>
 
@@ -730,12 +732,12 @@ function DetailPanel({ piece, onSwap, onDeselect }: {
         width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.03)',
         fontSize: 12, color: '#64748b', lineHeight: 1.6,
       }}>
-        キャラクター背景テキスト（未実装）
+        {t('formation.character_bg_placeholder')}
       </div>
 
       <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-        <button onClick={onSwap} style={{ ...btnStyle('#2563eb'), flex: 1 }}>入れ替え</button>
-        <button onClick={onDeselect} style={{ ...btnStyle('#334155'), flex: 1 }}>戻る</button>
+        <button onClick={onSwap} style={{ ...btnStyle('#2563eb'), flex: 1 }}>{t('formation.swap')}</button>
+        <button onClick={onDeselect} style={{ ...btnStyle('#334155'), flex: 1 }}>{t('common.back')}</button>
       </div>
     </div>
   );
@@ -750,7 +752,7 @@ function BenchPanel({ bench, selectedIdx, onSelect, onAdd, onSwap }: {
   return (
     <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
       <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>
-        サブ（ベンチ） {bench.length}/{MAX_BENCH}
+        {t('formation.bench_label_ratio', { count: bench.length, max: MAX_BENCH })}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -779,13 +781,13 @@ function BenchPanel({ bench, selectedIdx, onSelect, onAdd, onSwap }: {
 
         {bench.length < MAX_BENCH && (
           <button onClick={onAdd} style={{ ...btnStyle('#1e293b'), marginTop: 4, border: '1px dashed rgba(255,255,255,0.15)', fontSize: 13 }}>
-            + サブを追加
+            {t('formation.add_bench')}
           </button>
         )}
 
         {selectedIdx !== null && (
           <button onClick={onSwap} style={{ ...btnStyle('#2563eb'), marginTop: 8, fontSize: 13 }}>
-            入れ替え
+            {t('formation.swap')}
           </button>
         )}
       </div>
@@ -804,13 +806,13 @@ function CardGrid({ pieces, usedIds, totalCost, selectedStarterCost, cardFilter,
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       {/* フィルタータブ */}
       <div style={{ display: 'flex', gap: 4, padding: '8px 12px', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <FilterBtn label="全部" active={cardFilter === 'all'} onClick={() => onFilterChange('all')} />
+        <FilterBtn label={t('formation.filter_all')} active={cardFilter === 'all'} onClick={() => onFilterChange('all')} />
         {ALL_POSITIONS.map(pos => (
           <FilterBtn key={pos} label={pos} active={cardFilter === pos} onClick={() => onFilterChange(pos)} />
         ))}
         <div style={{ flex: 1 }} />
         <button onClick={onClose} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>
-          閉じる
+          {t('formation.close')}
         </button>
       </div>
 
@@ -841,7 +843,7 @@ function CardGrid({ pieces, usedIds, totalCost, selectedStarterCost, cardFilter,
                 width: 48, height: 48, borderRadius: 8, background: 'rgba(255,255,255,0.05)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#475569',
               }}>
-                顔
+                {t('formation.face')}
               </div>
 
               <PieceIcon cost={piece.cost} position={piece.position} side="ally" style={{ width: 36, height: 36 }} />
@@ -853,15 +855,15 @@ function CardGrid({ pieces, usedIds, totalCost, selectedStarterCost, cardFilter,
                 <div style={{ fontSize: 10, color: '#64748b' }}>{piece.position} {costToRank(piece.cost)}</div>
               </div>
 
-              {isUsed && <span style={{ fontSize: 10, color: '#94a3b8' }}>使用中</span>}
-              {!isUsed && wouldExceed && <span style={{ fontSize: 10, color: '#ef4444' }}>超過</span>}
+              {isUsed && <span style={{ fontSize: 10, color: '#94a3b8' }}>{t('formation.in_use')}</span>}
+              {!isUsed && wouldExceed && <span style={{ fontSize: 10, color: '#ef4444' }}>{t('formation.over_cost')}</span>}
             </div>
           );
         })}
 
         {pieces.length === 0 && (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 24, color: '#64748b', fontSize: 13 }}>
-            該当するコマがありません
+            {t('formation.no_matching_pieces')}
           </div>
         )}
       </div>
@@ -904,7 +906,7 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
         boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
       }}>
         <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {'\u{1F451}'} セーブスロット
+          {'\u{1F451}'} {t('formation.save_slots')}
           <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 4, marginLeft: 4 }}>
             Premium
           </span>
@@ -928,12 +930,12 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
                 {/* スロット情報 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {isEmpty ? (
-                    <span style={{ fontSize: 13, color: '#475569' }}>空</span>
+                    <span style={{ fontSize: 13, color: '#475569' }}>{t('formation.slot_empty')}</span>
                   ) : (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>スロット {idx + 1}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t('formation.slot_n', { n: idx + 1 })}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>
-                        {slot.systemBase} ・ コスト {slot.totalCost}/{MAX_FIELD_COST}
+                        {t('formation.slot_info', { system: slot.systemBase, cost: slot.totalCost, max: MAX_FIELD_COST })}
                       </div>
                     </>
                   )}
@@ -944,7 +946,7 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
                   onClick={() => onSave(idx)}
                   style={{ ...btnStyle('#16a34a'), padding: '3px 8px', fontSize: 11 }}
                 >
-                  保存
+                  {t('formation.save')}
                 </button>
                 {!isEmpty && (
                   <>
@@ -952,13 +954,13 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
                       onClick={() => onLoad(idx)}
                       style={{ ...btnStyle('#2563eb'), padding: '3px 8px', fontSize: 11 }}
                     >
-                      読込
+                      {t('formation.load')}
                     </button>
                     <button
                       onClick={() => onDelete(idx)}
                       style={{ ...btnStyle('#dc2626'), padding: '3px 8px', fontSize: 11 }}
                     >
-                      削除
+                      {t('formation.delete')}
                     </button>
                   </>
                 )}
@@ -967,7 +969,7 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
           })}
         </div>
 
-        <button onClick={onClose} style={{ ...btnStyle('#334155'), width: '100%', marginTop: 16, fontSize: 13 }}>閉じる</button>
+        <button onClick={onClose} style={{ ...btnStyle('#334155'), width: '100%', marginTop: 16, fontSize: 13 }}>{t('formation.close')}</button>
       </div>
     </>
   );

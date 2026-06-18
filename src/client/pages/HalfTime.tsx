@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { Page } from '../types';
+import { t, tn } from '../i18n';
 
 interface HalfTimeProps {
   scoreHome: number;
@@ -47,7 +48,7 @@ export default function HalfTime({ scoreHome, scoreAway, onNavigate, onReady }: 
         background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
       }}
     >
-      <h2 style={{ fontSize: 20, color: '#888' }}>ハーフタイム</h2>
+      <h2 style={{ fontSize: 20, color: '#888' }}>{t('halftime.title')}</h2>
 
       {/* スコア */}
       <div style={{ fontSize: 48, fontWeight: 'bold' }}>
@@ -58,12 +59,12 @@ export default function HalfTime({ scoreHome, scoreAway, onNavigate, onReady }: 
 
       {/* 後半開始カウントダウン */}
       <div style={{ fontSize: 14, color: '#888' }}>
-        後半開始まで {countdown}秒
+        {tn('halftime.countdown', countdown)}
       </div>
 
       {/* TODO: 交代・フォーメーション変更UI */}
       <div style={{ fontSize: 13, color: '#555', padding: '20px', textAlign: 'center' }}>
-        交代・フォーメーション変更が可能です
+        {t('halftime.sub_hint')}
       </div>
 
       <button
@@ -79,7 +80,7 @@ export default function HalfTime({ scoreHome, scoreAway, onNavigate, onReady }: 
           cursor: 'pointer',
         }}
       >
-        準備完了
+        {t('halftime.ready')}
       </button>
     </div>
   );

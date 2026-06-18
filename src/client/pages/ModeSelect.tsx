@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import type { GameMode, ComDifficulty } from '../types';
+import { t } from '../i18n';
 
 interface ModeSelectProps {
   /** 初期選択モード（前回設定の復元用） */
@@ -20,16 +21,16 @@ interface ModeSelectProps {
 }
 
 const MODES: { id: GameMode; label: string; desc: string }[] = [
-  { id: 'ranked', label: 'ランクマッチ', desc: 'レーティングに基づく真剣勝負' },
-  { id: 'casual', label: 'カジュアル', desc: 'レーティング変動なしのフリー対戦' },
-  { id: 'com', label: 'COM対戦', desc: 'AIと練習試合' },
-  { id: 'comVsCom', label: 'COM観戦', desc: 'AI同士の試合を観戦' },
+  { id: 'ranked', label: t('mode.ranked'), desc: t('modeselect.ranked_desc') },
+  { id: 'casual', label: t('mode.casual'), desc: t('modeselect.casual_desc') },
+  { id: 'com', label: t('mode.com'), desc: t('modeselect.com_desc') },
+  { id: 'comVsCom', label: t('mode.com_watch'), desc: t('modeselect.com_watch_desc') },
 ];
 
 const DIFFICULTIES: { id: ComDifficulty; label: string; icon: string; color: string }[] = [
-  { id: 'beginner', label: 'ビギナー', icon: '\u{1F7E2}', color: '#44aa44' },
-  { id: 'regular', label: 'レギュラー', icon: '\u{1F7E1}', color: '#cc8800' },
-  { id: 'maniac', label: 'マニアック', icon: '\u{1F534}', color: '#cc4444' },
+  { id: 'beginner', label: t('difficulty.beginner'), icon: '\u{1F7E2}', color: '#44aa44' },
+  { id: 'regular', label: t('difficulty.regular'), icon: '\u{1F7E1}', color: '#cc8800' },
+  { id: 'maniac', label: t('difficulty.maniac'), icon: '\u{1F534}', color: '#cc4444' },
 ];
 
 export default function ModeSelect({
@@ -57,7 +58,7 @@ export default function ModeSelect({
         padding: 20,
       }}
     >
-      <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>対戦セットアップ</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>{t('modeselect.title')}</h2>
 
       {/* モード選択 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360 }}>
@@ -88,7 +89,7 @@ export default function ModeSelect({
       {/* 難易度（COM系のみ） */}
       {isCom && (
         <div style={{ width: '100%', maxWidth: 360 }}>
-          <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>COM難易度</div>
+          <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>{t('modeselect.com_difficulty')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {DIFFICULTIES.map((d) => {
               const active = difficulty === d.id;
@@ -133,7 +134,7 @@ export default function ModeSelect({
               cursor: 'pointer',
             }}
           >
-            編成して開始
+            {t('modeselect.start_with_formation')}
           </button>
         )}
         <button
@@ -150,7 +151,7 @@ export default function ModeSelect({
             cursor: 'pointer',
           }}
         >
-          {isSpectate ? '観戦を開始' : 'この設定で開始'}
+          {isSpectate ? t('modeselect.start_spectate') : t('modeselect.start_now')}
         </button>
       </div>
 
@@ -167,7 +168,7 @@ export default function ModeSelect({
           cursor: 'pointer',
         }}
       >
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

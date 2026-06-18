@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import type { PieceData, Team } from '../types';
+import { t } from '../i18n';
 import PKGame from './minigame/PKGame';
 
 interface PKShootoutProps {
@@ -142,7 +143,7 @@ export default function PKShootout({ homePieces, awayPieces, myTeam, isMobile, o
       {/* スコアボード */}
       <div style={{ marginBottom: 16, textAlign: 'center' }}>
         <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>
-          PK戦 — {homeScore} : {awayScore}
+          {t('pkshootout.score', { home: homeScore, away: awayScore })}
         </div>
         <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
           {[...Array(Math.max(5, round))].map((_, i) => {

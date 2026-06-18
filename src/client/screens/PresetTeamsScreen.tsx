@@ -7,6 +7,7 @@ import type { Page } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import { PRESET_TEAMS, type PresetTeam } from '../../data/presetTeams';
 import type { Cost, Position } from '../components/board/PieceIcon';
+import { t } from '../i18n';
 
 interface PresetTeamsScreenProps {
   onNavigate: (page: Page) => void;
@@ -71,7 +72,7 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
               </div>
             ))}
             {eraTeams.length === 0 && (
-              <div style={{ color: '#666', fontSize: 13, padding: 16 }}>この時代にはまだチームがありません</div>
+              <div style={{ color: '#666', fontSize: 13, padding: 16 }}>{t('preset.no_teams')}</div>
             )}
           </div>
         </div>
@@ -132,13 +133,13 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
                 border: '1px solid rgba(255,255,255,0.15)', background: 'transparent',
                 color: '#888', fontSize: 14, cursor: 'pointer',
               }}>
-                戻る
+                {t('common.back')}
               </button>
               <button onClick={handleUseTeam} style={{
                 flex: 1, padding: '10px', borderRadius: 8, border: 'none',
                 background: '#44aa44', color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
               }}>
-                このチームで対戦
+                {t('preset.use_team')}
               </button>
             </div>
           </div>
@@ -151,7 +152,7 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
           border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
           color: '#888', fontSize: 14, cursor: 'pointer',
         }}>
-          ホームに戻る
+          {t('common.to_home')}
         </button>
       </div>
     </div>

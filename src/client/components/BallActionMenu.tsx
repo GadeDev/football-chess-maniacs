@@ -4,6 +4,7 @@
 // ============================================================
 
 import React from 'react';
+import { t } from '../i18n';
 
 interface BallActionMenuProps {
   onPass: () => void;
@@ -28,7 +29,7 @@ export default function BallActionMenu({ onPass, onDribble, onCancel }: BallActi
         boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-        <span style={{ fontSize: 20 }}>{'\u26BD'}</span> パス
+        <span style={{ fontSize: 20 }}>{'\u26BD'}</span> {t('ballmenu.pass')}
       </button>
       <button onClick={(e) => { e.stopPropagation(); onDribble(); }} style={{
         minWidth: 120, minHeight: 52,
@@ -38,7 +39,7 @@ export default function BallActionMenu({ onPass, onDribble, onCancel }: BallActi
         boxShadow: '0 2px 8px rgba(22,163,74,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-        <span style={{ fontSize: 20 }}>{'\uD83C\uDFC3'}</span> ドリブル
+        <span style={{ fontSize: 20 }}>{'\uD83C\uDFC3'}</span> {t('ballmenu.dribble')}
       </button>
       <button onClick={(e) => { e.stopPropagation(); onCancel(); }} style={{
         minWidth: 60, minHeight: 52,
@@ -47,7 +48,7 @@ export default function BallActionMenu({ onPass, onDribble, onCancel }: BallActi
         background: 'transparent',
         color: '#888', fontSize: 14, cursor: 'pointer',
       }}>
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

@@ -6,6 +6,7 @@
 import React from 'react';
 import type { Page, MatchStats, MvpInfo, Team } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { t } from '../i18n';
 
 interface ResultScreenProps {
   scoreHome: number;
@@ -18,15 +19,15 @@ interface ResultScreenProps {
   onNavigate: (page: Page) => void;
 }
 
-const STAT_ROWS: { label: string; key: keyof MatchStats }[] = [
-  { label: 'ボール支配率', key: 'possession' },
-  { label: 'シュート', key: 'shots' },
-  { label: '枠内シュート', key: 'shotsOnTarget' },
-  { label: 'パス成功/試行', key: 'passesCompleted' },
-  { label: 'タックル', key: 'tackles' },
-  { label: 'ファウル', key: 'fouls' },
-  { label: 'オフサイド', key: 'offsides' },
-  { label: 'コーナーキック', key: 'cornerKicks' },
+const STAT_ROWS: { labelKey: string; key: keyof MatchStats }[] = [
+  { labelKey: 'result.stat_possession', key: 'possession' },
+  { labelKey: 'result.stat_shots', key: 'shots' },
+  { labelKey: 'result.stat_shots_on_target', key: 'shotsOnTarget' },
+  { labelKey: 'result.stat_passes', key: 'passesCompleted' },
+  { labelKey: 'result.stat_tackles', key: 'tackles' },
+  { labelKey: 'result.stat_fouls', key: 'fouls' },
+  { labelKey: 'result.stat_offsides', key: 'offsides' },
+  { labelKey: 'result.stat_corner_kicks', key: 'cornerKicks' },
 ];
 
 function formatStat(stats: MatchStats, key: keyof MatchStats, team: 'home' | 'away'): string {
@@ -61,7 +62,7 @@ export default function ResultScreen({
       </div>
 
       {reason === 'disconnect' && (
-        <div style={{ fontSize: 14, color: '#cc8800' }}>対戦相手が切断しました</div>
+        <div style={{ fontSize: 14, color: '#cc8800' }}>{t('result.opponent_disconnected')}</div>
       )}
 
       {/* スコア */}
@@ -106,13 +107,13 @@ export default function ResultScreen({
             </tr>
           </thead>
           <tbody>
-            {STAT_ROWS.map(({ label, key }) => (
+            {STAT_ROWS.map(({ labelKey, key }) => (
               <tr key={key} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <td style={{ padding: '6px 0', color: '#ddd', textAlign: 'left' }}>
                   {formatStat(stats, key, 'home')}
                 </td>
                 <td style={{ padding: '6px 4px', color: '#777', textAlign: 'center', fontSize: 11 }}>
-                  {label}
+                  {t(labelKey)}
                 </td>
                 <td style={{ padding: '6px 0', color: '#ddd', textAlign: 'right' }}>
                   {formatStat(stats, key, 'away')}
@@ -125,14 +126,14 @@ export default function ResultScreen({
 
       {/* ボタン */}
       <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <ResultButton label="リプレイを見る" onClick={() => onNavigate('replayViewer')} />
+        <ResultButton label={t('result.watch_replay')} onClick={() => onNavigate('replayViewer')} />
         {(gameMode === 'com' || gameMode === 'comVsCom') && (
-          <ResultButton label="もう一度" primary onClick={() => onNavigate('matching')} />
+          <ResultButton label={t('common.rematch')} primary onClick={() => onNavigate('matching')} />
         )}
         {gameMode === 'com' && (
-          <ResultButton label="編成を変える" onClick={() => onNavigate('formation')} />
+          <ResultButton label={t('result.change_formation')} onClick={() => onNavigate('formation')} />
         )}
-        <ResultButton label="ホームに戻る" onClick={() => onNavigate('title')} />
+        <ResultButton label={t('common.to_home')} onClick={() => onNavigate('title')} />
       </div>
     </div>
   );

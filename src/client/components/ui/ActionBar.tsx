@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import type { PieceData, ActionMode } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t, tn } from '../../i18n';
 
 interface ActionBarProps {
   selectedPiece: PieceData | null;
@@ -61,7 +62,7 @@ export default function ActionBar({
           }}
         >
           <div style={{ width: '100%', fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 4 }}>
-            交代先を選択（残り{remainingSubs}回）
+            {tn('actionbar.sub_target_select', remainingSubs, { count: remainingSubs })}
           </div>
           {benchPieces.map((bp) => (
             <button
@@ -95,7 +96,7 @@ export default function ActionBar({
             </button>
           ))}
           {benchPieces.length === 0 && (
-            <span style={{ fontSize: 13, color: '#666' }}>ベンチにコマがありません</span>
+            <span style={{ fontSize: 13, color: '#666' }}>{t('actionbar.bench_empty')}</span>
           )}
         </div>
       )}
@@ -114,12 +115,12 @@ export default function ActionBar({
         }}
       >
         {/* 戻す / 全取消 (長押しで全取消) */}
-        <ActionButton label="戻す" onClick={onUndo} disabled={!hasOrders} />
-        <ActionButton label="全取消" onClick={onClearAll} disabled={!hasOrders} danger />
+        <ActionButton label={t('actionbar.undo')} onClick={onUndo} disabled={!hasOrders} />
+        <ActionButton label={t('actionbar.clear_all')} onClick={onClearAll} disabled={!hasOrders} danger />
 
         {/* 移動モード（ボール非保持時の基本操作を明示） */}
         <ActionButton
-          label="移動"
+          label={t('action.move')}
           onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
           disabled={!hasSelection || hasBall}
           active={moveActive}
@@ -127,7 +128,7 @@ export default function ActionBar({
 
         {/* ドリブルモード（ボール保持時のみ） */}
         <ActionButton
-          label="ドリブル"
+          label={t('action.dribble')}
           onClick={() => onSetMode(actionMode === 'dribble' ? null : 'dribble')}
           disabled={!hasBall}
           active={actionMode === 'dribble'}
@@ -135,7 +136,7 @@ export default function ActionBar({
 
         {/* パスモード（ボール保持時のみ） */}
         <ActionButton
-          label="パス"
+          label={t('action.pass')}
           onClick={() => onSetMode(actionMode === 'pass' ? null : 'pass')}
           disabled={!hasBall}
           active={actionMode === 'pass'}
@@ -143,7 +144,7 @@ export default function ActionBar({
 
         {/* シュートモード（ボール保持時のみ） */}
         <ActionButton
-          label="シュート"
+          label={t('action.shoot')}
           onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
           disabled={!hasBall}
           active={actionMode === 'shoot'}
@@ -151,14 +152,14 @@ export default function ActionBar({
 
         {/* 交代（§2-4: ベンチ一覧がスライドアップ） */}
         <ActionButton
-          label="交代"
+          label={t('action.sub')}
           onClick={() => onSetMode(actionMode === 'substitute' ? null : 'substitute')}
           disabled={!hasSelection || remainingSubs <= 0}
           active={actionMode === 'substitute'}
         />
 
         {/* ターン確定（常時。1枚も指示なしでもOK） */}
-        <ActionButton label="✓ 確定" onClick={onConfirm} disabled={false} primary />
+        <ActionButton label={t('actionbar.confirm')} onClick={onConfirm} disabled={false} primary />
       </div>
     </div>
   );

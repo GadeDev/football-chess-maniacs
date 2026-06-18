@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback } from 'react';
 import type { Page } from '../types';
+import { t } from '../i18n';
 
 interface FriendMatchScreenProps {
   onNavigate: (page: Page) => void;
@@ -35,7 +36,7 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
 
   const handleJoin = useCallback(() => {
     if (joinId.length !== 6) {
-      setError('ルームIDは6桁です');
+      setError(t('friend.error_id_length'));
       return;
     }
     setError('');
@@ -43,7 +44,7 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
     if (Math.random() > 0.5) {
       onNavigate('formation');
     } else {
-      setError('ルームが見つかりません');
+      setError(t('friend.error_not_found'));
     }
   }, [joinId, onNavigate]);
 
@@ -71,14 +72,14 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
             background: 'rgba(68,136,204,0.1)', color: '#fff', fontSize: 16, fontWeight: 'bold',
             cursor: 'pointer', textAlign: 'center',
           }}>
-            部屋を作る
+            {t('friend.create_room')}
           </button>
           <button onClick={() => setMode('joining')} style={{
             padding: '16px 20px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
             background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: 16, fontWeight: 'bold',
             cursor: 'pointer', textAlign: 'center',
           }}>
-            部屋に入る
+            {t('friend.join_room')}
           </button>
         </div>
       )}
@@ -89,7 +90,7 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
           width: '100%', maxWidth: 320, background: 'rgba(255,255,255,0.04)',
           borderRadius: 12, padding: 24,
         }}>
-          <div style={{ color: '#888', fontSize: 13 }}>ルームID</div>
+          <div style={{ color: '#888', fontSize: 13 }}>{t('friend.room_id')}</div>
           <div style={{
             fontSize: 36, fontWeight: 'bold', color: '#4488cc', letterSpacing: 6,
             fontFamily: 'monospace',
@@ -101,10 +102,10 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
             background: copied ? 'rgba(68,170,68,0.2)' : 'rgba(68,136,204,0.1)',
             color: copied ? '#44aa44' : '#4488cc', fontSize: 13, cursor: 'pointer',
           }}>
-            {copied ? 'コピーしました!' : 'IDをコピー'}
+            {copied ? t('friend.copied') : t('friend.copy_id')}
           </button>
           <div style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
-            相手の参加を待っています...
+            {t('friend.waiting')}
           </div>
           <div style={{
             width: 24, height: 24, border: '2px solid #4488cc', borderTopColor: 'transparent',
@@ -119,11 +120,11 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
           width: '100%', maxWidth: 320, background: 'rgba(255,255,255,0.04)',
           borderRadius: 12, padding: 24,
         }}>
-          <div style={{ color: '#888', fontSize: 13 }}>ルームIDを入力</div>
+          <div style={{ color: '#888', fontSize: 13 }}>{t('friend.enter_room_id')}</div>
           <input
             value={joinId}
             onChange={e => setJoinId(e.target.value.toUpperCase().slice(0, 6))}
-            placeholder="6桁のID"
+            placeholder={t('friend.id_placeholder')}
             maxLength={6}
             style={{
               width: '100%', padding: '12px 16px', borderRadius: 8, textAlign: 'center',
@@ -136,7 +137,7 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
             padding: '10px 32px', borderRadius: 8, border: 'none',
             background: '#44aa44', color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
           }}>
-            参加
+            {t('friend.join')}
           </button>
         </div>
       )}
@@ -146,7 +147,7 @@ export default function FriendMatchScreen({ onNavigate }: FriendMatchScreenProps
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer',
       }}>
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

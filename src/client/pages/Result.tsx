@@ -4,6 +4,7 @@
 
 import React from 'react';
 import type { Page } from '../types';
+import { t } from '../i18n';
 
 interface ResultProps {
   scoreHome: number;
@@ -46,7 +47,7 @@ export default function Result({ scoreHome, scoreAway, myTeam, reason, onNavigat
 
       {reason === 'disconnect' && (
         <div style={{ fontSize: 14, color: '#cc8800' }}>
-          対戦相手が切断しました
+          {t('result.opponent_disconnected')}
         </div>
       )}
 
@@ -71,7 +72,7 @@ export default function Result({ scoreHome, scoreAway, myTeam, reason, onNavigat
             cursor: 'pointer',
           }}
         >
-          リプレイ
+          {t('result.replay')}
         </button>
         <button
           onClick={() => onNavigate('modeSelect')}
@@ -86,7 +87,7 @@ export default function Result({ scoreHome, scoreAway, myTeam, reason, onNavigat
             cursor: 'pointer',
           }}
         >
-          もう一度
+          {t('common.rematch')}
         </button>
         <button
           onClick={() => onNavigate('title')}
@@ -100,7 +101,7 @@ export default function Result({ scoreHome, scoreAway, myTeam, reason, onNavigat
             cursor: 'pointer',
           }}
         >
-          タイトルへ
+          {t('result.to_title')}
         </button>
       </div>
     </div>

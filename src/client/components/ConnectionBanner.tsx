@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Page } from '../types';
+import { t, tn } from '../i18n';
 
 export type ConnectionState =
   | 'connected'
@@ -51,7 +52,7 @@ export default function ConnectionBanner({
           width: 16, height: 16, border: '2px solid #fff', borderTopColor: 'transparent',
           borderRadius: '50%', animation: 'spin 1s linear infinite',
         }} />
-        接続が不安定です。再接続中...
+        {t('connection.reconnecting')}
       </div>
     );
   }
@@ -67,13 +68,13 @@ export default function ConnectionBanner({
           maxWidth: 360, width: '90%',
         }}>
           <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 12 }}>
-            相手の接続が切れました
+            {t('connection.opponent_disconnected')}
           </div>
           <div style={{ fontSize: 48, fontWeight: 'bold', color: '#cc8800', marginBottom: 8 }}>
             {countdown}
           </div>
           <div style={{ fontSize: 13, color: '#888' }}>
-            秒待機中... 復帰しない場合、勝利となります
+            {tn('connection.grace_wait', countdown)}
           </div>
         </div>
       </div>
@@ -91,13 +92,13 @@ export default function ConnectionBanner({
           maxWidth: 360, width: '90%',
         }}>
           <div style={{ fontSize: 18, fontWeight: 'bold', color: '#cc4444', marginBottom: 16 }}>
-            接続が切れました
+            {t('connection.disconnected')}
           </div>
           <button onClick={onReconnect} style={{
             padding: '12px 32px', borderRadius: 8, border: 'none',
             background: '#44aa44', color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
           }}>
-            再接続する
+            {t('connection.reconnect_btn')}
           </button>
         </div>
       </div>
@@ -115,7 +116,7 @@ export default function ConnectionBanner({
         maxWidth: 360, width: '90%',
       }}>
         <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>
-          試合が終了しました
+          {t('connection.match_abandoned')}
         </div>
         {abandonReason && (
           <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{abandonReason}</div>
@@ -124,7 +125,7 @@ export default function ConnectionBanner({
           padding: '12px 32px', borderRadius: 8, border: 'none',
           background: '#4488cc', color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
         }}>
-          ホームに戻る
+          {t('connection.go_home')}
         </button>
       </div>
     </div>

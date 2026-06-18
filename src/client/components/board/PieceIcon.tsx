@@ -5,6 +5,7 @@
 
 import { memo } from "react";
 import { getPieceAssetPath } from "../../utils/pieceAssetPath";
+import { t } from "../../i18n";
 
 // ── 型定義 ──────────────────────────────────────────────
 export type Position = "GK" | "DF" | "SB" | "VO" | "MF" | "OM" | "WG" | "FW";
@@ -96,7 +97,7 @@ const PieceIcon = memo(function PieceIcon({
         ...style,
       }}
       role="img"
-      aria-label={`${position} Cost${cost} ${side === "ally" ? "味方" : "敵"}`}
+      aria-label={`${position} Cost${cost} ${side === "ally" ? t('piece.side_ally') : t('piece.side_enemy')}`}
     >
       {/* PNG トークン画像 */}
       <img

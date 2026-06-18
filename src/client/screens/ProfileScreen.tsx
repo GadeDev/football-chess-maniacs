@@ -4,17 +4,18 @@
 
 import React, { useState } from 'react';
 import type { Page } from '../types';
+import { t } from '../i18n';
 
 interface ProfileScreenProps {
   onNavigate: (page: Page) => void;
 }
 
 function getRankLabel(elo: number): { label: string; color: string } {
-  if (elo >= 1600) return { label: 'レジェンド', color: '#ffd700' };
-  if (elo >= 1400) return { label: 'マニアック', color: '#ff4444' };
-  if (elo >= 1200) return { label: 'エキスパート', color: '#cc8800' };
-  if (elo >= 1000) return { label: 'レギュラー', color: '#4488cc' };
-  return { label: 'ビギナー', color: '#44aa44' };
+  if (elo >= 1600) return { label: t('rank.legend'), color: '#ffd700' };
+  if (elo >= 1400) return { label: t('rank.maniac'), color: '#ff4444' };
+  if (elo >= 1200) return { label: t('rank.expert'), color: '#cc8800' };
+  if (elo >= 1000) return { label: t('rank.regular'), color: '#4488cc' };
+  return { label: t('rank.beginner'), color: '#44aa44' };
 }
 
 interface MatchRecord {
@@ -64,7 +65,7 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
         borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>ユーザー名</span>
+          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.username')}</span>
           {editingName ? (
             <input value={userName} onChange={e => setUserName(e.target.value)}
               onBlur={() => setEditingName(false)} autoFocus
@@ -77,7 +78,7 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>クラブ名</span>
+          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.club_name')}</span>
           {editingClub ? (
             <input value={clubName} onChange={e => setClubName(e.target.value)}
               onBlur={() => setEditingClub(false)} autoFocus
@@ -90,11 +91,11 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>レート</span>
+          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rating')}</span>
           <span style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{elo}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>ランク</span>
+          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rank')}</span>
           <span style={{ color: rank.color, fontSize: 14, fontWeight: 'bold' }}>{rank.label}</span>
         </div>
       </div>
@@ -104,16 +105,16 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
         width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
         borderRadius: 12, padding: 16,
       }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>戦績</div>
+        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.record')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
-          <StatRow label="総試合数" value={String(total)} />
-          <StatRow label="勝率" value={`${winRate}%`} />
-          <StatRow label="勝ち" value={String(wins)} color="#44aa44" />
-          <StatRow label="負け" value={String(losses)} color="#cc4444" />
-          <StatRow label="引き分け" value={String(draws)} />
-          <StatRow label="連勝記録" value={String(bestStreak)} />
-          <StatRow label="最高レート" value={String(bestElo)} />
-          <StatRow label="所持コマ" value={`${piecesOwned}/200`} />
+          <StatRow label={t('profile.total_matches')} value={String(total)} />
+          <StatRow label={t('profile.win_rate')} value={`${winRate}%`} />
+          <StatRow label={t('profile.wins')} value={String(wins)} color="#44aa44" />
+          <StatRow label={t('profile.losses')} value={String(losses)} color="#cc4444" />
+          <StatRow label={t('profile.draws')} value={String(draws)} />
+          <StatRow label={t('profile.win_streak')} value={String(bestStreak)} />
+          <StatRow label={t('profile.best_rating')} value={String(bestElo)} />
+          <StatRow label={t('profile.pieces_owned')} value={`${piecesOwned}/200`} />
         </div>
       </div>
 
@@ -122,7 +123,7 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
         width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
         borderRadius: 12, padding: 16,
       }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>対戦履歴</div>
+        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.match_history')}</div>
         {MOCK_HISTORY.map((m, i) => (
           <div key={i} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -144,7 +145,7 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer', marginBottom: 20,
       }}>
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

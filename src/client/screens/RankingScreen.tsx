@@ -4,6 +4,7 @@
 
 import React, { useState } from 'react';
 import type { Page } from '../types';
+import { t } from '../i18n';
 
 interface RankingScreenProps {
   onNavigate: (page: Page) => void;
@@ -49,10 +50,10 @@ const MY_RANK: RankEntry = {
 };
 
 const MEDAL = ['', '\u{1F947}', '\u{1F948}', '\u{1F949}'];
-const TAB_LABELS: { id: Tab; label: string }[] = [
-  { id: 'overall', label: '総合' },
-  { id: 'weekly', label: '今週' },
-  { id: 'friends', label: 'フレンド' },
+const TAB_LABELS: { id: Tab; labelKey: string }[] = [
+  { id: 'overall', labelKey: 'ranking.tab_overall' },
+  { id: 'weekly', labelKey: 'ranking.tab_weekly' },
+  { id: 'friends', labelKey: 'ranking.tab_friends' },
 ];
 
 const RECENT_COLOR = { W: '#44aa44', D: '#888', L: '#cc4444' };
@@ -70,14 +71,14 @@ export default function RankingScreen({ onNavigate }: RankingScreenProps) {
 
       {/* タブ */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-        {TAB_LABELS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+        {TAB_LABELS.map(tabItem => (
+          <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
             padding: '6px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-            border: tab === t.id ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
-            background: tab === t.id ? 'rgba(68,136,204,0.2)' : 'transparent',
-            color: tab === t.id ? '#4488cc' : '#888',
+            border: tab === tabItem.id ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
+            background: tab === tabItem.id ? 'rgba(68,136,204,0.2)' : 'transparent',
+            color: tab === tabItem.id ? '#4488cc' : '#888',
           }}>
-            {t.label}
+            {t(tabItem.labelKey)}
           </button>
         ))}
       </div>
@@ -136,7 +137,7 @@ export default function RankingScreen({ onNavigate }: RankingScreenProps) {
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer',
       }}>
-        戻る
+        {t('common.back')}
       </button>
     </div>
   );

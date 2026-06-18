@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { t } from '../i18n';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
@@ -129,12 +130,12 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
   const handleBuyPiece = useCallback(async (item: CatalogItem) => {
     if (item.owned || buyingId !== null) return;
     if (!authToken) {
-      setToast('プラットフォームにログインしてください');
+      setToast(t('shop.login_required'));
       return;
     }
     const price = ingotPrice(item.cost);
     if (balance !== null && balance < price) {
-      setToast('インゴットが足りません');
+      setToast(t('shop.insufficient_ingots'));
       return;
     }
     setBuyingId(item.pieceId);
@@ -151,15 +152,15 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         setAcquired(item);
       } else if (res.status === 402) {
         if (typeof data.balance === 'number') setBalance(data.balance);
-        setToast('インゴットが足りません');
+        setToast(t('shop.insufficient_ingots'));
       } else if (res.status === 409) {
         setCatalog((prev) => prev.map((c) => (c.pieceId === item.pieceId ? { ...c, owned: true } : c)));
-        setToast('すでに所持しています');
+        setToast(t('shop.already_owned_toast'));
       } else {
-        setToast('購入に失敗しました');
+        setToast(t('shop.purchase_failed'));
       }
     } catch {
-      setToast('通信エラーが発生しました');
+      setToast(t('shop.network_error'));
     } finally {
       setBuyingId(null);
     }
@@ -181,7 +182,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
       }
       throw new Error('no checkout_url');
     } catch {
-      setToast('プラットフォームに接続できませんでした');
+      setToast(t('shop.platform_connect_failed'));
     } finally {
       setBuyingIngots(false);
     }
@@ -222,13 +223,13 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
             color: '#fff', fontSize: 13, fontWeight: 'bold',
             cursor: buyingIngots ? 'default' : 'pointer', whiteSpace: 'nowrap',
           }}>
-            {buyingIngots ? '接続中…' : '+ インゴットを購入'}
+            {buyingIngots ? t('shop.connecting') : t('shop.buy_ingots')}
           </button>
         </div>
       </div>
 
       <div style={{ fontSize: 12, color: '#7a86a8', width: '100%', maxWidth: 460 }}>
-        コマはインゴット ◆ で購入できます。インゴットはプラットフォームで購入します。
+        {t('shop.description')}
       </div>
 
       {/* ポジションフィルター */}
@@ -240,7 +241,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
             background: posFilter === pos ? 'rgba(74,158,255,0.2)' : 'transparent',
             color: posFilter === pos ? '#9ecbff' : '#888', fontWeight: posFilter === pos ? 'bold' : 'normal',
           }}>
-            {pos === 'ALL' ? 'すべて' : pos}
+            {pos === 'ALL' ? t('shop.filter_all') : pos}
           </button>
         ))}
       </div>
@@ -276,7 +277,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
                   borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#888',
                   fontSize: 12, fontWeight: 'bold',
                 }}>
-                  所持済み
+                  {t('shop.owned')}
                 </div>
               ) : (
                 <button onClick={() => handleBuyPiece(item)} disabled={!canBuy} style={{
@@ -286,7 +287,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
                   color: canBuy ? '#fff' : '#666',
                   fontSize: 12, fontWeight: 'bold', cursor: canBuy ? 'pointer' : 'default',
                 }}>
-                  {isBuying ? '購入中…' : `◆ ${price}`}
+                  {isBuying ? t('shop.buying') : `◆ ${price}`}
                 </button>
               )}
             </div>
@@ -295,7 +296,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
       </div>
 
       {visible.length === 0 && (
-        <div style={{ color: '#666', fontSize: 13, padding: 32 }}>コマを読み込み中…</div>
+        <div style={{ color: '#666', fontSize: 13, padding: 32 }}>{t('shop.loading')}</div>
       )}
 
       <button onClick={() => onNavigate('title')} style={{
@@ -303,7 +304,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
         color: '#888', fontSize: 14, cursor: 'pointer',
       }}>
-        戻る
+        {t('common.back')}
       </button>
 
       {/* 獲得演出 */}
@@ -323,7 +324,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
             <PieceIcon cost={acquired.cost} position={acquired.position} side="ally" />
           </div>
           <div style={{ fontSize: 15, color: '#fff', fontWeight: 'bold' }}>{acquired.name}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>タップして閉じる</div>
+          <div style={{ fontSize: 12, color: '#888' }}>{t('shop.tap_to_close')}</div>
           <style>{`@keyframes fcms-shop-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }`}</style>
         </div>
       )}

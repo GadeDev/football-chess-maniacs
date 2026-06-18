@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import type { PieceData, Cost } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t, tn } from '../../i18n';
 
 /** フィールドコスト上限 */
 const MAX_FIELD_COST = 16;
@@ -91,14 +92,14 @@ export default function HalftimeSubPanel({
             <span style={{ color: '#cc4444' }}>{scoreAway}</span>
           </div>
           <div style={{ fontSize: 13, color: '#888', marginTop: 8 }}>
-            交代残り: {remainingSubs}回 / コスト: {currentFieldCost}/{MAX_FIELD_COST}
+            {tn('halftimesub.subs_cost', remainingSubs, { count: remainingSubs, cost: currentFieldCost, max: MAX_FIELD_COST })}
           </div>
         </div>
 
         {/* フィールドコマ一覧 */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 13, color: '#888', marginBottom: 6, fontWeight: 600 }}>
-            フィールド（タップで交代元を選択）
+            {t('halftimesub.field_header')}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {myFieldPieces.map(p => {
@@ -135,7 +136,7 @@ export default function HalftimeSubPanel({
         {myBenchPieces.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 6, fontWeight: 600 }}>
-              ベンチ{selectedField ? '（タップで交代先を選択）' : ''}
+              {t('halftimesub.bench_label')}{selectedField ? t('halftimesub.bench_hint') : ''}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {myBenchPieces.map(bp => {
@@ -174,7 +175,7 @@ export default function HalftimeSubPanel({
 
         {myBenchPieces.length === 0 && (
           <div style={{ fontSize: 13, color: '#555', marginBottom: 16, textAlign: 'center' }}>
-            ベンチにコマがありません
+            {t('halftimesub.bench_empty')}
           </div>
         )}
 
@@ -188,10 +189,10 @@ export default function HalftimeSubPanel({
               fontSize: 16, fontWeight: 700, cursor: 'pointer',
             }}
           >
-            後半開始
+            {t('halftimesub.start_second_half')}
           </button>
           <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
-            自動開始まで {countdown}秒
+            {tn('halftimesub.auto_start', countdown, { count: countdown })}
           </div>
         </div>
       </div>

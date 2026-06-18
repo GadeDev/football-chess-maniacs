@@ -5,6 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { t, tn } from '../i18n';
 
 interface CollectionScreenProps {
   onNavigate: (page: Page) => void;
@@ -80,14 +81,14 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
 
       {/* タブ */}
       <div style={{ display: 'flex', gap: 4, padding: '0 16px 8px' }}>
-        {(['owned', 'catalog'] as TabMode[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
+        {(['owned', 'catalog'] as TabMode[]).map(tabId => (
+          <button key={tabId} onClick={() => setTab(tabId)} style={{
             padding: '5px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-            border: tab === t ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
-            background: tab === t ? 'rgba(68,136,204,0.2)' : 'transparent',
-            color: tab === t ? '#4488cc' : '#888',
+            border: tab === tabId ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
+            background: tab === tabId ? 'rgba(68,136,204,0.2)' : 'transparent',
+            color: tab === tabId ? '#4488cc' : '#888',
           }}>
-            {t === 'owned' ? '所持コマ' : '図鑑'}
+            {tabId === 'owned' ? t('collection.tab_owned') : t('collection.tab_catalog')}
           </button>
         ))}
       </div>
@@ -120,9 +121,9 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
           marginLeft: 'auto', padding: '2px 6px', borderRadius: 4, fontSize: 10,
           background: '#1a1a3e', color: '#888', border: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <option value="cost">コスト順</option>
-          <option value="position">ポジション順</option>
-          <option value="acquired">取得順</option>
+          <option value="cost">{t('collection.sort_cost')}</option>
+          <option value="position">{t('collection.sort_position')}</option>
+          <option value="acquired">{t('collection.sort_acquired')}</option>
         </select>
       </div>
 
@@ -166,13 +167,13 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
             </div>
             <div style={{ color: '#888', fontSize: 13 }}>Era #{selectedPiece.era}</div>
             <div style={{ color: '#aaa', fontSize: 13 }}>
-              {selectedPiece.owned ? `所持数: ${selectedPiece.count}` : '未所持'}
+              {selectedPiece.owned ? tn('collection.count', selectedPiece.count, { count: selectedPiece.count }) : t('collection.not_owned')}
             </div>
             <button onClick={() => setSelectedPiece(null)} style={{
               padding: '8px 24px', borderRadius: 8, border: 'none',
               background: '#4488cc', color: '#fff', fontSize: 14, cursor: 'pointer',
             }}>
-              閉じる
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -184,7 +185,7 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
           border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
           color: '#888', fontSize: 14, cursor: 'pointer',
         }}>
-          戻る
+          {t('common.back')}
         </button>
       </div>
     </div>

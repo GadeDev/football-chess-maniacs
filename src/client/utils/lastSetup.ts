@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { GameMode, ComDifficulty, FormationData } from '../types';
+import { t } from '../i18n';
 
 export interface LastSetup {
   gameMode: GameMode;
@@ -36,24 +37,32 @@ export function saveLastSetup(setup: LastSetup): void {
   } catch { /* ignore */ }
 }
 
-const MODE_LABELS: Record<GameMode, string> = {
-  ranked: 'ランクマッチ',
-  casual: 'カジュアル',
-  com: 'COM対戦',
-  comVsCom: 'COM観戦',
+const MODE_KEYS: Record<GameMode, string> = {
+  ranked: 'mode.ranked',
+  casual: 'mode.casual',
+  com: 'mode.com',
+  comVsCom: 'mode.com_watch',
 };
 
-const DIFFICULTY_LABELS: Record<ComDifficulty, string> = {
-  beginner: 'ビギナー',
-  regular: 'レギュラー',
-  maniac: 'マニアック',
+const DIFFICULTY_KEYS: Record<ComDifficulty, string> = {
+  beginner: 'difficulty.beginner',
+  regular: 'difficulty.regular',
+  maniac: 'difficulty.maniac',
 };
+
+function modeLabel(m: GameMode): string {
+  return t(MODE_KEYS[m]);
+}
+
+function difficultyLabel(d: ComDifficulty): string {
+  return t(DIFFICULTY_KEYS[d]);
+}
 
 /** 「前回の編成で対戦」ボタンのサブラベル（例: "COM対戦 · レギュラー"） */
 export function describeLastSetup(setup: LastSetup): string {
-  const parts: string[] = [MODE_LABELS[setup.gameMode]];
+  const parts: string[] = [modeLabel(setup.gameMode)];
   if (setup.gameMode === 'com' || setup.gameMode === 'comVsCom') {
-    parts.push(DIFFICULTY_LABELS[setup.comDifficulty]);
+    parts.push(difficultyLabel(setup.comDifficulty));
   }
   return parts.join(' · ');
 }

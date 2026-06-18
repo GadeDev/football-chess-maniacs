@@ -9,6 +9,7 @@ import HalftimeSubPanel from '../../components/ui/HalftimeSubPanel';
 import GoalCeremony from './GoalCeremony';
 import { MAX_SUBSTITUTIONS } from './battleUtils';
 import { computeStats, computeMvp } from './battleUtils';
+import { t } from '../../i18n';
 
 interface CeremonyLayerProps {
   ceremony: CeremonyPhase;
@@ -76,7 +77,7 @@ export default function CeremonyLayer({
             textShadow: '0 2px 24px rgba(0,0,0,0.8)', whiteSpace: 'nowrap',
             animation: 'fcms-wipe-label 1.4s ease-out forwards',
           }}>
-            ゴールキック
+            {t('ceremony.goalkick')}
           </div>
         </div>
       )}
@@ -207,7 +208,7 @@ export default function CeremonyLayer({
                   cursor: 'pointer', pointerEvents: 'auto',
                 }}
               >
-                結果を見る
+                {t('ceremony.view_result')}
               </button>
             )}
           </div>
