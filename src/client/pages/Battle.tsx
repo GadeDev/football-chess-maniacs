@@ -482,11 +482,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     return () => { clearPhaseTimeout(); clearTimeout(safety); };
   }, [state.turnPhase, state.status, state.turn, dispatch, clearPhaseTimeout, showOverlay, isComVsCom]);
 
-  // ── 非INPUTフェーズではメニューを閉じる ──
-  useEffect(() => {
-    if (state.turnPhase !== 'INPUT') setBallActionMenu(null);
-  }, [state.turnPhase]);
-
   // ── ボール整合性チェック（INPUT開始時） ──
   useEffect(() => {
     if (state.turnPhase !== 'INPUT' || state.status !== 'playing') return;
@@ -534,15 +529,14 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const [phaseEffects, setPhaseEffects] = useState<Array<{ coord: HexCoord; icon: string; color: string; text?: string; burst?: 'impact' | 'dust' }>>([]);
   const [ballTrails, setBallTrails] = useState<BallTrail[]>([]);
   const [flyingBall, setFlyingBall] = useState<FlyingBallData | null>(null);
-  const [ballActionMenu, setBallActionMenu] = useState<string | null>(null); // pieceId or null
   const flyingBallResolveRef = useRef<(() => void) | null>(null);
   const resolvingEventsRef = useRef<EngineGameEvent[]>([]);
 
   // ── A2: 移動範囲（selectedPiece の移動可能HEX） ──
   const highlightHexes = useMemo(() => {
     if (!selectedPiece || isInputDisabled) return [];
-    // パス/シュートモード中は移動範囲（緑）を出さない（パス先・シュート先のハイライトに集中）
-    if (state.actionMode === 'pass' || state.actionMode === 'shoot') return [];
+    // ボール操作モード中は移動範囲（緑）を出さない（選択中の行動ハイライトに集中）
+    if (state.actionMode === 'pass' || state.actionMode === 'shoot' || state.actionMode === 'throughPass') return [];
     const ep = toEnginePiece(selectedPiece);
     const isDribbling = selectedPiece.hasBall;
     return computeReachableHexes(ep, isDribbling, boardContext);
@@ -563,9 +557,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       .map((p) => ({ col: p.coord.col, row: p.coord.row }));
   }, [selectedPiece, isInputDisabled, state.actionMode, state.board.pieces, state.myTeam]);
 
-  // ── パスモード: スルーパス可能な空きHEX（シアン）。シュートゾーンは除外（赤で別表示） ──
+  // ── スルーパスモード: スルーパス可能な空きHEX（シアン） ──
   const throughPassHexes = useMemo(() => {
-    if (!selectedPiece || isInputDisabled || state.actionMode !== 'pass') return [];
+    if (!selectedPiece || isInputDisabled || state.actionMode !== 'throughPass') return [];
     const accurateRange = getAccuratePassRange(selectedPiece);
     const occupied = new Set(
       state.board.pieces.filter((p) => !p.isBench).map((p) => `${p.coord.col},${p.coord.row}`),
@@ -614,7 +608,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   // ── A4: シュート可能範囲HEX（シュートモード時に表示） ──
   const shootRangeHexes = useMemo(() => {
     if (!selectedPiece) return [];
-    if (state.actionMode !== 'shoot' && state.actionMode !== 'pass' && !(selectedPiece.hasBall && state.actionMode === null)) return [];
+    if (state.actionMode !== 'shoot') return [];
     // highlightHexes（移動可能範囲）のうちシュートゾーンに入るHEXを返す
     // + 現在位置がシュートゾーンなら現在位置のゴール方向HEXも含める
     const pos = selectedPiece.position;
@@ -716,6 +710,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'pass' ? null : 'pass' });
           }
           break;
+        case 't': // スルーパスモード
+          if (selectedPiece?.hasBall) {
+            dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'throughPass' ? null : 'throughPass' });
+          }
+          break;
         case 'w': // シュートモード
           if (selectedPiece?.hasBall) {
             dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'shoot' ? null : 'shoot' });
@@ -790,19 +789,16 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       if (pieceId) {
         const p = state.board.pieces.find(pp => pp.id === pieceId);
 
-        // ボール保持者（味方・未命令）→ 選択してメニュー表示
+        // ボール保持者も通常選択。行動は下部/右クリックメニューから明示選択する。
         if (p?.hasBall && p.team === state.myTeam && !state.orders.has(pieceId)) {
           dispatch({ type: 'SELECT_PIECE', pieceId });
-          setBallActionMenu(pieceId);
           if (isMobile && navigator.vibrate) navigator.vibrate(30);
           return;
         }
 
         dispatch({ type: 'SELECT_PIECE', pieceId });
-        setBallActionMenu(null);
       } else {
         dispatch({ type: 'SELECT_PIECE', pieceId: null });
-        setBallActionMenu(null);
       }
 
       if (isMobile && pieceId && navigator.vibrate) navigator.vibrate(30);
@@ -816,29 +812,22 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     [handleSelectPiece],
   );
 
-  /** シュート可能ゾーン判定（ゲーム座標、ポジション別距離補正付き） */
-  const isShootZone = useCallback((coord: HexCoord) => {
-    const piece = state.selectedPieceId
-      ? state.board.pieces.find(p => p.id === state.selectedPieceId)
-      : null;
-    const pos = piece?.position ?? 'MF';
-    return isShootZoneForPiece(coord, state.myTeam, pos);
-  }, [state.myTeam, state.selectedPieceId, state.board.pieces]);
-
   const handleHexClick = useCallback(
     (coord: HexCoord) => {
       if (state.turnPhase !== 'INPUT') return;
-      setBallActionMenu(null); // メニューを閉じる
       if (!state.selectedPieceId) {
         dispatch({ type: 'SELECT_PIECE', pieceId: null });
         return;
       }
 
       const selPiece = state.board.pieces.find(p => p.id === state.selectedPieceId);
+      if (!selPiece) return;
       const hasBall = selPiece?.hasBall ?? false;
+      const isInHexes = (hexes: HexCoord[]) => hexes.some((h) => h.col === coord.col && h.row === coord.row);
 
-      // ── パスモード（ボールタッチ由来） ──
+      // ── パスモード: 青リングの味方のみ反応 ──
       if (state.actionMode === 'pass') {
+        if (!isInHexes(passTargetHexes)) return;
         const teammate = state.board.pieces.find(
           (p) => p.coord.col === coord.col && p.coord.row === coord.row
             && p.team === state.myTeam && p.id !== state.selectedPieceId && !p.isBench,
@@ -846,32 +835,45 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         if (teammate) {
           // 味方コマ → パス: ボールを即座に移動し、パス元を命令済みに
           dispatch({ type: 'PASS_BALL', fromPieceId: state.selectedPieceId, toPieceId: teammate.id });
-        } else if (isShootZone(coord)) {
-          dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'shoot', targetHex: coord } });
         } else {
-          // スルーパス: 命令登録 + ボールを元の選手から外す + フリーボール仮表示
-          dispatch({ type: 'THROUGH_PASS', fromPieceId: state.selectedPieceId, targetHex: coord });
+          return;
         }
       } else if (state.actionMode === 'shoot') {
+        if (!isInHexes(shootRangeHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'shoot', targetHex: coord } });
       } else if (state.actionMode === 'dribble') {
+        if (!hasBall || !isInHexes(highlightHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'dribble', targetHex: coord } });
       } else if (state.actionMode === 'move') {
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: hasBall ? 'dribble' : 'move', targetHex: coord } });
+        if (hasBall || !isInHexes(highlightHexes)) return;
+        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'move', targetHex: coord } });
       } else if (state.actionMode === 'throughPass') {
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'throughPass', targetHex: coord } });
+        if (!hasBall || !isInHexes(throughPassHexes)) return;
+        dispatch({ type: 'THROUGH_PASS', fromPieceId: state.selectedPieceId, targetHex: coord });
       } else if (hasBall) {
-        // ボール保持者 + モード未選択 → ドリブル（コマタッチからの遷移）
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'dribble', targetHex: coord } });
+        // ボール保持者 + モード未選択では誤操作防止のため予約しない。
+        return;
       } else {
         // ボール非保持者 → 移動
+        if (!isInHexes(highlightHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'move', targetHex: coord } });
       }
 
       if (isMobile && navigator.vibrate) navigator.vibrate(20);
     },
-    [state.selectedPieceId, state.actionMode, state.board.pieces, state.myTeam,
-     dispatch, isMobile, isShootZone, state.turnPhase],
+    [
+      state.selectedPieceId,
+      state.actionMode,
+      state.board.pieces,
+      state.myTeam,
+      dispatch,
+      isMobile,
+      state.turnPhase,
+      passTargetHexes,
+      shootRangeHexes,
+      highlightHexes,
+      throughPassHexes,
+    ],
   );
 
   // ── HEX座標→ピクセル座標変換（hex_mapデータを使用、flipY対応） ──
@@ -1829,7 +1831,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   // ── アクションガイドテキスト ──
   const actionGuide = useMemo(() => {
     if (state.board.freeBallHex) return t('battle.guide_free_ball');
-    if (ballActionMenu) return t('battle.guide_pass_or_dribble');
     if (!selectedPiece) return t('battle.guide_select_piece');
     // パス済みコマを選択
     if (state.orders.has(selectedPiece.id)) {
@@ -1843,13 +1844,13 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       case 'throughPass': return t('battle.guide_through_pass_target');
       case 'shoot': return t('battle.guide_shoot_target');
       case 'dribble': return t('battle.guide_dribble_target');
-      case 'move': return hasBall ? t('battle.guide_dribble_target') : t('battle.guide_move_target');
+      case 'move': return hasBall ? t('battle.guide_ball_holder_default') : t('battle.guide_move_target');
       case 'substitute': return t('battle.guide_sub_target');
       default:
         if (hasBall) return t('battle.guide_ball_holder_default');
         return t('battle.guide_move_target');
     }
-  }, [selectedPiece, state.actionMode, state.orders, ballActionMenu, state.board.freeBallHex]);
+  }, [selectedPiece, state.actionMode, state.orders, state.board.freeBallHex]);
 
   // ── A10: フェーズ別ラベル ──
   const phaseLabels = [t('action.move'), t('battle.phase_collision'), t('battle.phase_foul'), t('battle.phase_ball_move'), t('battle.phase_passcut_offside')];
@@ -2047,10 +2048,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}
             freeBallHex={state.board.freeBallHex}
-            ballActionMenu={state.turnPhase === 'INPUT' ? ballActionMenu : null}
-            onActionPass={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'pass' }); setBallActionMenu(null); }}
-            onActionDribble={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'dribble' }); setBallActionMenu(null); }}
-            onActionCancel={() => { dispatch({ type: 'SELECT_PIECE', pieceId: null }); setBallActionMenu(null); }}
+            ballActionMenu={null}
             flyingBall={flyingBall}
             onFlyingBallComplete={handleFlyingBallComplete}
           />
@@ -2188,9 +2186,16 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           selectedPiece={selectedPiece}
           actionMode={state.actionMode}
           hasOrders={state.orders.size > 0}
+          selectedHasOrder={selectedPiece ? state.orders.has(selectedPiece.id) : false}
           orderCount={state.orders.size}
           remainingSubs={MAX_SUBSTITUTIONS}
           benchPieces={myBenchPieces}
+          onCancelSelection={() => {
+            dispatch({ type: 'SELECT_PIECE', pieceId: null });
+          }}
+          onRemoveSelectedOrder={() => {
+            if (selectedPiece) dispatch({ type: 'REMOVE_ORDER', pieceId: selectedPiece.id });
+          }}
           onUndo={() => dispatch({ type: 'UNDO_LAST_ORDER' })}
           onClearAll={() => dispatch({ type: 'CLEAR_ORDERS' })}
           onSetMode={handleSetMode}
@@ -2262,10 +2267,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}
             freeBallHex={state.board.freeBallHex}
-            ballActionMenu={state.turnPhase === 'INPUT' ? ballActionMenu : null}
-            onActionPass={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'pass' }); setBallActionMenu(null); }}
-            onActionDribble={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'dribble' }); setBallActionMenu(null); }}
-            onActionCancel={() => { dispatch({ type: 'SELECT_PIECE', pieceId: null }); setBallActionMenu(null); }}
+            ballActionMenu={null}
             flyingBall={flyingBall}
             onFlyingBallComplete={handleFlyingBallComplete}
           />
@@ -2290,10 +2292,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 { label: t('action.move'), mode: 'move' as ActionMode, key: '' },
                 { label: t('battle.ctx_dribble'), mode: 'dribble' as ActionMode, key: 'D', needsBall: true },
                 { label: t('battle.ctx_pass'), mode: 'pass' as ActionMode, key: 'Q', needsBall: true },
+                { label: t('action.through_pass'), mode: 'throughPass' as ActionMode, key: 'T', needsBall: true },
                 { label: t('battle.ctx_shoot'), mode: 'shoot' as ActionMode, key: 'W', needsBall: true },
                 { label: t('battle.ctx_sub'), mode: 'substitute' as ActionMode, key: 'E' },
               ].map((item) => {
-                const disabled = item.needsBall && !selectedPiece?.hasBall;
+                const disabled = (item.needsBall && !selectedPiece?.hasBall) || (item.mode === 'move' && !!selectedPiece?.hasBall);
                 return (
                   <button
                     key={item.label}

@@ -13,9 +13,12 @@ interface ActionBarProps {
   selectedPiece: PieceData | null;
   actionMode: ActionMode;
   hasOrders: boolean;
+  selectedHasOrder: boolean;
   orderCount: number;
   remainingSubs: number;
   benchPieces: PieceData[];
+  onCancelSelection: () => void;
+  onRemoveSelectedOrder: () => void;
   onUndo: () => void;
   onClearAll: () => void;
   onSetMode: (mode: ActionMode) => void;
@@ -27,9 +30,12 @@ export default function ActionBar({
   selectedPiece,
   actionMode,
   hasOrders,
+  selectedHasOrder,
   orderCount,
   remainingSubs,
   benchPieces,
+  onCancelSelection,
+  onRemoveSelectedOrder,
   onUndo,
   onClearAll,
   onSetMode,
@@ -105,61 +111,60 @@ export default function ActionBar({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-around',
-          height: 66,
+          flexDirection: 'column',
+          height: 106,
           background: 'rgba(20, 20, 40, 0.95)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
-          padding: '0 8px',
-          gap: 4,
+          padding: '7px 8px',
+          gap: 6,
         }}
       >
-        {/* 戻す / 全取消 (長押しで全取消) */}
-        <ActionButton label={t('actionbar.undo')} onClick={onUndo} disabled={!hasOrders} />
-        <ActionButton label={t('actionbar.clear_all')} onClick={onClearAll} disabled={!hasOrders} danger />
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+          <ActionButton label={t('common.cancel')} onClick={onCancelSelection} disabled={!hasSelection && actionMode === null} />
+          <ActionButton label={t('actionbar.remove_order')} onClick={onRemoveSelectedOrder} disabled={!selectedHasOrder} />
+          <ActionButton label={t('actionbar.undo')} onClick={onUndo} disabled={!hasOrders} />
+          <ActionButton label={t('actionbar.clear_all')} onClick={onClearAll} disabled={!hasOrders} danger />
+        </div>
 
-        {/* 移動モード（ボール非保持時の基本操作を明示） */}
-        <ActionButton
-          label={t('action.move')}
-          onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
-          disabled={!hasSelection || hasBall}
-          active={moveActive}
-        />
-
-        {/* ドリブルモード（ボール保持時のみ） */}
-        <ActionButton
-          label={t('action.dribble')}
-          onClick={() => onSetMode(actionMode === 'dribble' ? null : 'dribble')}
-          disabled={!hasBall}
-          active={actionMode === 'dribble'}
-        />
-
-        {/* パスモード（ボール保持時のみ） */}
-        <ActionButton
-          label={t('action.pass')}
-          onClick={() => onSetMode(actionMode === 'pass' ? null : 'pass')}
-          disabled={!hasBall}
-          active={actionMode === 'pass'}
-        />
-
-        {/* シュートモード（ボール保持時のみ） */}
-        <ActionButton
-          label={t('action.shoot')}
-          onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
-          disabled={!hasBall}
-          active={actionMode === 'shoot'}
-        />
-
-        {/* 交代（§2-4: ベンチ一覧がスライドアップ） */}
-        <ActionButton
-          label={t('action.sub')}
-          onClick={() => onSetMode(actionMode === 'substitute' ? null : 'substitute')}
-          disabled={!hasSelection || remainingSubs <= 0}
-          active={actionMode === 'substitute'}
-        />
-
-        {/* ターン確定（常時。1枚も指示なしでもOK） */}
-        <ActionButton label={t('actionbar.confirm')} onClick={onConfirm} disabled={false} primary />
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+          <ActionButton
+            label={t('action.move')}
+            onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
+            disabled={!hasSelection || hasBall}
+            active={moveActive}
+          />
+          <ActionButton
+            label={t('action.dribble')}
+            onClick={() => onSetMode(actionMode === 'dribble' ? null : 'dribble')}
+            disabled={!hasBall}
+            active={actionMode === 'dribble'}
+          />
+          <ActionButton
+            label={t('action.pass')}
+            onClick={() => onSetMode(actionMode === 'pass' ? null : 'pass')}
+            disabled={!hasBall}
+            active={actionMode === 'pass'}
+          />
+          <ActionButton
+            label={t('action.through_pass')}
+            onClick={() => onSetMode(actionMode === 'throughPass' ? null : 'throughPass')}
+            disabled={!hasBall}
+            active={actionMode === 'throughPass'}
+          />
+          <ActionButton
+            label={t('action.shoot')}
+            onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
+            disabled={!hasBall}
+            active={actionMode === 'shoot'}
+          />
+          <ActionButton
+            label={t('action.sub')}
+            onClick={() => onSetMode(actionMode === 'substitute' ? null : 'substitute')}
+            disabled={!hasSelection || remainingSubs <= 0}
+            active={actionMode === 'substitute'}
+          />
+          <ActionButton label={t('actionbar.confirm')} onClick={onConfirm} disabled={false} primary />
+        </div>
       </div>
     </div>
   );
@@ -186,14 +191,16 @@ function ActionButton({
       disabled={disabled}
       style={{
         flex: 1,
-        height: 48,
+        height: 42,
         minWidth: 0,
-        maxWidth: 76,
         border: 'none',
         borderRadius: 8,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 'bold',
         cursor: disabled ? 'default' : 'pointer',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
         background: primary
           ? '#44aa44'
           : danger && !disabled
