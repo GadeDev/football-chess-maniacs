@@ -5,6 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { PIECE_CATALOG_LIST } from '../../data/pieceCatalog';
 
 interface CollectionScreenProps {
   onNavigate: (page: Page) => void;
@@ -18,35 +19,31 @@ const ALL_COSTS: Cost[] = [1, 1.5, 2, 2.5, 3];
 
 interface PieceEntry {
   id: string;
+  pieceId: number;
+  name: string;
+  nameEn: string;
   position: Position;
   cost: Cost;
   era: number;
+  eraShelf: number;
   owned: boolean;
   count: number;
+  summary: string;
 }
 
-function generateMockCollection(): PieceEntry[] {
-  const entries: PieceEntry[] = [];
-  let id = 0;
-  for (const pos of ALL_POSITIONS) {
-    for (const cost of ALL_COSTS) {
-      for (let era = 1; era <= 7; era++) {
-        const owned = (cost <= 1.5 && era <= 2) || Math.random() < 0.15;
-        entries.push({
-          id: `piece_${id++}`,
-          position: pos,
-          cost,
-          era,
-          owned,
-          count: owned ? Math.floor(Math.random() * 3) + 1 : 0,
-        });
-      }
-    }
-  }
-  return entries;
-}
-
-const MOCK_COLLECTION = generateMockCollection();
+const CATALOG_COLLECTION: PieceEntry[] = PIECE_CATALOG_LIST.map((piece) => ({
+  id: `piece_${piece.id}`,
+  pieceId: piece.id,
+  name: piece.name,
+  nameEn: piece.nameEn,
+  position: piece.position,
+  cost: piece.cost,
+  era: piece.era,
+  eraShelf: piece.eraShelf,
+  owned: piece.isFounding,
+  count: piece.isFounding ? 1 : 0,
+  summary: piece.summary,
+}));
 
 export default function CollectionScreen({ onNavigate }: CollectionScreenProps) {
   const [tab, setTab] = useState<TabMode>('owned');
@@ -56,16 +53,17 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
   const [selectedPiece, setSelectedPiece] = useState<PieceEntry | null>(null);
 
   const filtered = useMemo(() => {
-    let list = MOCK_COLLECTION;
+    let list = CATALOG_COLLECTION;
     if (tab === 'owned') list = list.filter(p => p.owned);
     if (posFilter !== 'ALL') list = list.filter(p => p.position === posFilter);
     if (costFilter !== 'ALL') list = list.filter(p => p.cost === costFilter);
-    if (sort === 'cost') list = [...list].sort((a, b) => b.cost - a.cost || a.position.localeCompare(b.position));
+    if (sort === 'cost') list = [...list].sort((a, b) => b.cost - a.cost || a.pieceId - b.pieceId);
     else if (sort === 'position') list = [...list].sort((a, b) => ALL_POSITIONS.indexOf(a.position) - ALL_POSITIONS.indexOf(b.position) || b.cost - a.cost);
+    else if (sort === 'acquired') list = [...list].sort((a, b) => Number(b.owned) - Number(a.owned) || a.pieceId - b.pieceId);
     return list;
   }, [tab, posFilter, costFilter, sort]);
 
-  const ownedCount = MOCK_COLLECTION.filter(p => p.owned).length;
+  const ownedCount = CATALOG_COLLECTION.filter(p => p.owned).length;
 
   return (
     <div style={{
@@ -75,7 +73,7 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
       {/* ヘッダー */}
       <div style={{ padding: '16px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#fff', margin: 0 }}>COLLECTION</h2>
-        <span style={{ fontSize: 13, color: '#888' }}>{ownedCount} / 280</span>
+        <span style={{ fontSize: 13, color: '#888' }}>{ownedCount} / {CATALOG_COLLECTION.length}</span>
       </div>
 
       {/* タブ */}
@@ -145,7 +143,7 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
               <PieceIcon cost={entry.cost} position={entry.position} side="ally" style={{ width: 48, height: 48 }} />
             )}
             <div style={{ fontSize: 9, color: '#888' }}>{entry.position}</div>
-            <div style={{ fontSize: 9, color: '#666' }}>#{entry.era}</div>
+            <div style={{ fontSize: 9, color: '#666' }}>#{String(entry.pieceId).padStart(3, '0')}</div>
           </div>
         ))}
       </div>
@@ -162,9 +160,14 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
           }}>
             <PieceIcon cost={selectedPiece.cost} position={selectedPiece.position} side="ally" />
             <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-              {selectedPiece.position} (Cost {selectedPiece.cost})
+              {selectedPiece.name}
             </div>
-            <div style={{ color: '#888', fontSize: 13 }}>Era #{selectedPiece.era}</div>
+            <div style={{ color: '#888', fontSize: 13 }}>
+              #{String(selectedPiece.pieceId).padStart(3, '0')} / {selectedPiece.position} / Cost {selectedPiece.cost} / Era {selectedPiece.era}
+            </div>
+            <div style={{ color: '#aaa', fontSize: 12, lineHeight: 1.5, textAlign: 'center' }}>
+              {selectedPiece.summary}
+            </div>
             <div style={{ color: '#aaa', fontSize: 13 }}>
               {selectedPiece.owned ? `所持数: ${selectedPiece.count}` : '未所持'}
             </div>

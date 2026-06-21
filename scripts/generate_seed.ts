@@ -1,7 +1,6 @@
 #!/usr/bin/env npx tsx
 // ============================================================
-// generate_seed.ts — characters_200.csv → piece_master_seed.sql
-// 一回限りのスクリプト。 npx tsx scripts/generate_seed.ts で実行
+// generate_seed.ts — docs/lore/characters_200.csv → piece_master_seed.sql
 // ============================================================
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -12,82 +11,147 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CSV_PATH = resolve(__dirname, '../docs/lore/characters_200.csv');
 const OUT_PATH = resolve(__dirname, 'piece_master_seed.sql');
 
-// ── マッピング定義 ──
-
 const COST_MAP: Record<string, number> = {
-  '1': 1, '1+': 1.5, '2': 2, '2+': 2.5, 'SS': 3,
+  '1': 1,
+  '1+': 1.5,
+  '2': 2,
+  '2+': 2.5,
+  SS: 3,
 };
 
-// Era (1-13) → Shelf (1-7)
 const ERA_SHELF_MAP: Record<number, number> = {
-  1: 1, 2: 1,       // Dawn
-  3: 2, 4: 2,       // Interwar
-  5: 3, 6: 3,       // Post-War
-  7: 4,             // Expansion
-  8: 5, 9: 5,       // Modernization
-  10: 6, 11: 6,     // Global
-  12: 7, 13: 7,     // Present
+  1: 1,
+  2: 1,
+  3: 2,
+  4: 2,
+  5: 3,
+  6: 3,
+  7: 4,
+  8: 5,
+  9: 5,
+  10: 6,
+  11: 6,
+  12: 7,
+  13: 7,
 };
 
-// 日本語国籍略号 → ISO コード
 const NAT_MAP: Record<string, string> = {
-  '英': 'GB-ENG', '蘇': 'GB-SCO', '愛': 'IE',
-  '独': 'DE', '東独': 'DE', '東独→独': 'DE',
-  '仏': 'FR', '伊': 'IT', '西': 'ES', '葡': 'PT',
-  '蘭': 'NL', '墺': 'AT', '匈': 'HU', '捷': 'CZ',
-  '波': 'PL', '瑞典': 'SE', '諾': 'NO', '芬': 'FI',
-  '丁抹': 'DK', '露': 'RU',
-  '塞': 'RS', '南斯': 'RS', '克': 'HR',
-  '伯': 'BR', '亜': 'AR', '智': 'CL', '烏': 'UY',
-  '中': 'CN', '日': 'JP', '韓': 'KR', '印': 'IN',
-  '埃': 'EG', '奈': 'NG', '咖麦隆': 'CM',
-  '塞内加': 'SN', '坦': 'TZ', '馬': 'ML', '牙買加': 'JM',
-  // 二重国籍は最初の国を使用
-  '仏/烏': 'FR', '仏/阿': 'FR', '葡/伯': 'PT', '塞/蒙': 'RS',
+  英: 'GB-ENG',
+  蘇: 'GB-SCO',
+  愛: 'IE',
+  独: 'DE',
+  東独: 'DE',
+  '東独→独': 'DE',
+  仏: 'FR',
+  伊: 'IT',
+  西: 'ES',
+  葡: 'PT',
+  蘭: 'NL',
+  墺: 'AT',
+  匈: 'HU',
+  捷: 'CZ',
+  波: 'PL',
+  瑞典: 'SE',
+  諾: 'NO',
+  芬: 'FI',
+  丁抹: 'DK',
+  露: 'RU',
+  塞: 'RS',
+  南斯: 'YU',
+  克: 'HR',
+  伯: 'BR',
+  亜: 'AR',
+  智: 'CL',
+  烏: 'UY',
+  中: 'CN',
+  日: 'JP',
+  韓: 'KR',
+  印: 'IN',
+  埃: 'EG',
+  奈: 'NG',
+  咖麦隆: 'CM',
+  塞内加: 'SN',
+  坦: 'TZ',
+  馬: 'ML',
+  牙買加: 'JM',
+  '仏/烏': 'FR',
+  '仏/阿': 'FR',
+  '葡/伯': 'PT',
+  '塞/蒙': 'ME',
+  '波/波黑': 'BA',
 };
 
-// 日本語家系名 → 英語キー
-const FAMILY_MAP: Record<string, string | null> = {
-  'ブラックウッド': 'blackwood',
-  'マクファーレン': 'macfarlane',
-  'モンテフィオーレ': 'montefiore',
-  'ヴァイスハウプト': 'weisshaupt',
-  'デュボワ': 'dubois',
-  'シルヴァ': 'silva',
-  'コヴァチェヴィッチ': 'kovacevic',
-  'オコンクウォ': 'okonkwo',
+const FAMILY_MAP: Record<string, string> = {
+  ブラックウッド: 'blackwood',
+  マクファーレン: 'macfarlane',
+  モンテフィオーレ: 'montefiore',
+  ヴァイスハウプト: 'weisshaupt',
+  デュボワ: 'dubois',
+  シルヴァ: 'silva',
+  コヴァチェヴィッチ: 'kovacevic',
+  オコンクウォ: 'okonkwo',
 };
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    const next = line[i + 1];
+    if (ch === '"' && quoted && next === '"') {
+      current += '"';
+      i++;
+    } else if (ch === '"') {
+      quoted = !quoted;
+    } else if (ch === ',' && !quoted) {
+      fields.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
 
 function parseFamily(raw: string): string | null {
   if (raw === 'FC Grassroots') return null;
   if (raw.startsWith('無所属')) return null;
-  // 「ブラックウッド家(...)」→「ブラックウッド」を抽出、「縁戚」も同家系扱い
-  for (const [ja, en] of Object.entries(FAMILY_MAP)) {
-    if (raw.includes(ja)) return en;
+  for (const [ja, key] of Object.entries(FAMILY_MAP)) {
+    if (raw.includes(ja)) return key;
   }
   return null;
 }
 
 function parseNationality(raw: string): string {
-  const nat = NAT_MAP[raw];
-  if (!nat) {
-    console.warn(`Unknown nationality: "${raw}" — using raw value`);
-    return raw;
-  }
-  return nat;
+  const mapped = NAT_MAP[raw];
+  if (mapped) return mapped;
+  return raw;
+}
+
+function parseBool(raw: string): boolean {
+  return /^(true|1|yes)$/i.test(raw.trim());
 }
 
 function escSql(s: string): string {
   return s.replace(/'/g, "''");
 }
 
-// ── CSV パース ──
+const csv = readFileSync(CSV_PATH, 'utf-8').replace(/^\uFEFF/, '');
+const lines = csv.trim().split(/\r?\n/);
+const header = parseCsvLine(lines[0]);
+const rows = lines.slice(1).map((line, lineIndex) => {
+  const fields = parseCsvLine(line);
+  if (fields.length !== header.length) {
+    throw new Error(`Line ${lineIndex + 2}: expected ${header.length} fields, got ${fields.length}`);
+  }
+  return Object.fromEntries(header.map((key, i) => [key, fields[i] ?? '']));
+});
 
-const csv = readFileSync(CSV_PATH, 'utf-8');
-const lines = csv.trim().split('\n');
-const header = lines[0]; // id,name_ja,name_en,position,cost,era,family,nationality,is_fcg,summary
-console.log(`Header: ${header}`);
-console.log(`Rows: ${lines.length - 1}`);
+console.log(`Header: ${header.join(',')}`);
+console.log(`Rows: ${rows.length}`);
 
 const inserts: string[] = [
   '-- ============================================================',
@@ -99,48 +163,37 @@ const inserts: string[] = [
 
 let errors = 0;
 
-for (let i = 1; i < lines.length; i++) {
-  const line = lines[i].trim();
-  if (!line) continue;
+for (let i = 0; i < rows.length; i++) {
+  const row = rows[i];
+  const lineNo = i + 2;
+  const idStr = row.id;
+  const pieceId = Number.parseInt(idStr, 10);
+  const cost = COST_MAP[row.cost];
+  const era = Number.parseInt(row.era, 10);
+  const eraShelf = row.era_shelf ? Number.parseInt(row.era_shelf, 10) : ERA_SHELF_MAP[era];
 
-  // 10フィールド固定（summary は最後のフィールド、カンマなし確認済み）
-  const parts = line.split(',');
-  if (parts.length !== 10) {
-    console.error(`Line ${i + 1}: expected 10 fields, got ${parts.length}`);
+  if (!Number.isInteger(pieceId) || pieceId < 1 || pieceId > 200) {
+    console.error(`Line ${lineNo}: invalid id "${idStr}"`);
     errors++;
-    continue;
   }
-
-  const [idStr, nameJa, nameEn, position, costStr, eraStr, familyRaw, natRaw, isFcgStr, summary] = parts;
-
-  const pieceId = parseInt(idStr, 10);
-  const cost = COST_MAP[costStr];
   if (cost === undefined) {
-    console.error(`Line ${i + 1}: unknown cost "${costStr}"`);
+    console.error(`Line ${lineNo}: unknown cost "${row.cost}"`);
     errors++;
-    continue;
   }
-
-  const era = parseInt(eraStr, 10);
-  const eraShelf = ERA_SHELF_MAP[era];
   if (!eraShelf) {
-    console.error(`Line ${i + 1}: unknown era ${era}`);
+    console.error(`Line ${lineNo}: unknown era/era_shelf "${row.era}/${row.era_shelf}"`);
     errors++;
-    continue;
   }
 
-  const family = parseFamily(familyRaw);
-  const nationality = parseNationality(natRaw);
-  const isFounding = isFcgStr === 'true' ? 1 : 0;
-  // Founding Eleven + piece_id=41 (Vincent Caldwell: 禁止令署名者) は非売品
-  const NON_PURCHASABLE_IDS = new Set([41]);
-  const isPurchasable = (isFounding || NON_PURCHASABLE_IDS.has(pieceId)) ? 0 : 1;
+  const family = parseFamily(row.family);
+  const nationality = parseNationality(row.nationality);
+  const isFounding = parseBool(row.is_fcg) ? 1 : 0;
+  const isPurchasable = row.is_purchasable ? (parseBool(row.is_purchasable) ? 1 : 0) : (isFounding ? 0 : 1);
   const sku = `fcms_piece_${idStr.padStart(3, '0')}`;
-
   const familySql = family ? `'${escSql(family)}'` : 'NULL';
 
   inserts.push(
-    `INSERT INTO piece_master (piece_id, sku, name_ja, name_en, position, cost, era, era_shelf, family, nationality, is_founding, is_purchasable, summary_ja, image_status) VALUES (${pieceId}, '${sku}', '${escSql(nameJa)}', '${escSql(nameEn)}', '${position}', ${cost}, ${era}, ${eraShelf}, ${familySql}, '${nationality}', ${isFounding}, ${isPurchasable}, '${escSql(summary)}', 'provisional');`,
+    `INSERT INTO piece_master (piece_id, sku, name_ja, name_en, position, cost, era, era_shelf, family, nationality, is_founding, is_purchasable, summary_ja, image_status) VALUES (${pieceId}, '${sku}', '${escSql(row.name_ja)}', '${escSql(row.name_en)}', '${row.position}', ${cost}, ${era}, ${eraShelf}, ${familySql}, '${nationality}', ${isFounding}, ${isPurchasable}, '${escSql(row.summary)}', 'ready');`,
   );
 }
 
@@ -150,4 +203,4 @@ if (errors > 0) {
 }
 
 writeFileSync(OUT_PATH, inserts.join('\n') + '\n', 'utf-8');
-console.log(`\nGenerated ${inserts.length - 5} INSERT statements → ${OUT_PATH}`);
+console.log(`\nGenerated ${rows.length} INSERT statements -> ${OUT_PATH}`);

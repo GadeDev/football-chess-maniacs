@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NPC_TEAMS } from '../npc_teams';
+import { PIECE_CATALOG } from '../pieceCatalog';
 import { PRESET_TEAMS } from '../presetTeams';
 
 describe('PRESET_TEAMS', () => {
@@ -23,6 +24,28 @@ describe('PRESET_TEAMS', () => {
         expect([1, 1.5, 2, 2.5, 3]).toContain(piece.cost);
       }
     }
+  });
+
+  it('NPC定義は正規カタログの人物・ポジション・コストと一致する', () => {
+    for (const team of NPC_TEAMS) {
+      const catalogCost = team.starters.reduce((sum, piece) => {
+        const catalog = PIECE_CATALOG[piece.piece_id];
+        expect(catalog).toBeDefined();
+        expect(piece.position).toBe(catalog.position);
+        expect(catalog.isFounding).toBe(false);
+        return sum + catalog.cost;
+      }, 0);
+
+      expect(team.total_cost).toBe(catalogCost);
+      expect(team.total_cost).toBeLessThanOrEqual(20);
+      expect(team.starters.filter((piece) => PIECE_CATALOG[piece.piece_id].position === 'GK')).toHaveLength(1);
+    }
+  });
+
+  it('ID 56 は最新正史のナタリア・ヴォルコワとして扱う', () => {
+    expect(PIECE_CATALOG[56].name).toBe('ナタリア・ヴォルコワ');
+    expect(PIECE_CATALOG[56].nameEn).toBe('Natalia Volkova');
+    expect(PIECE_CATALOG[56].position).toBe('OM');
   });
 
   it('NPC配置はaway側座標として保持する', () => {

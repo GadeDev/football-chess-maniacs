@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { PIECE_CATALOG_LIST } from '../../data/pieceCatalog';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
@@ -49,21 +50,15 @@ interface RawCatalogItem {
 
 /** バックエンド未接続時のローカルカタログ（開発・デモ用） */
 function buildFallbackCatalog(): CatalogItem[] {
-  const costs: Cost[] = [1, 1.5, 2, 2.5, 3];
-  const items: CatalogItem[] = [];
-  let id = 1;
-  for (const pos of ALL_POSITIONS) {
-    for (const cost of costs) {
-      items.push({
-        pieceId: id++,
-        name: `${pos} ${costDisplay(cost)}`,
-        position: pos,
-        cost,
-        owned: false,
-      });
-    }
-  }
-  return items;
+  return PIECE_CATALOG_LIST
+    .filter((piece) => piece.isPurchasable)
+    .map((piece) => ({
+      pieceId: piece.id,
+      name: piece.name,
+      position: piece.position,
+      cost: piece.cost,
+      owned: false,
+    }));
 }
 
 export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {

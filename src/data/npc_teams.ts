@@ -1,7 +1,6 @@
 // ============================================================
 // npc_teams.ts — NPC チーム定義（7時代 × 1チーム）
-// COM対戦で使用する7つのプリセットNPCチーム
-// Founding Eleven (8,9,10,23,35,36,37,55,70,82,104) は除外
+// Generated from the GrassrootsUniverse canonical roster.
 // ============================================================
 
 export interface NpcTeamPiece {
@@ -22,37 +21,32 @@ export interface NpcTeam {
 }
 
 /**
- * 7 NPC チーム（Shelf 1-7）
- * 各チーム: 1 GK + 10 FP、総コスト 14-20
- * 配置座標は away 側 (row 17-33) のデフォルト 4-4-2 等
+ * 7 NPC teams by era shelf.
+ * Each team keeps canonical character positions and excludes Founding Eleven.
  */
 export const NPC_TEAMS: NpcTeam[] = [
-  // ── Shelf 1: Dawn (草創期) Era 1-2 ──
-  // 利用可能: 001-022 (Founding Eleven除外: 8,9,10)
   {
     id: 'npc_shelf_1',
     shelf: 1,
     name_ja: '草創期オールスター',
     name_en: 'Dawn All-Stars',
     formation: '4-4-2',
-    total_cost: 18,
+    total_cost: 19.5,
     starters: [
-      { piece_id: 5,  position: 'GK', col: 10, row: 30 },  // Henry Ashworth GK 1.5
-      { piece_id: 1,  position: 'DF', col: 4,  row: 27 },  // Edmund Blackwood DF 2
-      { piece_id: 15, position: 'DF', col: 8,  row: 27 },  // Pierre Danton DF 1.5
-      { piece_id: 16, position: 'DF', col: 12, row: 27 },  // Dušan Petrović DF 1
-      { piece_id: 20, position: 'DF', col: 16, row: 27 },  // Violet Connor DF 1
-      { piece_id: 2,  position: 'VO', col: 6,  row: 24 },  // Archie MacFarlane VO 1.5
-      { piece_id: 6,  position: 'MF', col: 10, row: 24 },  // Duncan Caird MF 1
-      { piece_id: 11, position: 'OM', col: 14, row: 24 },  // Elizabeth Hawthorne OM 2
-      { piece_id: 7,  position: 'OM', col: 18, row: 24 },  // Oliver Blackwood OM 2
-      { piece_id: 4,  position: 'FW', col: 8,  row: 21 },  // Wilfred Thorne FW 2
-      { piece_id: 13, position: 'FW', col: 12, row: 21 },  // James Blackwood FW 2.5
+      { piece_id: 5, position: 'GK', col: 10, row: 30 },  // Henry Ashworth GK 1+
+      { piece_id: 1, position: 'DF', col: 4, row: 27 },  // Edmund Blackwood DF 2
+      { piece_id: 20, position: 'DF', col: 8, row: 27 },  // Friedrich Bauer DF 2
+      { piece_id: 17, position: 'DF', col: 12, row: 27 },  // Dušan Kovačević DF 1+
+      { piece_id: 18, position: 'SB', col: 16, row: 27 },  // Ned MacFarlane SB 1+
+      { piece_id: 2, position: 'VO', col: 4, row: 24 },  // Archie MacFarlane VO 1+
+      { piece_id: 6, position: 'MF', col: 8, row: 24 },  // Duncan Caird MF 1
+      { piece_id: 3, position: 'OM', col: 12, row: 24 },  // Hamish MacFarlane OM SS
+      { piece_id: 22, position: 'WG', col: 16, row: 24 },  // Thomas O'Brien WG 1
+      { piece_id: 13, position: 'FW', col: 8, row: 21 },  // James Blackwood FW 2+
+      { piece_id: 4, position: 'FW', col: 12, row: 21 },  // Wilfred Thorne FW 2
     ],
   },
 
-  // ── Shelf 2: Interwar (戦間期) Era 3-4 ──
-  // 利用可能: 024-054 (Founding Eleven除外: 23,35,36,37)
   {
     id: 'npc_shelf_2',
     shelf: 2,
@@ -61,94 +55,86 @@ export const NPC_TEAMS: NpcTeam[] = [
     formation: '3-5-2',
     total_cost: 19,
     starters: [
-      { piece_id: 34, position: 'GK', col: 10, row: 30 },  // Thomas Gallagher GK 1
-      { piece_id: 27, position: 'DF', col: 6,  row: 27 },  // William Blackwood DF 2.5
-      { piece_id: 32, position: 'DF', col: 10, row: 27 },  // François Lecomte DF 1.5
-      { piece_id: 38, position: 'DF', col: 14, row: 27 },  // Viktor Weisshaupt DF 2
-      { piece_id: 30, position: 'VO', col: 6,  row: 24 },  // Ned MacFarlane SB 1.5
-      { piece_id: 26, position: 'MF', col: 10, row: 24 },  // Carlo Montefiore MF 2
-      { piece_id: 40, position: 'MF', col: 14, row: 24 },  // André Dubois MF 1.5
-      { piece_id: 25, position: 'OM', col: 8,  row: 22 },  // Miloš Kovačević OM 2
-      { piece_id: 39, position: 'OM', col: 12, row: 22 },  // Heinrich Weisshaupt OM 2
-      { piece_id: 28, position: 'FW', col: 8,  row: 20 },  // Dorothy Blackwood FW 3
-      { piece_id: 24, position: 'FW', col: 12, row: 20 },  // Aaron Mensah FW 1
+      { piece_id: 33, position: 'GK', col: 10, row: 30 },  // Albert Kent GK 1
+      { piece_id: 25, position: 'DF', col: 6, row: 27 },  // Viktor Weisshaupt DF 2
+      { piece_id: 34, position: 'DF', col: 10, row: 27 },  // Jan Novák DF 1
+      { piece_id: 50, position: 'DF', col: 14, row: 27 },  // Hannah Brighton DF 1+
+      { piece_id: 29, position: 'VO', col: 4, row: 24 },  // Miloš Kovačević VO 2
+      { piece_id: 27, position: 'MF', col: 7, row: 24 },  // Pierre Dubois MF 1+
+      { piece_id: 54, position: 'MF', col: 10, row: 24 },  // Luis Cabrera MF 1
+      { piece_id: 38, position: 'OM', col: 13, row: 24 },  // Dorothy Blackwood OM SS
+      { piece_id: 49, position: 'WG', col: 16, row: 24 },  // Aaron Adeyo WG 1+
+      { piece_id: 42, position: 'FW', col: 8, row: 21 },  // Ernest Blackwood FW 2+
+      { piece_id: 28, position: 'FW', col: 12, row: 21 },  // Paulo Silva FW 2
     ],
   },
 
-  // ── Shelf 3: Post-War (戦後黄金期) Era 5-6 ──
-  // 利用可能: 056-086 (Founding Eleven除外: 55,70)
   {
     id: 'npc_shelf_3',
     shelf: 3,
     name_ja: '戦後オールスター',
     name_en: 'Post-War All-Stars',
-    formation: '4-3-3',
-    total_cost: 19.5,
+    formation: '3-4-3',
+    total_cost: 18.5,
     starters: [
-      { piece_id: 56, position: 'GK', col: 10, row: 30 },  // Rudolf Weisshaupt GK 1.5
-      { piece_id: 58, position: 'DF', col: 4,  row: 27 },  // Franco Montefiore DF 2
-      { piece_id: 63, position: 'DF', col: 8,  row: 27 },  // Daniel Dubois DF 1.5
-      { piece_id: 67, position: 'DF', col: 12, row: 27 },  // Dimitri Kovačević DF 1.5
-      { piece_id: 69, position: 'SB', col: 16, row: 27 },  // Chedi Diallo SB 1
-      { piece_id: 59, position: 'VO', col: 8,  row: 24 },  // Robert Blackwood VO 2
-      { piece_id: 60, position: 'MF', col: 10, row: 24 },  // João Silva MF 2
-      { piece_id: 62, position: 'MF', col: 14, row: 24 },  // Ronald MacFarlane MF 1.5
-      { piece_id: 71, position: 'WG', col: 4,  row: 21 },  // Pedro Silva WG 3
-      { piece_id: 57, position: 'FW', col: 10, row: 21 },  // Paolo Montefiore FW 2
-      { piece_id: 64, position: 'FW', col: 16, row: 21 },  // Joaquim Silva FW 1.5
+      { piece_id: 80, position: 'GK', col: 10, row: 30 },  // Gianni Rossi GK 1+
+      { piece_id: 59, position: 'DF', col: 6, row: 27 },  // Heinrich Weisshaupt DF 2
+      { piece_id: 66, position: 'DF', col: 10, row: 27 },  // Sergio Fernandez DF 1
+      { piece_id: 60, position: 'VO', col: 14, row: 27 },  // Klaus Weisshaupt VO 2
+      { piece_id: 65, position: 'MF', col: 4, row: 24 },  // André Dubois MF 1+
+      { piece_id: 67, position: 'MF', col: 8, row: 24 },  // Marta Cardoso MF 1
+      { piece_id: 56, position: 'OM', col: 12, row: 24 },  // Natalia Volkova OM SS
+      { piece_id: 63, position: 'WG', col: 16, row: 24 },  // Pierluigi Zanetti WG 1+
+      { piece_id: 57, position: 'FW', col: 6, row: 21 },  // Gino Montefiore FW 2+
+      { piece_id: 64, position: 'FW', col: 10, row: 21 },  // Robert Blackwood FW 1+
+      { piece_id: 69, position: 'FW', col: 14, row: 21 },  // Owen Ama FW 1
     ],
   },
 
-  // ── Shelf 4: Expansion (テレビ・拡張期) Era 7 ──
-  // 利用可能: 087-104 (Founding Eleven除外: 82,104)
   {
     id: 'npc_shelf_4',
     shelf: 4,
     name_ja: '拡張期オールスター',
     name_en: 'Expansion All-Stars',
     formation: '4-4-2',
-    total_cost: 18.5,
+    total_cost: 20,
     starters: [
-      { piece_id: 88, position: 'GK', col: 10, row: 30 },  // Angus MacFarlane GK 1.5
-      { piece_id: 91, position: 'DF', col: 4,  row: 27 },  // Curtis Blackwood DF 2
-      { piece_id: 92, position: 'DF', col: 8,  row: 27 },  // Stefan Kovačević DF 2
-      { piece_id: 95, position: 'SB', col: 12, row: 27 },  // Zoran Babić SB 1
-      { piece_id: 97, position: 'SB', col: 16, row: 27 },  // Jacques Dubois SB 1.5
-      { piece_id: 90, position: 'MF', col: 6,  row: 24 },  // Otto Weisshaupt MF 2
-      { piece_id: 87, position: 'OM', col: 10, row: 24 },  // Sergio Montefiore OM 2.5
-      { piece_id: 93, position: 'MF', col: 14, row: 24 },  // Fábio Silva MF 1.5
-      { piece_id: 96, position: 'OM', col: 18, row: 24 },  // Aisha Okonkwo OM 1
-      { piece_id: 89, position: 'FW', col: 8,  row: 21 },  // Dragan Kovačević FW 2
-      { piece_id: 94, position: 'FW', col: 12, row: 21 },  // Olufemi Adeyemi FW 1.5
+      { piece_id: 98, position: 'GK', col: 10, row: 30 },  // Sergei Ivanov GK 1+
+      { piece_id: 77, position: 'DF', col: 4, row: 27 },  // Curtis Blackwood DF 2
+      { piece_id: 81, position: 'DF', col: 8, row: 27 },  // Alejandro Vargas DF 1+
+      { piece_id: 86, position: 'DF', col: 12, row: 27 },  // Takashi Nakamura DF 1
+      { piece_id: 78, position: 'SB', col: 16, row: 27 },  // Hamish MacFarlane II SB 2
+      { piece_id: 74, position: 'VO', col: 4, row: 24 },  // Otto Weisshaupt VO 2+
+      { piece_id: 76, position: 'MF', col: 8, row: 24 },  // Jean-Luc Dubois MF 2
+      { piece_id: 90, position: 'OM', col: 12, row: 24 },  // Paolo Montefiore OM 2+
+      { piece_id: 75, position: 'WG', col: 16, row: 24 },  // Akwasi Okonkwo WG 2
+      { piece_id: 85, position: 'FW', col: 8, row: 21 },  // Ousmane Diallo FW 1
+      { piece_id: 97, position: 'FW', col: 12, row: 21 },  // Manuel Castro FW 2
     ],
   },
 
-  // ── Shelf 5: Modernization (近代化期) Era 8-9 ──
-  // 利用可能: 105-137
   {
     id: 'npc_shelf_5',
     shelf: 5,
     name_ja: '近代化期オールスター',
     name_en: 'Modernization All-Stars',
     formation: '4-2-3-1',
-    total_cost: 20,
+    total_cost: 19.5,
     starters: [
-      { piece_id: 110, position: 'GK', col: 10, row: 30 },  // Michael Weisshaupt GK 1.5
-      { piece_id: 106, position: 'DF', col: 4,  row: 27 },  // Nigel Blackwood DF 2
-      { piece_id: 107, position: 'DF', col: 8,  row: 27 },  // Daniele Montefiore DF 2
-      { piece_id: 112, position: 'SB', col: 12, row: 27 },  // Branko Milić SB 1.5
-      { piece_id: 119, position: 'SB', col: 16, row: 27 },  // Camille Dubois SB 1
-      { piece_id: 109, position: 'VO', col: 8,  row: 25 },  // Eduardo Silva VO 2
-      { piece_id: 121, position: 'VO', col: 12, row: 25 },  // Goran Petrović VO 1.5
-      { piece_id: 105, position: 'OM', col: 6,  row: 22 },  // Hamish MacFarlane II OM 2.5
-      { piece_id: 111, position: 'MF', col: 10, row: 22 },  // Kamal Ibrahim MF 1
-      { piece_id: 108, position: 'WG', col: 14, row: 22 },  // Nathalie Dubois WG 1.5
-      { piece_id: 122, position: 'FW', col: 10, row: 20 },  // David Blackwood FW 2
+      { piece_id: 114, position: 'GK', col: 10, row: 30 },  // Claudio Rossini GK 1+
+      { piece_id: 107, position: 'DF', col: 4, row: 27 },  // Marco Montefiore DF 2+
+      { piece_id: 109, position: 'DF', col: 8, row: 27 },  // Nigel Blackwood DF 2
+      { piece_id: 116, position: 'SB', col: 12, row: 27 },  // Ian MacFarlane SB 1+
+      { piece_id: 136, position: 'SB', col: 16, row: 27 },  // Gregor Novák SB 1
+      { piece_id: 108, position: 'VO', col: 8, row: 25 },  // Karl Weisshaupt VO 2+
+      { piece_id: 119, position: 'VO', col: 12, row: 25 },  // Harold Jansen VO 1
+      { piece_id: 105, position: 'OM', col: 6, row: 22 },  // Luis Arano OM SS
+      { piece_id: 120, position: 'MF', col: 10, row: 22 },  // Hiroshi Yamada MF 1
+      { piece_id: 115, position: 'WG', col: 14, row: 22 },  // Bobby Morris WG 1+
+      { piece_id: 110, position: 'FW', col: 10, row: 20 },  // João Silva II FW 2
     ],
   },
 
-  // ── Shelf 6: Global (グローバル期) Era 10-11 ──
-  // 利用可能: 138-170
   {
     id: 'npc_shelf_6',
     shelf: 6,
@@ -157,43 +143,42 @@ export const NPC_TEAMS: NpcTeam[] = [
     formation: '4-3-3',
     total_cost: 20,
     starters: [
-      { piece_id: 147, position: 'GK', col: 10, row: 30 },  // Benjamin Weisshaupt GK 1.5
-      { piece_id: 140, position: 'DF', col: 4,  row: 27 },  // George Blackwood DF 2
-      { piece_id: 143, position: 'DF', col: 8,  row: 27 },  // Valentina Montefiore DF 1.5
-      { piece_id: 155, position: 'SB', col: 12, row: 27 },  // Nils Weisshaupt SB 2
-      { piece_id: 159, position: 'SB', col: 16, row: 27 },  // Ian MacFarlane SB 1
-      { piece_id: 141, position: 'VO', col: 8,  row: 24 },  // Lucas Silva VO 2
-      { piece_id: 142, position: 'MF', col: 10, row: 24 },  // Alessandra Montefiore MF 2
-      { piece_id: 156, position: 'OM', col: 14, row: 24 },  // Cedric Blackwood OM 2.5
-      { piece_id: 138, position: 'WG', col: 4,  row: 21 },  // Adeola Okonkwo WG 3
-      { piece_id: 157, position: 'FW', col: 10, row: 21 },  // Musa Kouyaté FW 1
-      { piece_id: 139, position: 'FW', col: 16, row: 21 },  // Celeste Montefiore FW 1.5
+      { piece_id: 151, position: 'GK', col: 10, row: 30 },  // Thomas Nielsen GK 1
+      { piece_id: 141, position: 'DF', col: 4, row: 27 },  // Daniele Montefiore DF 2+
+      { piece_id: 161, position: 'DF', col: 8, row: 27 },  // Iñigo Vázquez DF 2
+      { piece_id: 154, position: 'DF', col: 12, row: 27 },  // Amir Hassan DF 1
+      { piece_id: 150, position: 'SB', col: 16, row: 27 },  // Emmanuel MacFarlane SB 1+
+      { piece_id: 144, position: 'VO', col: 6, row: 24 },  // Heinrich Weisshaupt II VO 2
+      { piece_id: 140, position: 'MF', col: 10, row: 24 },  // George Blackwood MF 2+
+      { piece_id: 156, position: 'OM', col: 14, row: 24 },  // Sanae Furukawa OM SS
+      { piece_id: 149, position: 'WG', col: 4, row: 21 },  // Kamal Okonkwo WG 1+
+      { piece_id: 143, position: 'FW', col: 10, row: 21 },  // Cláudio Silva FW 2
+      { piece_id: 152, position: 'FW', col: 16, row: 21 },  // Patrick Ngoma FW 1
     ],
   },
 
-  // ── Shelf 7: Present (現代) Era 12-13 ──
-  // 利用可能: 171-200
   {
     id: 'npc_shelf_7',
     shelf: 7,
     name_ja: '現代オールスター',
     name_en: 'Present All-Stars',
     formation: '3-4-3',
-    total_cost: 19.5,
+    total_cost: 20,
     starters: [
-      { piece_id: 194, position: 'GK', col: 10, row: 30 },  // Yusuf El-Taeb GK 1.5
-      { piece_id: 173, position: 'DF', col: 6,  row: 27 },  // Caleb Blackwood DF 2
-      { piece_id: 195, position: 'DF', col: 10, row: 27 },  // Emilia Bergman DF 1.5
-      { piece_id: 176, position: 'DF', col: 14, row: 27 },  // Emmanuel MacFarlane DF 2
-      { piece_id: 178, position: 'VO', col: 6,  row: 24 },  // Nathalie Dubois II VO 1.5
-      { piece_id: 187, position: 'OM', col: 10, row: 24 },  // Benedikt Weisshaupt OM 3
-      { piece_id: 174, position: 'MF', col: 14, row: 24 },  // Rafael Silva MF 2
-      { piece_id: 190, position: 'WG', col: 18, row: 24 },  // Musa Okonkwo WG 2
-      { piece_id: 171, position: 'FW', col: 6,  row: 21 },  // Hannah MacFarlane FW 1.5
+      { piece_id: 184, position: 'GK', col: 10, row: 30 },  // Diego González GK 1
+      { piece_id: 176, position: 'DF', col: 6, row: 27 },  // Ivan Petrović DF 2
+      { piece_id: 195, position: 'DF', col: 10, row: 27 },  // Emilia Bergman DF 1+
+      { piece_id: 169, position: 'DF', col: 14, row: 27 },  // Takuma Ishihara DF 1
+      { piece_id: 160, position: 'VO', col: 4, row: 24 },  // Franz Weisshaupt VO 2
+      { piece_id: 173, position: 'MF', col: 8, row: 24 },  // Nils Weisshaupt MF 2+
+      { piece_id: 187, position: 'OM', col: 12, row: 24 },  // Benedikt Weisshaupt OM SS
+      { piece_id: 190, position: 'WG', col: 16, row: 24 },  // Musa Okonkwo WG 2
+      { piece_id: 178, position: 'FW', col: 6, row: 21 },  // Marcos Almeida FW 2
       { piece_id: 192, position: 'FW', col: 10, row: 21 },  // Júlia Silva FW 2
       { piece_id: 200, position: 'FW', col: 14, row: 21 },  // Pietro De Sanctis FW 1
     ],
   },
+
 ];
 
 /** shelf番号からNPCチームを取得 */
