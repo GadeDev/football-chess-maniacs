@@ -227,6 +227,9 @@ public/
 | タックル着弾バースト（2026-06-11） | `board/ImpactBurst.tsx` 新規（中イベント層）。タックル成功=白リング+金スパーク(impact)、競合=灰の土煙(dust)。`phaseEffects` に `burst?: 'impact'\|'dust'` を追加し、HexBoardがOverlay(Canvas)とは別にDOMで該当HEX位置に約0.6秒再生。flipY対応はdisplayPhaseEffects経由で自動。`prefers-reduced-motion` 時は非表示 | ✅ |
 | 多言語化i18n基盤 フェーズ1/3/4（2026-06-18） | ShootOutDiceプレイブック移植。`src/client/i18n/`設置（`STORAGE_KEY='fcms.locale'`）。クライアント全画面のベタ書き日本語 約400文字列を`t()`/`tn()`でキー化（表示は日本語で不変）。en辞書を完全パリティ(401キー)で作成、複数形14キーを`tn()`の`.one/.other`対応。回帰テスト10件追加。詳細は下記「多言語化（i18n）」参照 | ✅ |
 | 多言語化i18n フェーズ6/7（2026-06-19） | フェーズ6: `LanguageSelect.tsx`新規（`SUPPORTED_LOCALES`から自動生成、`setLocale`即反映、`SettingsScreen`の言語選択置換、`SettingsContext.language`削除でlocale一元化）。フェーズ7: ko→es/pt/de/zh-CNの順で残り5言語追加（計7言語）、全辞書ja完全パリティ401キー（機械訳ドラフト注記付き）、複数形なし言語(ko/zh-CN)は`.one/.other`同一文字列。`LOCALE_NATIVE_NAMES`追加。テスト+2（ko/zh-CN tn検証）+全言語プレースホルダ照合。詳細は下記「多言語化（i18n）」参照 | ✅ |
+| Unity版3ルール移植（2026-06-28, `3481b1a`） | `BATTLE_DELAY`(自陣3ターン保持→相手GKへ強制移譲) / `PASSIVE_TACTICS`(自陣深部9枚以上→翌ターンのpass/tackleに+10) / freeBall offside(スルーパス由来フリーボールのOS追跡)。エンジン〜クライアント〜i18n結線。ペナルティ"効果"テスト3件追加。**閾値(9/3)・補正(+10)は出典欠如の暫定値**。`docs/unity_football_chess_rules.md`は参照資料 | ✅ |
+| 対人対戦3ブロッカー修正（2026-06-28, `f2e11c8`/`e5f55ef`） | ①Hibernationで手消失: `turnInputs`をインメモリMap→`GameState`永続化。②編成未反映: `createBoardFromFormation`新設、`handleInit`がD1 `teams.field_pieces`をロードしコスト/座標を盤面反映(awayミラー)、得点/HT再生成にも使用、未指定は4-4-2フォールバック。③レーティング未永続: 孤立していた`server/rating.ts`を結線、queueで`persistRatings`(Elo+W/L/D UPSERT)、matchmakingはD1の`getRating`(サーバー権威)。テスト計19件追加 | ✅ |
+| ShopScreen価格ロジック統一（2026-06-28, `3481b1a`） | `pieceCostToIngots`/`costToDisplay`をローカル再定義から正本(`types/piece.ts`)importに統一（サーバー`api/shop.ts`とのドリフト防止） | ✅ |
 
 ---
 
@@ -699,10 +702,11 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 - **Webhook**: `POST /webhook/purchase` で `X-Webhook-Signature: sha256=<hex>` の HMAC-SHA256 検証 + `X-Webhook-Delivery-Id` で冪等化（`webhook_deliveries_received` テーブル）
 
 ### 既知の改善余地（優先度付き）
+> 注（2026-06-28 監査）: 旧🔴2件（`verifyJwt` の iss/aud/alg 検証 / Webhook冪等化のレースフリー化）は
+> コミット `4367051` で**既に解消済み**（このメモ作成時点より新しい）。下記「良好な点」に移動した。
+
 | 優先 | 項目 | 場所 |
 |---|---|---|
-| 🔴 | `verifyJwt` に `iss` / `aud` / `alg === 'RS256'` の明示検証を追加（現状 `alg` 未確認・`iss` 型定義のみで未検証・`aud` 完全未検証 → 別ドメイン/別サービス向けJWT受理リスク） | `middleware/jwt_verify.ts:81-114` |
-| 🔴 | Webhook冪等化を `SELECT→INSERT` から `INSERT OR IGNORE → changes()=0 なら duplicate` のレースフリー方式に変更 | `api/webhooks.ts:54-63` |
 | 🟠 | `callPlatformApi` に `AbortController` タイムアウト追加（Platformハング時のWorker詰まり防止） | `api/auth.ts:44-76` |
 | 🟠 | `/match/com` POSTは非認証 + レート制限のみ → 匿名でのDO大量生成リスク。IP単位のDO生成キャップ強化 | `worker.ts:109-111` |
 | 🟡 | Webhookにタイムスタンプ署名がある場合は5分窓のリプレイ防止を追加（現状 `delivery_id` 永続テーブル依存） | `api/webhooks.ts` |
@@ -710,10 +714,35 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | 🟡 | インゴットは `entitlement.revoked` 無視（consumable仕様）→ 返金/チャージバック時に残高回収不可。運用許容か確認 | `api/webhooks.ts:82-95` |
 
 ### 良好な点
+- **JWT iss/aud/alg(RS256) を明示検証**（`jwt_verify.ts:99,130,136-142`、kid必須・exp/nbf・clockSkew・WS用残2時間＋参加者照合、修正 `4367051`）
+- **Webhook冪等化はレースフリー**（`webhooks.ts:77-97` の `INSERT OR IGNORE`→`changes=0`判定、修正 `4367051`）
 - JWKS並行フェッチ抑止（`fetchingPromise` 再利用、修正 #43）
 - `hexToBytes` の不正hex拒否（修正 #38, #50）
 - Webhook HMAC欠落時に必ずエラー（修正 #26）
 - `/match/*` の REST パスにJWT認証適用（修正 #20）
 - WS upgrade時のCORS/secureHeadersスキップ（修正 #67）
 - `timingSafeEqual` 共通化（修正 #44, #63）
+
+---
+
+## 全層監査と残課題（2026-06-28）
+
+5並列エージェントで全層を深掘り調査。**COM対戦/COM観戦/COM AI/認証/ショップ/チームCRUDは本番品質で完成**。対人対戦の致命3件は本日修正済み（上記実装表参照）。詳細は memory `project_audit_2026_06_28`。
+
+### 本日修正済み（対人対戦コア）
+- ✅ Hibernationで手消失 / ✅ 編成未反映 / ✅ レーティング未永続（`f2e11c8`/`e5f55ef`）
+
+### 残課題（優先度付き・主にオンライン経路。**E2E未検証**）
+| 優先 | 項目 | 場所 |
+|---|---|---|
+| 🟠 | クライアントが `JOIN_QUEUE` で `teamId='default'` 固定送信。実teamIdを送れば編成反映が完結する（サーバー側は対応済み） | `client/pages/Matching.tsx:37-38` |
+| 🟠 | オンライン対戦のWS送信が `player_id=''` / `client_hash=''`（盤面ハッシュ未実装）。サーバー統合とE2Eが未完 | `client/pages/Battle.tsx:1419-1423` |
+| 🟠 | リプレイ視聴のデータ配線欠落（`setReplayTurns` 未呼出で常に空配列）。`/replays/:id/turn/:turn` は誰も書かず実質stub | `client/App.tsx:77` / `api/replay.ts` |
+| 🟡 | 選手交代が全経路 `benchPieces:[]` 固定で実戦発火不能（COM/対人共通） | `com_ai_integration.ts:38` 他 |
+| 🟡 | Collection/Ranking/FriendMatch がモックデータ（API未接続） | `client/screens/*` |
+| 🟡 | デッドコード整理: `pages/Result.tsx`・`pages/HalfTime.tsx`（到達不能）、`api/auth.ts` の `/purchase`（未マウント） | — |
+| 🟡 | `public/assets/characters/`（PK/FKスプライト9枚）がgit未追跡・未参照。配線時に追加 | — |
+
+### 構造的リスク
+- `docs/fcms_spec_v3.md` は §7(判定式)/§8(数値) を「v9.2と同一のため省略」→ 判定式の実数値を検証できる権威ドキュメントが無く、**コードが唯一の真実源**。Unity移植の閾値/補正値も出典欠如の暫定値（`docs/unity_football_chess_rules.md` 自身が実値不明と明記）。spec未確定の値（foul forceFoul閾値等）は勝手に確定しない。
 
