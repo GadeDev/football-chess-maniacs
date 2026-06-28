@@ -1416,11 +1416,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         type: 'TURN_INPUT',
         match_id: matchId ?? '',
         turn: state.turn,
-        player_id: '', // サーバー側はWS attachmentから取得するため空でも可
+        player_id: '', // サーバーが認証済みWS attachment.userId で上書きするため空で送る
         sequence: currentSeq,
         nonce: `${matchId}_${state.turn}_${Date.now()}`,
         orders: rawOrders,
-        client_hash: '', // TODO: 盤面ハッシュ
+        client_hash: '', // 盤面ハッシュ(任意のアンチチート用途)。現状サーバー未検証のため空
         timestamp: Date.now(),
       };
 

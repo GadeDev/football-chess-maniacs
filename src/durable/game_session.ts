@@ -263,6 +263,10 @@ export class GameSession extends DurableObject<Env['Bindings']> {
   // ── ターン入力処理 ──
 
   private async handleTurnInput(ws: WebSocket, attachment: WsAttachment, input: TurnInput): Promise<void> {
+    // player_id はクライアント申告を信用せず、認証済みの attachment.userId で上書きする
+    // （他プレイヤーへのなりすまし防止 + クライアントが userId を知らなくても良くする）。
+    input.player_id = attachment.userId;
+
     // トランザクションで状態の読み取り・バリデーション・更新を原子的に実行
     // resolveTurn は外部API呼び出し(COM AI)を含むためトランザクション外で実行
     let shouldResolve = false;

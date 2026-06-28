@@ -18,12 +18,29 @@ interface MatchingProps {
   comDifficulty?: ComDifficulty;
 }
 
+/**
+ * マッチメイキングに渡す編成チームIDを解決する。
+ * is_active なチーム → 無ければ先頭 → 無ければ 'default'（サーバーは固定4-4-2にフォールバック）。
+ */
+async function resolveActiveTeamId(token: string): Promise<string> {
+  try {
+    const res = await fetch('/api/teams', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return 'default';
+    const data = (await res.json()) as { teams?: Array<{ id: string; is_active?: boolean }> };
+    const teams = data.teams ?? [];
+    return (teams.find(t => t.is_active) ?? teams[0])?.id ?? 'default';
+  } catch {
+    return 'default';
+  }
+}
+
 export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular' }: MatchingProps) {
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<'searching' | 'found' | 'com_suggested' | 'error'>('searching');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const startTimeRef = useRef(Date.now());
   const matchFoundRef = useRef(false);
+  const teamIdRef = useRef<string>('default'); // WS接続前に実teamIdを解決して格納
 
   // ── マッチメイキングWS メッセージ処理 ──
   const handleMmMessage = useCallback((msg: unknown) => {
@@ -32,10 +49,12 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
     switch (data.type) {
       case 'MATCHMAKING_CONNECTED':
         // 接続成功 → キュー参加
+        // rating はサーバーがD1の値で上書きするため申告値は無視される（詐称防止）。
+        // teamId は接続前に解決済み（resolveActiveTeamId）。サーバーがD1から編成をロードする。
         wsSend({
           type: 'JOIN_QUEUE',
-          rating: 1500, // TODO: プレイヤーの実レーティング
-          teamId: 'default', // TODO: 選択したチームID
+          rating: 0,
+          teamId: teamIdRef.current,
         });
         break;
 
@@ -85,8 +104,17 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
       return;
     }
 
-    wsConnect();
-    return () => wsDisconnect();
+    let cancelled = false;
+    (async () => {
+      // WS接続前に編成teamIdを解決（JOIN_QUEUEで送る）
+      teamIdRef.current = await resolveActiveTeamId(authToken);
+      if (cancelled) return;
+      wsConnect();
+    })();
+    return () => {
+      cancelled = true;
+      wsDisconnect();
+    };
   }, [gameMode, authToken, wsConnect, wsDisconnect]);
 
   // ── COM対戦: 即座にマッチング成立 ──
