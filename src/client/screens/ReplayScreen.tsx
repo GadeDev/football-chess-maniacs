@@ -4,17 +4,9 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page, GameEvent, PieceData, Team, HexCoord } from '../types';
+import type { Page, Team, TurnSnapshot } from '../types';
 import HexBoard from '../components/board/HexBoard';
 import { t } from '../i18n';
-
-interface TurnSnapshot {
-  turn: number;
-  pieces: PieceData[];
-  events: GameEvent[];
-  scoreHome: number;
-  scoreAway: number;
-}
 
 interface ReplayScreenProps {
   onNavigate: (page: Page) => void;

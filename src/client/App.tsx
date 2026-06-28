@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useCallback } from 'react';
-import type { Page, GameMode, Team, FormationData, ComDifficulty, MatchEndData, MatchStats, MvpInfo } from './types';
+import type { Page, GameMode, Team, FormationData, ComDifficulty, MatchEndData, MatchStats, MvpInfo, TurnSnapshot } from './types';
 
 import { SettingsProvider } from './contexts/SettingsContext';
 
@@ -27,19 +27,10 @@ import PresetTeamsScreen from './screens/PresetTeamsScreen';
 import ReplayScreen from './screens/ReplayScreen';
 
 import type { PresetTeam } from '../data/presetTeams';
-import type { PieceData, GameEvent } from './types';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 import { useLocale } from './i18n/useLocale';
 
-/** リプレイ用ターンスナップショット */
-interface TurnSnapshot {
-  turn: number;
-  pieces: PieceData[];
-  events: GameEvent[];
-  scoreHome: number;
-  scoreAway: number;
-}
 
 /** デフォルトの空スタッツ */
 function emptyStats(): MatchStats {
@@ -138,6 +129,7 @@ export default function App() {
 
   const handleMatchEnd = useCallback((data: MatchEndData) => {
     setMatchEndData(data);
+    setReplayTurns(data.replayTurns ?? []);
     setPage('result');
   }, []);
 

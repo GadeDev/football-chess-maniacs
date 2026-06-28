@@ -175,6 +175,15 @@ export interface MvpInfo {
   tackles: number;
 }
 
+/** リプレイ1ターン分のスナップショット（ReplayScreenが再生する単位） */
+export interface TurnSnapshot {
+  turn: number;
+  pieces: PieceData[];
+  events: GameEvent[];
+  scoreHome: number;
+  scoreAway: number;
+}
+
 /** 試合終了データ（Battle→Result引継ぎ） */
 export interface MatchEndData {
   scoreHome: number;
@@ -183,6 +192,8 @@ export interface MatchEndData {
   reason: 'completed' | 'disconnect';
   stats: MatchStats;
   mvp: MvpInfo | null;
+  /** リプレイ用の全ターン記録（COM対戦でクライアント録画。無い場合あり） */
+  replayTurns?: TurnSnapshot[];
 }
 
 /** マッチメイキングWebSocketメッセージ型 */

@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase } from '../types';
+import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase, TurnSnapshot } from '../types';
 import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
@@ -89,6 +89,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const [disconnectBannerPositive, setDisconnectBannerPositive] = useState(false);
   /** 全ターンの累積イベントログ（スタッツ集計用） */
   const cumulativeEventsRef = useRef<GameEvent[]>([]);
+  /** リプレイ録画: 各ターン解決後のスナップショット */
+  const replayTurnsRef = useRef<TurnSnapshot[]>([]);
 
   // サーバーサイドCOM: matchIdが gemma_com_ で始まる場合はDO経由（WebSocket接続）
   // クライアントサイドCOM: matchIdが com_ で始まる場合は従来のローカル処理
@@ -285,6 +287,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const kickoffTeam = firstHalfKickoffRef.current;
     const pieces = createInitialPieces(formationData, kickoffTeam);
     console.log(`[Battle] COM init: 1st half kickoff = ${kickoffTeam}`);
+    replayTurnsRef.current = []; // リプレイ録画リセット（再戦時に前試合分が混ざらないように）
     dispatch({
       type: 'INIT_MATCH',
       matchId: matchId ?? `com_${Date.now()}`,
@@ -998,6 +1001,15 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         // 実際に成立した交代数を使用済みに加算（試合通算の予算）
         const appliedSubs = turnResult.events.filter(e => e.type === 'SUBSTITUTION').length;
         if (appliedSubs > 0) setInGameSubsUsed(n => n + appliedSubs);
+
+        // リプレイ録画: このターンの結果スナップショットを記録
+        replayTurnsRef.current.push({
+          turn: state.turn,
+          pieces: newFieldPieces,
+          events: turnResult.events as unknown as GameEvent[],
+          scoreHome: newScoreHome,
+          scoreAway: newScoreAway,
+        });
 
         // 7. イベントログ保存
         setEvents(turnResult.events as unknown as GameEvent[]);
@@ -1834,7 +1846,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       halftimeCountdown={halftimeCountdown}
       cumulativeEvents={cumulativeEventsRef.current}
       boardPieces={state.board.pieces}
-      onMatchEnd={onMatchEnd}
+      onMatchEnd={(data) => onMatchEnd?.({ ...data, replayTurns: replayTurnsRef.current })}
       onNavigate={onNavigate}
     />
   );
