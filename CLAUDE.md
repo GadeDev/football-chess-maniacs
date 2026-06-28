@@ -143,7 +143,7 @@ public/
 | ball.ts | §9-2 フェーズ2 | ✅ |
 | special.ts | §9-2 フェーズ3 | ✅ |
 | turn_processor.ts | §9-2 全フェーズ統合 | ✅ |
-| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating | ✅ 641 tests passing (+10 skip: ライブE2E) |
+| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking | ✅ 647 tests passing (+10 skip: ライブE2E) |
 | worker.ts + api/* | Hono REST API + WebSocket | ✅ |
 | durable/game_session.ts | §4-3 DO Hibernation + §7-2 WS認証 + processTurn統合 + ハーフタイム/AT/ゴールリスタート | ✅ |
 | durable/matchmaking.ts | §4-2 シャード構成マッチメイキング | ✅ |
@@ -233,6 +233,7 @@ public/
 | オンライン最後の1マイル（2026-06-28, `8fc5c94`） | Matching: JOIN_QUEUEで実teamId送信(resolveActiveTeamId)→編成反映が完結。rating申告は0(サーバーD1値で上書き)。game_session: player_idを`attachment.userId`で上書き(なりすまし防止+空player_id解消) | ✅ |
 | 選手交代の実装（2026-06-28, `d4becd7`/`a03b243`） | `substitute`を型のみ→実処理化。エンジンに`Order.benchPieceId`/`Board.bench`/`SubstitutionEvent`/`applySubstitutions`(フェーズ-1,座標・ボール継承)追加(テスト4件)。クライアントCOMで機能(bench配線/isBench再構築/回数ガード`MAX_SUBSTITUTIONS`/SidePanelログ7言語)。DO/PvP経路も完成(teams.bench_pieces読込/remainingSubs減算/boardToPieceInfosにbench、テスト3件) | ✅ |
 | CollectionScreen実データ化（2026-06-28, `c44ed82`） | モック→`/api/shop/catalog`(piece_master 200枚+所持フラグ)。era_shelf(1-7)表示、総数=実カタログ件数、API失敗時フォールバック。authToken伝播 | ✅ |
+| RankingScreen実データ化（2026-06-28, `7d58a51`） | 新API `GET /api/ranking`(user_ratings上位50+自分の順位、COM除外、純ヘルパーテスト6件)。モック撤去→fetch、自分の行ハイライト、未対戦は空表示、weekly/friendsは準備中。i18n 2キー×7言語。※レーティングはPvP(E2E未検証)でのみ蓄積=現状実質空 | ✅ |
 
 ---
 
@@ -742,7 +743,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | 🟠 | オンライン対戦のWS送信が `player_id=''` / `client_hash=''`（盤面ハッシュ未実装）。サーバー統合とE2Eが未完 | `client/pages/Battle.tsx:1419-1423` |
 | 🟠 | リプレイ視聴のデータ配線欠落（`setReplayTurns` 未呼出で常に空配列）。`/replays/:id/turn/:turn` は誰も書かず実質stub | `client/App.tsx:77` / `api/replay.ts` |
 | ✅ | 選手交代: エンジン(applySubstitutions)+クライアントCOM(`d4becd7`)+DO/PvP・サーバーCOM(`a03b243`)で実装済み。残: COM AIへのbench供給(現状AIは交代提案せず) / 得点後リスタートでDOは交代がリセット(クライアントは保持)の挙動差 / オンラインE2E未検証 | `game_session.ts` |
-| 🟡 | Ranking/FriendMatch がモックデータ（API未接続）。Collectionは実データ化済(`c44ed82`)。RankingはPvP対戦が無いと空になる点に注意 | `client/screens/*` |
+| 🟡 | FriendMatch がモックデータ（API未接続、フレンド機能自体が未実装）。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*` |
 | 🟡 | デッドコード整理: `pages/Result.tsx`・`pages/HalfTime.tsx`（到達不能）、`api/auth.ts` の `/purchase`（未マウント） | — |
 | 🟡 | `public/assets/characters/`（PK/FKスプライト9枚）がgit未追跡・未参照。配線時に追加 | — |
 
