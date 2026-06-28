@@ -239,7 +239,7 @@ export default function App() {
         )}
         {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken} />}
         {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
-        {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
+        {page === 'collection' && <CollectionScreen onNavigate={navigate} authToken={authToken} />}
         {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
         {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
         {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
