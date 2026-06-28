@@ -234,6 +234,7 @@ public/
 | 選手交代の実装（2026-06-28, `d4becd7`/`a03b243`） | `substitute`を型のみ→実処理化。エンジンに`Order.benchPieceId`/`Board.bench`/`SubstitutionEvent`/`applySubstitutions`(フェーズ-1,座標・ボール継承)追加(テスト4件)。クライアントCOMで機能(bench配線/isBench再構築/回数ガード`MAX_SUBSTITUTIONS`/SidePanelログ7言語)。DO/PvP経路も完成(teams.bench_pieces読込/remainingSubs減算/boardToPieceInfosにbench、テスト3件) | ✅ |
 | CollectionScreen実データ化（2026-06-28, `c44ed82`） | モック→`/api/shop/catalog`(piece_master 200枚+所持フラグ)。era_shelf(1-7)表示、総数=実カタログ件数、API失敗時フォールバック。authToken伝播 | ✅ |
 | RankingScreen実データ化（2026-06-28, `7d58a51`） | 新API `GET /api/ranking`(user_ratings上位50+自分の順位、COM除外、純ヘルパーテスト6件)。モック撤去→fetch、自分の行ハイライト、未対戦は空表示、weekly/friendsは準備中。i18n 2キー×7言語。※レーティングはPvP(E2E未検証)でのみ蓄積=現状実質空 | ✅ |
+| リプレイ録画→再生の配線（2026-06-28, `66076cb`） | ReplayScreen/結果画面「リプレイを見る」は実装済だが録画データが`App.replayTurns`に未セット(常にno_data)だった欠落を解消。`TurnSnapshot`をtypes.ts共通化、`MatchEndData.replayTurns`追加、Battleが各ターン解決後をrefに録画(INIT_MATCHでリセット)→onMatchEnd注入→App結線。COM対戦で全ターン再生可。オンラインは未録画 | ✅ |
 
 ---
 
@@ -741,7 +742,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 |---|---|---|
 | 🟠 | クライアントが `JOIN_QUEUE` で `teamId='default'` 固定送信。実teamIdを送れば編成反映が完結する（サーバー側は対応済み） | `client/pages/Matching.tsx:37-38` |
 | 🟠 | オンライン対戦のWS送信が `player_id=''` / `client_hash=''`（盤面ハッシュ未実装）。サーバー統合とE2Eが未完 | `client/pages/Battle.tsx:1419-1423` |
-| 🟠 | リプレイ視聴のデータ配線欠落（`setReplayTurns` 未呼出で常に空配列）。`/replays/:id/turn/:turn` は誰も書かず実質stub | `client/App.tsx:77` / `api/replay.ts` |
+| ✅ | リプレイ視聴: COM対戦のクライアント録画→再生を配線済(`66076cb`)。残: オンライン対戦の録画(サーバーR2 `/replays/:id` 経由のビューア接続)、`/replays/:id/turn/:turn`(誰も書かず実質stub) | `api/replay.ts` |
 | ✅ | 選手交代: エンジン(applySubstitutions)+クライアントCOM(`d4becd7`)+DO/PvP・サーバーCOM(`a03b243`)で実装済み。残: COM AIへのbench供給(現状AIは交代提案せず) / 得点後リスタートでDOは交代がリセット(クライアントは保持)の挙動差 / オンラインE2E未検証 | `game_session.ts` |
 | 🟡 | FriendMatch がモックデータ（API未接続、フレンド機能自体が未実装）。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*` |
 | 🟡 | デッドコード整理: `pages/Result.tsx`・`pages/HalfTime.tsx`（到達不能）、`api/auth.ts` の `/purchase`（未マウント） | — |
