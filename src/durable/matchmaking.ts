@@ -7,6 +7,7 @@ import { DurableObject } from 'cloudflare:workers';
 import type { Env } from '../worker';
 import { verifyWebSocketToken } from '../middleware/jwt_verify';
 import { WebSocketRateLimiter } from '../middleware/rate_limit';
+import { getRating } from '../server/rating';
 
 /** 待機プレイヤー */
 interface WaitingPlayer {
@@ -134,9 +135,11 @@ export class Matchmaking extends DurableObject<Env['Bindings']> {
     attachment: MmAttachment,
     data: { rating: number; teamId: string },
   ): Promise<void> {
+    // レーティングはクライアント申告を信用せず、D1 のサーバー権威値を使う（詐称防止）
+    const rating = await getRating(this.env.DB, attachment.userId);
     const player: WaitingPlayer = {
       userId: attachment.userId,
-      rating: data.rating,
+      rating,
       teamId: data.teamId,
       joinedAt: Date.now(),
       region: attachment.region,

@@ -16,6 +16,7 @@ import shopRoutes from './api/shop';
 import webhookRoutes from './api/webhooks';
 import { jwtMiddleware, verifyJwt } from './middleware/jwt_verify';
 import { rateLimitMiddleware, RATE_LIMITS } from './middleware/rate_limit';
+import { persistRatings, isRatedMatch } from './server/rating';
 
 // ── Durable Objects 再エクスポート ──
 export { GameSession } from './durable/game_session';
@@ -190,12 +191,25 @@ export default {
       };
 
       try {
-        // D1: 試合サマリ更新
+        // D1: 試合サマリ更新（disconnectは status を分けて記録）
+        const matchStatus = data.reason === 'disconnect' ? 'disconnect' : 'completed';
         await env.DB.prepare(
           'UPDATE matches SET status = ?, score_home = ?, score_away = ?, finished_at = ? WHERE id = ?',
         )
-          .bind('completed', data.scoreHome, data.scoreAway, data.finishedAt, data.matchId)
+          .bind(matchStatus, data.scoreHome, data.scoreAway, data.finishedAt, data.matchId)
           .run();
+
+        // D1: レーティング更新（COM/フレンド戦は対象外）
+        if (isRatedMatch(data.matchId, data.homeUserId, data.awayUserId)) {
+          let scoreHome: 0 | 0.5 | 1;
+          if (data.reason === 'disconnect' && data.disconnectLoser) {
+            scoreHome = data.disconnectLoser === 'home' ? 0 : 1;
+          } else {
+            scoreHome = data.scoreHome > data.scoreAway ? 1
+              : data.scoreHome < data.scoreAway ? 0 : 0.5;
+          }
+          await persistRatings(env.DB, data.homeUserId, data.awayUserId, scoreHome, data.finishedAt);
+        }
 
         // R2: 詳細ログ（棋譜）保存
         const logData = JSON.stringify({
