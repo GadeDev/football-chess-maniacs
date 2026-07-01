@@ -3,42 +3,37 @@
 // ページ遷移管理。ゲームモード追跡。
 // ============================================================
 
-import React, { useState, useCallback } from 'react';
-import type { Page, GameMode, Team, FormationData, ComDifficulty, MatchEndData, MatchStats, MvpInfo } from './types';
+import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import type { Page, GameMode, Team, FormationData, ComDifficulty, MatchEndData, MatchStats, MvpInfo, TurnSnapshot } from './types';
 
 import { SettingsProvider } from './contexts/SettingsContext';
 
+// 初回描画に必要なタイトル/モード選択は同期import。
+// それ以外（特に重い Battle + エンジン/ボード/ミニゲーム）は遅延ロードして初期バンドルを削減。
 import Title from './pages/Title';
 import ModeSelect from './pages/ModeSelect';
-import Formation from './pages/Formation';
-import Matching from './pages/Matching';
-import Battle from './pages/Battle';
-import HalfTime from './pages/HalfTime';
-import Replay from './pages/Replay';
 
-import ResultScreen from './screens/ResultScreen';
-import ShopScreen from './screens/ShopScreen';
-import RankingScreen from './screens/RankingScreen';
-import CollectionScreen from './screens/CollectionScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import FriendMatchScreen from './screens/FriendMatchScreen';
-import PresetTeamsScreen from './screens/PresetTeamsScreen';
-import ReplayScreen from './screens/ReplayScreen';
+const Formation = lazy(() => import('./pages/Formation'));
+const Matching = lazy(() => import('./pages/Matching'));
+const Battle = lazy(() => import('./pages/Battle'));
+const HalfTime = lazy(() => import('./pages/HalfTime'));
+const Replay = lazy(() => import('./pages/Replay'));
+
+const ResultScreen = lazy(() => import('./screens/ResultScreen'));
+const ShopScreen = lazy(() => import('./screens/ShopScreen'));
+const RankingScreen = lazy(() => import('./screens/RankingScreen'));
+const CollectionScreen = lazy(() => import('./screens/CollectionScreen'));
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
+const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
+const FriendMatchScreen = lazy(() => import('./screens/FriendMatchScreen'));
+const PresetTeamsScreen = lazy(() => import('./screens/PresetTeamsScreen'));
+const ReplayScreen = lazy(() => import('./screens/ReplayScreen'));
 
 import type { PresetTeam } from '../data/presetTeams';
-import type { PieceData, GameEvent } from './types';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
+import { useLocale } from './i18n/useLocale';
 
-/** リプレイ用ターンスナップショット */
-interface TurnSnapshot {
-  turn: number;
-  pieces: PieceData[];
-  events: GameEvent[];
-  scoreHome: number;
-  scoreAway: number;
-}
 
 /** デフォルトの空スタッツ */
 function emptyStats(): MatchStats {
@@ -55,15 +50,74 @@ function emptyStats(): MatchStats {
   };
 }
 
+function readLocalStorage(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function base64UrlDecode(input: string): string {
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function consumeUniversoSsoFragment(): { accessToken: string; refreshToken?: string } | null {
+  if (typeof window === 'undefined') return null;
+  const rawHash = window.location.hash.replace(/^#/, '');
+  if (!rawHash) return null;
+
+  const params = new URLSearchParams(rawHash);
+  const encoded = params.get('uf_sso');
+  if (!encoded) return null;
+
+  params.delete('uf_sso');
+  const nextHash = params.toString();
+  const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
+  window.history.replaceState(null, '', nextUrl);
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(encoded)) as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+    };
+    if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) return null;
+    return {
+      accessToken: payload.access_token,
+      refreshToken: typeof payload.refresh_token === 'string' ? payload.refresh_token : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
+  useLocale(); // ロケール変更時にルートから再描画し、全画面の t()/tn() 表示を更新する
+
   const [page, setPage] = useState<Page>('title');
   const [matchId, setMatchId] = useState<string | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('com');
   const [myTeam, setMyTeam] = useState<Team>('home');
   const [formationData, setFormationData] = useState<FormationData | null>(null);
   const [comDifficulty, setComDifficulty] = useState<ComDifficulty>('regular');
-  // JWT認証トークン（ログインフロー実装後にセット。localStorageフォールバック）
-  const [authToken] = useState<string>(() => localStorage.getItem('fcms_token') ?? '');
+  // JWT認証トークン（Universo SSO fragment → localStorage フォールバック）
+  const [authToken, setAuthToken] = useState<string>(() => readLocalStorage('fcms_token'));
+
+  useEffect(() => {
+    const sso = consumeUniversoSsoFragment();
+    if (!sso) return;
+    try {
+      localStorage.setItem('fcms_token', sso.accessToken);
+      if (sso.refreshToken) localStorage.setItem('fcms_refresh_token', sso.refreshToken);
+    } catch {
+      // Storage unavailable; keep token in memory for this session.
+    }
+    setAuthToken(sso.accessToken);
+  }, []);
 
   // 試合結果データ（Battle → Result 引継ぎ）
   const [matchEndData, setMatchEndData] = useState<MatchEndData>({
@@ -135,6 +189,7 @@ export default function App() {
 
   const handleMatchEnd = useCallback((data: MatchEndData) => {
     setMatchEndData(data);
+    setReplayTurns(data.replayTurns ?? []);
     setPage('result');
   }, []);
 
@@ -175,6 +230,17 @@ export default function App() {
       `}</style>
 
       <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        <Suspense fallback={
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%',
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%',
+              border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#44aa44',
+              animation: 'spin 1s linear infinite',
+            }} />
+          </div>
+        }>
         {page === 'title' && (
           <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
         )}
@@ -235,8 +301,8 @@ export default function App() {
           <Replay onNavigate={navigate} matchId={matchId ?? undefined} />
         )}
         {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken} />}
-        {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
-        {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
+        {page === 'ranking' && <RankingScreen onNavigate={navigate} authToken={authToken} />}
+        {page === 'collection' && <CollectionScreen onNavigate={navigate} authToken={authToken} />}
         {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
         {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
         {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
@@ -246,6 +312,7 @@ export default function App() {
         {page === 'replayViewer' && (
           <ReplayScreen onNavigate={navigate} turns={replayTurns} myTeam={matchEndData.myTeam} />
         )}
+        </Suspense>
       </div>
     </SettingsProvider>
   );

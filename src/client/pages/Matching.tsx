@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Page, GameMode, Team, MatchmakingWsMessage, ComDifficulty } from '../types';
 import { getWsBaseUrl } from '../types';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { t } from '../i18n';
 
 interface MatchingProps {
   onNavigate: (page: Page) => void;
@@ -17,12 +18,29 @@ interface MatchingProps {
   comDifficulty?: ComDifficulty;
 }
 
+/**
+ * マッチメイキングに渡す編成チームIDを解決する。
+ * is_active なチーム → 無ければ先頭 → 無ければ 'default'（サーバーは固定4-4-2にフォールバック）。
+ */
+async function resolveActiveTeamId(token: string): Promise<string> {
+  try {
+    const res = await fetch('/api/teams', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return 'default';
+    const data = (await res.json()) as { teams?: Array<{ id: string; is_active?: boolean }> };
+    const teams = data.teams ?? [];
+    return (teams.find(t => t.is_active) ?? teams[0])?.id ?? 'default';
+  } catch {
+    return 'default';
+  }
+}
+
 export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular' }: MatchingProps) {
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<'searching' | 'found' | 'com_suggested' | 'error'>('searching');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const startTimeRef = useRef(Date.now());
   const matchFoundRef = useRef(false);
+  const teamIdRef = useRef<string>('default'); // WS接続前に実teamIdを解決して格納
 
   // ── マッチメイキングWS メッセージ処理 ──
   const handleMmMessage = useCallback((msg: unknown) => {
@@ -31,10 +49,12 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
     switch (data.type) {
       case 'MATCHMAKING_CONNECTED':
         // 接続成功 → キュー参加
+        // rating はサーバーがD1の値で上書きするため申告値は無視される（詐称防止）。
+        // teamId は接続前に解決済み（resolveActiveTeamId）。サーバーがD1から編成をロードする。
         wsSend({
           type: 'JOIN_QUEUE',
-          rating: 1500, // TODO: プレイヤーの実レーティング
-          teamId: 'default', // TODO: 選択したチームID
+          rating: 0,
+          teamId: teamIdRef.current,
         });
         break;
 
@@ -79,13 +99,22 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
   useEffect(() => {
     if (gameMode === 'com' || gameMode === 'comVsCom') return;
     if (!authToken) {
-      setErrorMsg('ログインが必要です');
+      setErrorMsg(t('matching.login_required'));
       setStatus('error');
       return;
     }
 
-    wsConnect();
-    return () => wsDisconnect();
+    let cancelled = false;
+    (async () => {
+      // WS接続前に編成teamIdを解決（JOIN_QUEUEで送る）
+      teamIdRef.current = await resolveActiveTeamId(authToken);
+      if (cancelled) return;
+      wsConnect();
+    })();
+    return () => {
+      cancelled = true;
+      wsDisconnect();
+    };
   }, [gameMode, authToken, wsConnect, wsDisconnect]);
 
   // ── COM対戦: 即座にマッチング成立 ──
@@ -167,32 +196,32 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', height: '100%', gap: 24,
       }}>
-        <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>{gameMode === 'comVsCom' ? 'COM観戦' : 'COM対戦'}</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>{gameMode === 'comVsCom' ? t('mode.com_watch') : t('mode.com')}</h2>
         <div style={{
           width: 60, height: 60, borderRadius: '50%',
           border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#44aa44',
           animation: 'spin 1s linear infinite',
         }} />
-        <div style={{ fontSize: 14, color: '#aaa' }}>対戦を準備中...</div>
+        <div style={{ fontSize: 14, color: '#aaa' }}>{t('matching.preparing')}</div>
       </div>
     );
   }
 
   // ── オンライン対戦のUI ──
   const phaseLabel = elapsed < 10
-    ? '同リージョンで検索中...'
+    ? t('matching.phase_same_region')
     : elapsed < 20
-    ? '検索範囲を拡大中...'
+    ? t('matching.phase_expanding')
     : elapsed < 30
-    ? 'クロスリージョン検索中...'
-    : 'COM対戦を提案中';
+    ? t('matching.phase_cross_region')
+    : t('matching.phase_com_suggest');
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', height: '100%', gap: 24, padding: 20,
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>マッチング中</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>{t('matching.title')}</h2>
 
       <div style={{
         width: 80, height: 80, borderRadius: '50%',
@@ -207,7 +236,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
       </div>
 
       <div style={{ fontSize: 12, color: '#666' }}>
-        {elapsed < 10 ? '±200' : elapsed < 20 ? '±400' : '全リージョン'}
+        {elapsed < 10 ? '±200' : elapsed < 20 ? '±400' : t('matching.all_regions')}
         {wsStatus !== 'connected' && wsStatus !== 'disconnected' && (
           <span style={{ marginLeft: 8, color: '#888' }}>({wsStatus})</span>
         )}
@@ -228,7 +257,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
           borderRadius: 12, textAlign: 'center', maxWidth: 300,
         }}>
           <div style={{ fontSize: 14, marginBottom: 12 }}>
-            対戦相手が見つかりません。<br />COM対戦を開始しますか？
+            {t('matching.no_opponent')}<br />{t('matching.start_com_confirm')}
           </div>
           <button
             onClick={() => {
@@ -241,7 +270,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
               fontWeight: 'bold', cursor: 'pointer',
             }}
           >
-            COM対戦を開始
+            {t('matching.start_com')}
           </button>
         </div>
       )}
@@ -254,7 +283,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
           color: '#888', fontSize: 14, cursor: 'pointer',
         }}
       >
-        キャンセル
+        {t('common.cancel')}
       </button>
     </div>
   );

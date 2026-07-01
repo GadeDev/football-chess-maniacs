@@ -6,6 +6,7 @@ import React, { useState, useCallback } from 'react';
 import type { Page, PieceData, HexCoord } from '../types';
 import { useDeviceType } from '../hooks/useDeviceType';
 import HexBoard from '../components/board/HexBoard';
+import { t } from '../i18n';
 
 interface ReplayProps {
   onNavigate: (page: Page) => void;
@@ -55,11 +56,11 @@ export default function Replay({ onNavigate, matchId }: ReplayProps) {
             cursor: 'pointer',
           }}
         >
-          ← 戻る
+          {t('replay.back')}
         </button>
-        <span style={{ fontWeight: 'bold' }}>リプレイ</span>
+        <span style={{ fontWeight: 'bold' }}>{t('replay.title')}</span>
         <span style={{ fontSize: 13, color: '#888' }}>
-          ターン {currentTurn}/{totalTurns}
+          {t('replay.turn', { current: currentTurn, total: totalTurns })}
         </span>
       </div>
 

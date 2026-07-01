@@ -11,6 +11,9 @@ export type Cost = 1 | 1.5 | 2 | 2.5 | 3;
 /** 所属チーム */
 export type Team = 'home' | 'away';
 
+/** フリーボールの発生元 */
+export type FreeBallSource = 'throughPass' | 'loose';
+
 /** HEX座標 */
 export interface HexCoord {
   col: number;
@@ -51,6 +54,18 @@ export interface Board {
   snapshot: Piece[];
   /** フリーボール位置（誰も持っていない場合のHEX座標） */
   freeBallHex?: HexCoord | null;
+  /** フリーボールを最後に触ったチーム（スペースパス後のオフサイド判定用） */
+  freeBallLastTouchedTeam?: Team | null;
+  /** フリーボールを最後に触ったコマID（スペースパス後のオフサイド判定用） */
+  freeBallLastTouchedPieceId?: string | null;
+  /** フリーボール発生元 */
+  freeBallSource?: FreeBallSource | null;
+  /** 自陣保持による遅延行為カウント */
+  possessionDelay?: PossessionDelayState | null;
+  /** 消極的戦術ペナルティ中のチーム */
+  passiveTacticsTeams?: Team[];
+  /** ベンチ控えコマ（交代の投入元）。盤面上には存在しない */
+  bench?: Piece[];
 }
 
 // ============================================================
@@ -65,6 +80,8 @@ export interface Order {
   target?: HexCoord; // 移動先 / パス先(受け手の移動前座標) / シュート先
   /** パス受け手のコマID（座標がフェーズ1移動でずれても確実に特定するため） */
   targetPieceId?: string;
+  /** 交代で投入するベンチコマのID（type==='substitute' のとき必須） */
+  benchPieceId?: string;
 }
 
 // ============================================================
@@ -120,6 +137,12 @@ export interface OffsideResult {
   isGrayZone: boolean;
   /** グレーゾーン判定（50%）の結果 */
   grayZoneRoll?: number;
+}
+
+/** 自陣保持による遅延行為カウント */
+export interface PossessionDelayState {
+  team: Team | null;
+  count: number;
 }
 
 // ============================================================
@@ -220,13 +243,43 @@ export interface OffsideEvent {
   receiverId: string;
   /** パスを出したコマID */
   passerId: string;
+  /** スペース/フリーボール取得時に発生したオフサイドか */
+  source?: 'pass' | 'throughPass' | 'freeBall';
   result: OffsideResult;
+}
+
+export interface BattleDelayEvent {
+  type: 'BATTLE_DELAY';
+  phase: 3;
+  team: Team;
+  count: number;
+  coord: HexCoord;
+  awardedToPieceId?: string;
+}
+
+export interface PassiveTacticsEvent {
+  type: 'PASSIVE_TACTICS';
+  phase: 3;
+  team: Team;
+  pieceCount: number;
 }
 
 export interface BallAcquiredEvent {
   type: 'BALL_ACQUIRED';
   phase: 1 | 2 | 3;
   pieceId: string;
+}
+
+export interface SubstitutionEvent {
+  type: 'SUBSTITUTION';
+  phase: 0;
+  team: Team;
+  /** 退場する（盤面→ベンチ）コマID */
+  outPieceId: string;
+  /** 投入する（ベンチ→盤面）コマID */
+  inPieceId: string;
+  /** 交代が行われた盤面座標 */
+  coord: HexCoord;
 }
 
 export interface LooseBallEvent {
@@ -247,7 +300,10 @@ export type GameEvent =
   | PassDeliveredEvent
   | PassCutEvent
   | OffsideEvent
+  | BattleDelayEvent
+  | PassiveTacticsEvent
   | BallAcquiredEvent
+  | SubstitutionEvent
   | LooseBallEvent;
 
 // ============================================================

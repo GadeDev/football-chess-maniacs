@@ -4,16 +4,9 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page, GameEvent, PieceData, Team, HexCoord } from '../types';
+import type { Page, Team, TurnSnapshot } from '../types';
 import HexBoard from '../components/board/HexBoard';
-
-interface TurnSnapshot {
-  turn: number;
-  pieces: PieceData[];
-  events: GameEvent[];
-  scoreHome: number;
-  scoreAway: number;
-}
+import { t } from '../i18n';
 
 interface ReplayScreenProps {
   onNavigate: (page: Page) => void;
@@ -64,12 +57,12 @@ export default function ReplayScreen({ onNavigate, turns, myTeam }: ReplayScreen
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         height: '100%', gap: 16, background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
       }}>
-        <div style={{ fontSize: 18, color: '#888' }}>リプレイデータがありません</div>
+        <div style={{ fontSize: 18, color: '#888' }}>{t('replay.no_data')}</div>
         <button onClick={() => onNavigate('title')} style={{
           padding: '10px 24px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
           background: 'transparent', color: '#888', fontSize: 14, cursor: 'pointer',
         }}>
-          戻る
+          {t('common.back')}
         </button>
       </div>
     );
@@ -143,7 +136,7 @@ export default function ReplayScreen({ onNavigate, turns, myTeam }: ReplayScreen
           ))}
         </div>
 
-        <CtrlBtn label="戻る" onClick={() => onNavigate('result')} />
+        <CtrlBtn label={t('common.back')} onClick={() => onNavigate('result')} />
       </div>
     </div>
   );

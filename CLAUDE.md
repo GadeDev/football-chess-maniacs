@@ -107,6 +107,14 @@ src/
     │   └── useDeviceType.ts   # スマホ/PC判定
     ├── utils/
     │   └── pieceAssetPath.ts  # コマPNG画像パス導出（getPieceAssetPath: position/cost/side → /assets/pieces/*.png）
+    ├── i18n/                  # 多言語化基盤（ShootOutDiceプレイブック移植・7言語対応）
+    │   ├── index.ts           # i18n器本体（t / tn / setLocale / detectInitialLocale / lookupPlural / SUPPORTED_LOCALES / LOCALE_NATIVE_NAMES / 永続化）
+    │   ├── ja.ts              # 日本語辞書（正本・401キー）
+    │   ├── en.ts en/ko/es/pt/de/zh-CN.ts # 各言語辞書（機械訳ドラフト・ja完全パリティ401キー）
+    │   ├── _new_locale.ts     # 言語追加用テンプレ（コピー元）
+    │   ├── useLocale.ts       # React結線フック（setLocaleで再レンダ）
+    │   ├── LanguageSelect.tsx # 言語切替プルダウン（SUPPORTED_LOCALESから自動生成・即反映）
+    │   └── __tests__/i18n.test.ts # 全7言語キーパリティ + tn()複数形 + ko/zh-CN tn検証 + 教訓1フォールバック
     └── data/
         └── hex_map.json       # HEX座標マップ（コピー）
 scripts/
@@ -135,7 +143,7 @@ public/
 | ball.ts | §9-2 フェーズ2 | ✅ |
 | special.ts | §9-2 フェーズ3 | ✅ |
 | turn_processor.ts | §9-2 全フェーズ統合 | ✅ |
-| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド | ✅ 566 tests passing |
+| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special | ✅ 670 tests passing (+10 skip: ライブE2E) |
 | worker.ts + api/* | Hono REST API + WebSocket | ✅ |
 | durable/game_session.ts | §4-3 DO Hibernation + §7-2 WS認証 + processTurn統合 + ハーフタイム/AT/ゴールリスタート | ✅ |
 | durable/matchmaking.ts | §4-2 シャード構成マッチメイキング | ✅ |
@@ -217,6 +225,20 @@ public/
 | リッチGOAL演出（2026-06-11） | `GoalCeremony.tsx` 新規。得点チームカラー別カットイン（集中線/カラーバンド/GOOAL!スラム/フラッシュ/紙吹雪canvas/スコアバウンド）。`SoundManager.playGoalCelebration()` 歓声スウェル追加。`GOAL_CEREMONY_MS` 2000→2600ms。下記「対戦画面の演出」参照 | ✅ |
 | GOAL演出スコア表示修正+タメ/退場（2026-06-11） | 演出中に加点前スコアが表示される回帰を修正（`goalCelebration` state でスナップショット伝播、型は `GoalCelebrationInfo`）。タメ（暗転320ms→着弾、歓声スウェルも同期）と退場アニメ（終了220ms前に文字フレームアウト）を追加 | ✅ |
 | タックル着弾バースト（2026-06-11） | `board/ImpactBurst.tsx` 新規（中イベント層）。タックル成功=白リング+金スパーク(impact)、競合=灰の土煙(dust)。`phaseEffects` に `burst?: 'impact'\|'dust'` を追加し、HexBoardがOverlay(Canvas)とは別にDOMで該当HEX位置に約0.6秒再生。flipY対応はdisplayPhaseEffects経由で自動。`prefers-reduced-motion` 時は非表示 | ✅ |
+| 多言語化i18n基盤 フェーズ1/3/4（2026-06-18） | ShootOutDiceプレイブック移植。`src/client/i18n/`設置（`STORAGE_KEY='fcms.locale'`）。クライアント全画面のベタ書き日本語 約400文字列を`t()`/`tn()`でキー化（表示は日本語で不変）。en辞書を完全パリティ(401キー)で作成、複数形14キーを`tn()`の`.one/.other`対応。回帰テスト10件追加。詳細は下記「多言語化（i18n）」参照 | ✅ |
+| 多言語化i18n フェーズ6/7（2026-06-19） | フェーズ6: `LanguageSelect.tsx`新規（`SUPPORTED_LOCALES`から自動生成、`setLocale`即反映、`SettingsScreen`の言語選択置換、`SettingsContext.language`削除でlocale一元化）。フェーズ7: ko→es/pt/de/zh-CNの順で残り5言語追加（計7言語）、全辞書ja完全パリティ401キー（機械訳ドラフト注記付き）、複数形なし言語(ko/zh-CN)は`.one/.other`同一文字列。`LOCALE_NATIVE_NAMES`追加。テスト+2（ko/zh-CN tn検証）+全言語プレースホルダ照合。詳細は下記「多言語化（i18n）」参照 | ✅ |
+| Unity版3ルール移植（2026-06-28, `3481b1a`） | `BATTLE_DELAY`(自陣3ターン保持→相手GKへ強制移譲) / `PASSIVE_TACTICS`(自陣深部9枚以上→翌ターンのpass/tackleに+10) / freeBall offside(スルーパス由来フリーボールのOS追跡)。エンジン〜クライアント〜i18n結線。ペナルティ"効果"テスト3件追加。**閾値(9/3)・補正(+10)は出典欠如の暫定値**。`docs/unity_football_chess_rules.md`は参照資料 | ✅ |
+| 対人対戦3ブロッカー修正（2026-06-28, `f2e11c8`/`e5f55ef`） | ①Hibernationで手消失: `turnInputs`をインメモリMap→`GameState`永続化。②編成未反映: `createBoardFromFormation`新設、`handleInit`がD1 `teams.field_pieces`をロードしコスト/座標を盤面反映(awayミラー)、得点/HT再生成にも使用、未指定は4-4-2フォールバック。③レーティング未永続: 孤立していた`server/rating.ts`を結線、queueで`persistRatings`(Elo+W/L/D UPSERT)、matchmakingはD1の`getRating`(サーバー権威)。テスト計19件追加 | ✅ |
+| ShopScreen価格ロジック統一（2026-06-28, `3481b1a`） | `pieceCostToIngots`/`costToDisplay`をローカル再定義から正本(`types/piece.ts`)importに統一（サーバー`api/shop.ts`とのドリフト防止） | ✅ |
+| オンライン最後の1マイル（2026-06-28, `8fc5c94`） | Matching: JOIN_QUEUEで実teamId送信(resolveActiveTeamId)→編成反映が完結。rating申告は0(サーバーD1値で上書き)。game_session: player_idを`attachment.userId`で上書き(なりすまし防止+空player_id解消) | ✅ |
+| 選手交代の実装（2026-06-28, `d4becd7`/`a03b243`） | `substitute`を型のみ→実処理化。エンジンに`Order.benchPieceId`/`Board.bench`/`SubstitutionEvent`/`applySubstitutions`(フェーズ-1,座標・ボール継承)追加(テスト4件)。クライアントCOMで機能(bench配線/isBench再構築/回数ガード`MAX_SUBSTITUTIONS`/SidePanelログ7言語)。DO/PvP経路も完成(teams.bench_pieces読込/remainingSubs減算/boardToPieceInfosにbench、テスト3件) | ✅ |
+| CollectionScreen実データ化（2026-06-28, `c44ed82`） | モック→`/api/shop/catalog`(piece_master 200枚+所持フラグ)。era_shelf(1-7)表示、総数=実カタログ件数、API失敗時フォールバック。authToken伝播 | ✅ |
+| RankingScreen実データ化（2026-06-28, `7d58a51`） | 新API `GET /api/ranking`(user_ratings上位50+自分の順位、COM除外、純ヘルパーテスト6件)。モック撤去→fetch、自分の行ハイライト、未対戦は空表示、weekly/friendsは準備中。i18n 2キー×7言語。※レーティングはPvP(E2E未検証)でのみ蓄積=現状実質空 | ✅ |
+| リプレイ録画→再生の配線（2026-06-28, `66076cb`） | ReplayScreen/結果画面「リプレイを見る」は実装済だが録画データが`App.replayTurns`に未セット(常にno_data)だった欠落を解消。`TurnSnapshot`をtypes.ts共通化、`MatchEndData.replayTurns`追加、Battleが各ターン解決後をrefに録画(INIT_MATCHでリセット)→onMatchEnd注入→App結線。COM対戦で全ターン再生可。オンラインは未録画 | ✅ |
+| コード分割（2026-06-28, `b47ec02`） | App.tsxの画面を`React.lazy`+`Suspense`で遅延ロード。単一735kB→画面別チャンク(初期97kB gzip/Battle44.7kB/HexBoard14.7kB…)。タイトル初回ロード約45%削減、>500kB警告解消 | ✅ |
+| ショップ購入テスト（2026-06-28, `a5fcea7`） | `POST /api/shop/purchase`のマネー経路をHono app.request+フェイクD1で検証(7件): ガード付き減算/残高不足402/二重購入409/購入不可400/未認証401 | ✅ |
+| Cloudflare再デプロイ（2026-06-28） | 本セッションのサーバー変更(対人3ブロッカー/選手交代DO/`/api/ranking`新設/レーティング永続化/shop) を Worker(`wrangler deploy`)で本番反映。新規D1マイグレーションなし(既存テーブルのみ)。クライアント(Vite)はPages別運用 | ✅ |
+| INGOT Platform連携 FCMS側（2026-07-01, runbook §6） | ショップ課金をPlatform台帳に接続。`auth.ts`をBearer(game/user/none)認証+Idempotency-Key方式へ移行(レスポンスHMAC廃止)。`/wallet`=Platform残高`GET /v1/commerce/currencies/{game_id}`(障害は502)、`/catalog`=Platform product情報(product_id/ingot_price/is_on_sale/platform_configured)をSKUでマージ(取得失敗は`platform_configured:false`で継続)、`/purchase`=`POST /v1/commerce/items/purchase`(piece_id→SKU→product解決、§6.4エラー変換表、granted_items→`user_pieces_v2`冪等同期)、`/ingots`=product_id/price_id方式のcheckout。Webhookに`currency.granted/revoked`追加。`ShopScreen`は未設定商品の購入ボタンを`shop.unavailable`(7言語)で無効化。テスト計682件パス。正本 docs/fcms_ingot_platform_service_runbook.md。**未了=Platform側(§5/§8手順1〜7)と実機検証(§9.3〜9.5)** | ✅(FCMS側) |
 
 ---
 
@@ -241,6 +263,7 @@ public/
   - `piece_image_prompts.md` — キャラ画像生成プロンプト集
 
 ### ショップ/インゴット（2026-06-04）
+- **⚠️ 2026-07-01 以降は Platform 台帳が正**（残高/購入は Platform 経由。下記の「FCMS D1 で減算」等の記述は移行前の旧仕様。現行の正本は docs/fcms_ingot_platform_service_runbook.md と上表「INGOT Platform連携 FCMS側」を参照）。
 - **2通貨モデル**: コマはインゴット（ゲーム内通貨）で購入。インゴット自体はプラットフォーム決済で購入。
 - **コマ価格**: コスト帯別 1〜3 インゴット（`pieceCostToIngots`: 低=1 / 中=2 / 高=3。`src/types/piece.ts`）
 - **インゴット購入**: `POST /api/shop/ingots` → プラットフォーム `/v1/commerce/purchase` を呼び `checkout_url` を返す。SKU は `fcms_ingots_standard/plus/mega`（`INGOT_SKU_AMOUNTS` = 5/12/30、要プラットフォームカタログ整合）
@@ -488,12 +511,26 @@ public/
 - サーバー側は全て実装済み（Matchmaking DO / GameSession DO / API）
 - `wrangler dev --local` + `npm run dev` の並列起動でオンライン対戦テスト可能
 
+### 多言語化（i18n）（2026-06-18 フェーズ1/3/4 → 2026-06-19 フェーズ6/7完了）
+- **基盤**: `src/client/i18n/`（ShootOutDiceの「i18n移植プレイブック v1.0」を移植）。前提構成 React+TS。**Steam想定7言語（ja/en/ko/es/pt/de/zh-CN）対応済み**
+- **i18n器**: `index.ts` — `t(key, params?)` / `tn(key, count, params?)`（複数形）/ `setLocale` / `getLocale` / `addLocaleListener` / `detectInitialLocale`（localStorage→ブラウザ言語→ja）/ `initLocale`（`main.tsx`で起動時呼出）。永続化キー `STORAGE_KEY='fcms.locale'`。`Dict = Record<string,string>`（フラットなキー→文字列）。`SUPPORTED_LOCALES` + `LOCALE_NATIVE_NAMES`（自称表記マップ: 日本語/English/한국어/Español/Português/Deutsch/简体中文）で言語を一元管理（言語追加時は import + `SUPPORTED_LOCALES` + `DICTS` + `LOCALE_NATIVE_NAMES` + `detectInitialLocale`のprefix分岐の5箇所追記）
+- **教訓1（最重要）**: `lookupPlural()` は「同一ロケール内で `.variant → .other → root` まで試し切ってから初めて FALLBACK_LOCALE(ja) に落ちる」。これにより複数形なし言語(ko/zh-CN)への日本語混入を防ぐ。**この順序を崩さないこと**
+- **キー命名**: 画面・機能でプレフィックス分割（`common.*` / `course.*`（ゴール方向ラベル共通化）/ `action.*` / `mode.*` / `difficulty.*` / `rank.*` / `title.*` / `battle.*` / `formation.*` / `fk.* pk.* ck.*` 等）。補間は `{var}` 形式
+- **複数形**: countable名詞×数値は `tn('key', count, params)` を使用。辞書は `.one`/`.other` を持つ（ja は単複同形）。14キーが対象（例 `battle.opponent_disconnected` / `sub.remaining_players_post` / `*.countdown`）
+- **原語固定（除外）**: 選手名・ポジション略称（ラテン文字でそもそも非対象）・`era: '現代'`（API送信値、Battle.tsx/Matching.tsx）。言語自称名は `LOCALE_NATIVE_NAMES` で管理（除外対象から外れた）
+- **辞書**: `ja.ts`（正本・401キー、NATIVE-REVIEWED相当=原文）/ `en.ts` `ko.ts` `es.ts` `pt.ts` `de.ts` `zh-CN.ts`（いずれも**機械訳ドラフト**・ja完全パリティ401キー、各ファイル冒頭に `MACHINE-TRANSLATED DRAFT` 注記、公開前ネイティブレビュー必須）。`_new_locale.ts` が言語追加テンプレ。**複数形なし言語(ko/zh-CN)は `.one`/`.other` を同一文字列にしてキーパリティを維持**（教訓1の安全網はFAKEロケールでテスト）
+- **言語切替UI（フェーズ6）**: `LanguageSelect.tsx`（`SUPPORTED_LOCALES`を`.map()`で自動生成するプルダウン、ラベルは`LOCALE_NATIVE_NAMES`）。`useLocale()`購読 → `onChange`で`setLocale()` → **リロード不要で全画面即反映** + localStorage永続化。`SettingsScreen.tsx`の言語選択を置換。**locale管理はi18nモジュールに一元化**（`SettingsContext`から`language`フィールドを削除。二重ソース解消）
+- **React結線**: `useLocale.ts`（`useSyncExternalStore`でsetLocale購読→再レンダ）。`LanguageSelect`が使用
+- **翻訳非依存ロジック**: バナー色等は翻訳文字列の `.includes()` 判定を禁止。Battle.tsxの切断バナー色は `disconnectBannerPositive` フラグで判定（`.includes('復帰')` から変更）
+- **テスト**: `i18n/__tests__/i18n.test.ts`（12件）= ja/en キーパリティ / **全7 SUPPORTED_LOCALESのja基準パリティ（401キー）** / 複数形キーの`.one/.other`存在 / `tn()`単複選択 / **ko・zh-CN（複数形なし言語）の`tn()`で日本語混入しない実地検証** / 教訓1フォールバック（FAKEロケール模擬）。全7言語×全キーの`{var}`プレースホルダ照合もja基準でパス
+- **未実施（今後）**: フェーズ5（shared層のerror code化、`error_codes_pattern.md`参照。shared層が薄いため優先度低）。全辞書のネイティブレビュー（機械訳ドラフト→公開前必須）
+
 ---
 
 ## テスト
 
 ```bash
-npm test              # vitest run（全560テスト + 10 E2Eスキップ）
+npm test              # vitest run（全608テスト + 10 E2Eスキップ）
 npm run test:watch
 npm run dev           # Vite dev server（localhost:5173）
 npm run bootstrap:small  # AI自動対戦テスト（10試合）
@@ -675,10 +712,11 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 - **Webhook**: `POST /webhook/purchase` で `X-Webhook-Signature: sha256=<hex>` の HMAC-SHA256 検証 + `X-Webhook-Delivery-Id` で冪等化（`webhook_deliveries_received` テーブル）
 
 ### 既知の改善余地（優先度付き）
+> 注（2026-06-28 監査）: 旧🔴2件（`verifyJwt` の iss/aud/alg 検証 / Webhook冪等化のレースフリー化）は
+> コミット `4367051` で**既に解消済み**（このメモ作成時点より新しい）。下記「良好な点」に移動した。
+
 | 優先 | 項目 | 場所 |
 |---|---|---|
-| 🔴 | `verifyJwt` に `iss` / `aud` / `alg === 'RS256'` の明示検証を追加（現状 `alg` 未確認・`iss` 型定義のみで未検証・`aud` 完全未検証 → 別ドメイン/別サービス向けJWT受理リスク） | `middleware/jwt_verify.ts:81-114` |
-| 🔴 | Webhook冪等化を `SELECT→INSERT` から `INSERT OR IGNORE → changes()=0 なら duplicate` のレースフリー方式に変更 | `api/webhooks.ts:54-63` |
 | 🟠 | `callPlatformApi` に `AbortController` タイムアウト追加（Platformハング時のWorker詰まり防止） | `api/auth.ts:44-76` |
 | 🟠 | `/match/com` POSTは非認証 + レート制限のみ → 匿名でのDO大量生成リスク。IP単位のDO生成キャップ強化 | `worker.ts:109-111` |
 | 🟡 | Webhookにタイムスタンプ署名がある場合は5分窓のリプレイ防止を追加（現状 `delivery_id` 永続テーブル依存） | `api/webhooks.ts` |
@@ -686,10 +724,35 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | 🟡 | インゴットは `entitlement.revoked` 無視（consumable仕様）→ 返金/チャージバック時に残高回収不可。運用許容か確認 | `api/webhooks.ts:82-95` |
 
 ### 良好な点
+- **JWT iss/aud/alg(RS256) を明示検証**（`jwt_verify.ts:99,130,136-142`、kid必須・exp/nbf・clockSkew・WS用残2時間＋参加者照合、修正 `4367051`）
+- **Webhook冪等化はレースフリー**（`webhooks.ts:77-97` の `INSERT OR IGNORE`→`changes=0`判定、修正 `4367051`）
 - JWKS並行フェッチ抑止（`fetchingPromise` 再利用、修正 #43）
 - `hexToBytes` の不正hex拒否（修正 #38, #50）
 - Webhook HMAC欠落時に必ずエラー（修正 #26）
 - `/match/*` の REST パスにJWT認証適用（修正 #20）
 - WS upgrade時のCORS/secureHeadersスキップ（修正 #67）
 - `timingSafeEqual` 共通化（修正 #44, #63）
+
+---
+
+## 全層監査と残課題（2026-06-28）
+
+5並列エージェントで全層を深掘り調査。**COM対戦/COM観戦/COM AI/認証/ショップ/チームCRUDは本番品質で完成**。対人対戦の致命3件は本日修正済み（上記実装表参照）。詳細は memory `project_audit_2026_06_28`。
+
+### 本日修正済み（対人対戦コア）
+- ✅ Hibernationで手消失 / ✅ 編成未反映 / ✅ レーティング未永続（`f2e11c8`/`e5f55ef`）
+
+### 残課題（優先度付き・主にオンライン経路。**E2E未検証**）
+| 優先 | 項目 | 場所 |
+|---|---|---|
+| 🟠 | クライアントが `JOIN_QUEUE` で `teamId='default'` 固定送信。実teamIdを送れば編成反映が完結する（サーバー側は対応済み） | `client/pages/Matching.tsx:37-38` |
+| 🟠 | オンライン対戦のWS送信が `player_id=''` / `client_hash=''`（盤面ハッシュ未実装）。サーバー統合とE2Eが未完 | `client/pages/Battle.tsx:1419-1423` |
+| ✅ | リプレイ視聴: COM対戦のクライアント録画→再生を配線済(`66076cb`)。残: オンライン対戦の録画(サーバーR2 `/replays/:id` 経由のビューア接続)、`/replays/:id/turn/:turn`(誰も書かず実質stub) | `api/replay.ts` |
+| ✅ | 選手交代: エンジン(applySubstitutions)+クライアントCOM(`d4becd7`)+DO/PvP・サーバーCOM(`a03b243`)で実装済み。残: COM AIへのbench供給(現状AIは交代提案せず) / 得点後リスタートでDOは交代がリセット(クライアントは保持)の挙動差 / オンラインE2E未検証 | `game_session.ts` |
+| 🟡 | FriendMatch がモックデータ（API未接続、フレンド機能自体が未実装）。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*` |
+| 🟡 | デッドコード整理: `pages/Result.tsx`・`pages/HalfTime.tsx`（到達不能）、`api/auth.ts` の `/purchase`（未マウント） | — |
+| 🟡 | `public/assets/characters/`（PK/FKスプライト9枚）がgit未追跡・未参照。配線時に追加 | — |
+
+### 構造的リスク
+- `docs/fcms_spec_v3.md` は §7(判定式)/§8(数値) を「v9.2と同一のため省略」→ 判定式の実数値を検証できる権威ドキュメントが無く、**コードが唯一の真実源**。Unity移植の閾値/補正値も出典欠如の暫定値（`docs/unity_football_chess_rules.md` 自身が実値不明と明記）。spec未確定の値（foul forceFoul閾値等）は勝手に確定しない。
 

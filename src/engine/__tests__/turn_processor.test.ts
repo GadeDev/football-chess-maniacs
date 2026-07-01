@@ -18,16 +18,20 @@ import * as diceModule from '../dice';
 import { processTurn, eventsOfType } from '../turn_processor';
 import type {
   BallAcquiredEvent,
+  BattleDelayEvent,
   Board,
   BoardContext,
   FoulEvent,
   OffsideEvent,
   Order,
   PassDeliveredEvent,
+  PassiveTacticsEvent,
   Piece,
   PieceMovedEvent,
   ShootEvent,
+  SubstitutionEvent,
   TackleEvent,
+  Team,
 } from '../types';
 
 vi.mock('../dice', async () => {
@@ -416,6 +420,248 @@ describe('BALL_ACQUIRED イベント', () => {
 
     const ballEvts = eventsOfType<BallAcquiredEvent>(events, 'BALL_ACQUIRED');
     expect(ballEvts.some(e => e.pieceId === 'fw')).toBe(true);
+  });
+});
+
+// ============================================================
+// Unity版由来の優良ルール: スペース回収OS / 遅延 / 消極的戦術
+// ============================================================
+describe('スペース/フリーボール由来のサッカールール', () => {
+  it('throughPass由来のフリーボールを同チームがオフサイド位置で拾う → OFFSIDE', () => {
+    const om = makePiece({ id: 'om', team: 'home', position: 'OM', cost: 3,
+      coord: { col: 10, row: 18 } });
+    const fw = makePiece({ id: 'fw', team: 'home', position: 'FW', cost: 2,
+      coord: { col: 10, row: 32 } });
+    const awayGk = makePiece({ id: 'agk', team: 'away', position: 'GK', cost: 1,
+      coord: { col: 2, row: 33 } });
+    const awayDf1 = makePiece({ id: 'ad1', team: 'away', position: 'DF', cost: 2,
+      coord: { col: 2, row: 25 } });
+    const awayDf2 = makePiece({ id: 'ad2', team: 'away', position: 'DF', cost: 2,
+      coord: { col: 2, row: 30 } });
+
+    const board: Board = {
+      pieces: [om, fw, awayGk, awayDf1, awayDf2],
+      snapshot: [],
+      freeBallHex: { col: 10, row: 32 },
+      freeBallLastTouchedTeam: 'home',
+      freeBallLastTouchedPieceId: 'om',
+      freeBallSource: 'throughPass',
+    };
+
+    const { board: newBoard, events } = processTurn(board, [], [], makeContext());
+    const osEvts = eventsOfType<OffsideEvent>(events, 'OFFSIDE');
+
+    expect(osEvts.length).toBe(1);
+    expect(osEvts[0].source).toBe('freeBall');
+    expect(osEvts[0].receiverId).toBe('fw');
+    expect(newBoard.freeBallHex).toBeNull();
+    expect(newBoard.pieces.find(p => p.id === 'agk')!.hasBall).toBe(true);
+    expect(newBoard.pieces.find(p => p.id === 'fw')!.hasBall).toBe(false);
+  });
+
+  it('自陣で3ターン保持 → BATTLE_DELAYで相手GKにボール移行', () => {
+    const homeGk = makePiece({ id: 'hgk', team: 'home', position: 'GK', cost: 1,
+      coord: { col: 10, row: 4 }, hasBall: true });
+    const awayGk = makePiece({ id: 'agk', team: 'away', position: 'GK', cost: 1,
+      coord: { col: 10, row: 32 } });
+
+    const board: Board = {
+      pieces: [homeGk, awayGk],
+      snapshot: [],
+      possessionDelay: { team: 'home', count: 2 },
+    };
+
+    const { board: newBoard, events } = processTurn(board, [], [], makeContext());
+    const delayEvts = eventsOfType<BattleDelayEvent>(events, 'BATTLE_DELAY');
+
+    expect(delayEvts.length).toBe(1);
+    expect(delayEvts[0].team).toBe('home');
+    expect(newBoard.possessionDelay).toBeNull();
+    expect(newBoard.pieces.find(p => p.id === 'agk')!.hasBall).toBe(true);
+    expect(newBoard.pieces.find(p => p.id === 'hgk')!.hasBall).toBe(false);
+  });
+
+  it('9枚以上が自陣深部に固まり、ボールが外にある → PASSIVE_TACTICS', () => {
+    const homePieces = Array.from({ length: 9 }, (_, i) => makePiece({
+      id: `h${i}`,
+      team: 'home',
+      position: i === 0 ? 'GK' : 'DF',
+      cost: 1,
+      coord: { col: i % 3, row: 4 + Math.floor(i / 3) },
+    }));
+    const holder = makePiece({ id: 'hmf', team: 'home', position: 'MF', cost: 2,
+      coord: { col: 10, row: 20 }, hasBall: true });
+    const awayGk = makePiece({ id: 'agk', team: 'away', position: 'GK', cost: 1,
+      coord: { col: 10, row: 32 } });
+    const ctx = makeContext({
+      getZone: ({ row }) => row <= 10 ? 'ディフェンシブサード' : 'ミドルサードA',
+    });
+
+    const { board: newBoard, events } = processTurn(
+      makeBoard([...homePieces, holder, awayGk]),
+      [],
+      [],
+      ctx,
+    );
+    const passiveEvts = eventsOfType<PassiveTacticsEvent>(events, 'PASSIVE_TACTICS');
+
+    expect(passiveEvts.length).toBe(1);
+    expect(passiveEvts[0].team).toBe('home');
+    expect(newBoard.passiveTacticsTeams).toEqual(['home']);
+  });
+});
+
+// ============================================================
+// PASSIVE_TACTICS ペナルティ「効果」（翌ターンの pass/tackle 補正）
+//   検出（前ターン）→ board.passiveTacticsTeams に登録 → 当ターンの
+//   pass カット / tackle 守備成功率に +10 が乗ることを検証する。
+//   judge をモックして calcProbability の結果（判定確率）を捕捉し比較する。
+// ============================================================
+describe('PASSIVE_TACTICS ペナルティ効果', () => {
+  const PENALTY = 10;
+
+  // ドリブラー(home)が away タックラーに止められる盤面。
+  // passiveTacticsTeams を変えて、tackle 判定に渡る確率を捕捉する。
+  function runTackleProb(passiveTeams: Team[] | undefined): number {
+    const dribbler = makePiece({ id: 'db', team: 'home', position: 'FW', cost: 2,
+      coord: { col: 10, row: 16 }, hasBall: true });
+    const tackler = makePiece({ id: 'tk', team: 'away', position: 'DF', cost: 2,
+      coord: { col: 10, row: 18 } });
+
+    mockJudge.mockReset();
+    mockJudge.mockReturnValue(ng(0)); // タックルは失敗扱い（確率の捕捉だけが目的）
+
+    const board: Board = { ...makeBoard([dribbler, tackler]), passiveTacticsTeams: passiveTeams };
+    processTurn(
+      board,
+      [{ pieceId: 'db', type: 'dribble', target: { col: 10, row: 22 } }],
+      [],
+      makeContext({ getZone: () => 'ミドルサードD' }), // ファウル条件外 → judge は tackle の1回のみ
+    );
+    return mockJudge.mock.calls[0][0] as number;
+  }
+
+  it('消極的戦術チームのドリブラーへの tackle 成功率が +10 される', () => {
+    const base = runTackleProb(undefined);
+    const penalized = runTackleProb(['home']);
+    expect(penalized).toBe(base + PENALTY);
+  });
+
+  it('相手チームが消極的指定でも、当該ドリブラーの tackle 補正は乗らない', () => {
+    const base = runTackleProb(undefined);
+    const other = runTackleProb(['away']); // away が消極的 → home ドリブラーは無補正
+    expect(other).toBe(base);
+  });
+
+  // passer(home) → receiver(home) のパスを away がカットしようとする盤面。
+  // 深い位置に away 守備を置き、receiver をオンサイドに保って offside judge を出さない。
+  function runPassCutProb(passiveTeams: Team[] | undefined): number {
+    const passer = makePiece({ id: 'hp', team: 'home', position: 'MF', cost: 2,
+      coord: { col: 10, row: 16 }, hasBall: true });
+    const receiver = makePiece({ id: 'hr', team: 'home', position: 'FW', cost: 2,
+      coord: { col: 10, row: 22 } });
+    const interceptor = makePiece({ id: 'ai', team: 'away', position: 'DF', cost: 2,
+      coord: { col: 11, row: 19 } }); // ZOC がパスコース(col10)に掛かる
+    const deepDef = makePiece({ id: 'ad', team: 'away', position: 'DF', cost: 2,
+      coord: { col: 3, row: 30 } }); // receiver をオンサイドに保つ
+    const awayGk = makePiece({ id: 'agk', team: 'away', position: 'GK', cost: 1,
+      coord: { col: 3, row: 33 } });
+
+    mockJudge.mockReset();
+    mockJudge.mockReturnValue(ng(0)); // カットは失敗扱い（確率の捕捉だけが目的）
+
+    const board: Board = {
+      ...makeBoard([passer, receiver, interceptor, deepDef, awayGk]),
+      passiveTacticsTeams: passiveTeams,
+    };
+    processTurn(
+      board,
+      [{ pieceId: 'hp', type: 'pass', target: { col: 10, row: 22 }, targetPieceId: 'hr' }],
+      [],
+      makeContext(),
+    );
+    return mockJudge.mock.calls[0][0] as number; // 1回目 = パスカット1
+  }
+
+  it('消極的戦術チームのパスに対する pass カット成功率が +10 される', () => {
+    const base = runPassCutProb(undefined);
+    const penalized = runPassCutProb(['home']);
+    expect(penalized).toBe(base + PENALTY);
+  });
+});
+
+// ============================================================
+// 選手交代（substitute）— フェーズ-1でベンチコマと入れ替え
+// ============================================================
+describe('選手交代 (substitute)', () => {
+  it('盤面コマとベンチコマを入れ替え、座標を引き継ぎ SUBSTITUTION を発行', () => {
+    const onField = makePiece({ id: 'h05', team: 'home', position: 'MF', cost: 1, coord: { col: 7, row: 12 } });
+    const benchP = makePiece({ id: 'b01', team: 'home', position: 'MF', cost: 2.5, coord: { col: 0, row: 0 } });
+    const board: Board = { pieces: [onField], snapshot: [], bench: [benchP] };
+
+    const { board: nb, events } = processTurn(
+      board,
+      [{ pieceId: 'h05', type: 'substitute', benchPieceId: 'b01' }],
+      [],
+      makeContext(),
+    );
+
+    const subs = eventsOfType<SubstitutionEvent>(events, 'SUBSTITUTION');
+    expect(subs).toHaveLength(1);
+    expect(subs[0].outPieceId).toBe('h05');
+    expect(subs[0].inPieceId).toBe('b01');
+
+    // 投入コマが退場コマの座標で盤面に、退場コマがベンチに移動
+    expect(nb.pieces.find(p => p.id === 'b01')?.coord).toEqual({ col: 7, row: 12 });
+    expect(nb.pieces.find(p => p.id === 'h05')).toBeUndefined();
+    expect(nb.bench?.find(p => p.id === 'h05')).toBeDefined();
+    expect(nb.bench?.find(p => p.id === 'b01')).toBeUndefined();
+  });
+
+  it('退場コマがボール保持なら投入コマへ継承', () => {
+    const onField = makePiece({ id: 'h09', team: 'home', position: 'FW', cost: 2, coord: { col: 10, row: 19 }, hasBall: true });
+    const benchP = makePiece({ id: 'b02', team: 'home', position: 'FW', cost: 3, coord: { col: 0, row: 0 } });
+    const board: Board = { pieces: [onField], snapshot: [], bench: [benchP] };
+
+    const { board: nb } = processTurn(
+      board,
+      [{ pieceId: 'h09', type: 'substitute', benchPieceId: 'b02' }],
+      [],
+      makeContext(),
+    );
+
+    expect(nb.pieces.find(p => p.id === 'b02')?.hasBall).toBe(true);
+    expect(nb.bench?.find(p => p.id === 'h09')?.hasBall).toBe(false);
+  });
+
+  it('ベンチに該当IDが無ければ交代不成立（イベントなし）', () => {
+    const onField = makePiece({ id: 'h05', team: 'home', position: 'MF', cost: 1, coord: { col: 7, row: 12 } });
+    const board: Board = { pieces: [onField], snapshot: [], bench: [] };
+
+    const { board: nb, events } = processTurn(
+      board,
+      [{ pieceId: 'h05', type: 'substitute', benchPieceId: 'nope' }],
+      [],
+      makeContext(),
+    );
+
+    expect(eventsOfType<SubstitutionEvent>(events, 'SUBSTITUTION')).toHaveLength(0);
+    expect(nb.pieces.find(p => p.id === 'h05')).toBeDefined();
+  });
+
+  it('別チームのベンチコマとは交代できない', () => {
+    const onField = makePiece({ id: 'h05', team: 'home', position: 'MF', cost: 1, coord: { col: 7, row: 12 } });
+    const enemyBench = makePiece({ id: 'b99', team: 'away', position: 'MF', cost: 3, coord: { col: 0, row: 0 } });
+    const board: Board = { pieces: [onField], snapshot: [], bench: [enemyBench] };
+
+    const { events } = processTurn(
+      board,
+      [{ pieceId: 'h05', type: 'substitute', benchPieceId: 'b99' }],
+      [],
+      makeContext(),
+    );
+
+    expect(eventsOfType<SubstitutionEvent>(events, 'SUBSTITUTION')).toHaveLength(0);
   });
 });
 

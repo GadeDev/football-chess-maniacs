@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import type { PieceData, HexCoord, Team } from '../types';
 import type { Cost } from '../../engine/types';
 import { calcProbability } from '../../engine/dice';
+import { t } from '../i18n';
 
 interface ShootOverlayProps {
   shooter: PieceData;
@@ -16,7 +17,10 @@ interface ShootOverlayProps {
 }
 
 /** ゴール6ゾーン（左上/中上/右上/左下/中下/右下） */
-const ZONE_LABELS = ['左上', '中上', '右上', '左下', '中下', '右下'];
+const ZONE_LABEL_KEYS = [
+  'course.top_left', 'course.top_center', 'course.top_right',
+  'course.bottom_left', 'course.bottom_center', 'course.bottom_right',
+];
 
 /** シュート成功率の簡易計算（shoot.ts の計算式を再現） */
 function estimateShootSuccess(shooterCost: number, shooterPos: string, gkCost: number, distance: number): number {
@@ -48,7 +52,7 @@ export default function ShootOverlay({ shooter, gk, myTeam, visible }: ShootOver
     const goalRow = myTeam === 'home' ? 33 : 0;
     const distance = Math.abs(shooter.coord.row - goalRow);
     // 各ゾーンに微妙な差（角度補正シミュレーション）
-    return ZONE_LABELS.map((_, i) => {
+    return ZONE_LABEL_KEYS.map((_, i) => {
       const angleOffset = (i === 0 || i === 2 || i === 3 || i === 5) ? -3 : 0; // 角は少し低い
       const rate = estimateShootSuccess(shooter.cost, shooter.position, gk.cost, distance) + angleOffset;
       return Math.min(100, Math.max(0, rate));
@@ -72,7 +76,7 @@ export default function ShootOverlay({ shooter, gk, myTeam, visible }: ShootOver
           textAlign: 'center', padding: '4px 0', borderRadius: 4,
           background: `${rateColor(rate)}22`, border: `1px solid ${rateColor(rate)}44`,
         }}>
-          <div style={{ fontSize: 9, color: '#888' }}>{ZONE_LABELS[i]}</div>
+          <div style={{ fontSize: 9, color: '#888' }}>{t(ZONE_LABEL_KEYS[i])}</div>
           <div style={{ fontSize: 16, fontWeight: 'bold', color: rateColor(rate) }}>{rate}%</div>
         </div>
       ))}

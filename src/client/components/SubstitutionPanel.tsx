@@ -5,6 +5,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { PieceData, Cost } from '../types';
 import PieceIcon from './board/PieceIcon';
+import { t, tn } from '../i18n';
 
 interface SubstitutionPanelProps {
   fieldPieces: PieceData[];
@@ -80,20 +81,20 @@ export default function SubstitutionPanel({
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '20px 16px', overflowY: 'auto', zIndex: 200,
     }}>
-      <h3 style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', margin: '0 0 12px' }}>選手交代</h3>
+      <h3 style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', margin: '0 0 12px' }}>{t('sub.title')}</h3>
 
       {/* 情報バー */}
       <div style={{
         display: 'flex', gap: 16, fontSize: 12, color: '#aaa', marginBottom: 16,
       }}>
-        <span>残り交代回数: <b style={{ color: remainingOpportunities > 0 ? '#44aa44' : '#cc4444' }}>{remainingOpportunities}</b></span>
-        <span>あと <b>{remainingPlayers}</b> 人交代可能</span>
-        <span>コスト: <b style={{ color: currentCost > maxCost ? '#cc4444' : '#fff' }}>{currentCost}</b> / {maxCost}</span>
+        <span>{t('sub.remaining_opportunities')}<b style={{ color: remainingOpportunities > 0 ? '#44aa44' : '#cc4444' }}>{remainingOpportunities}</b></span>
+        <span>{t('sub.remaining_players_pre')}<b>{remainingPlayers}</b>{tn('sub.remaining_players_post', remainingPlayers)}</span>
+        <span>{t('sub.cost_label')}<b style={{ color: currentCost > maxCost ? '#cc4444' : '#fff' }}>{currentCost}</b> / {maxCost}</span>
       </div>
 
       {/* フィールド */}
       <div style={{ width: '100%', maxWidth: 420, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>フィールド (11人)</div>
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{t('sub.field_header')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {fieldPieces.map(p => {
             const isPendingOut = pendingOutIds.has(p.id);
@@ -116,7 +117,7 @@ export default function SubstitutionPanel({
 
       {/* ベンチ */}
       <div style={{ width: '100%', maxWidth: 420, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>ベンチ (9人)</div>
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 6 }}>{t('sub.bench_header')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {benchPieces.map(bp => {
             const isUsed = pendingInIds.has(bp.id);
@@ -143,7 +144,7 @@ export default function SubstitutionPanel({
             );
           })}
           {benchPieces.length === 0 && (
-            <div style={{ color: '#666', fontSize: 12, padding: 8 }}>ベンチが空です</div>
+            <div style={{ color: '#666', fontSize: 12, padding: 8 }}>{t('sub.bench_empty')}</div>
           )}
         </div>
       </div>
@@ -154,7 +155,7 @@ export default function SubstitutionPanel({
           width: '100%', maxWidth: 420, marginBottom: 16,
           background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 10,
         }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>交代予定</div>
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>{t('sub.pending_header')}</div>
           {pendingSubs.map((sub, i) => {
             const outP = fieldPieces.find(p => p.id === sub.outId);
             const inP = benchPieces.find(p => p.id === sub.inId);
@@ -173,7 +174,7 @@ export default function SubstitutionPanel({
           padding: '10px 24px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
           background: 'transparent', color: '#888', fontSize: 14, cursor: 'pointer',
         }}>
-          キャンセル
+          {t('common.cancel')}
         </button>
         <button onClick={() => canConfirm && onConfirm(pendingSubs)} disabled={!canConfirm} style={{
           padding: '10px 24px', borderRadius: 8, border: 'none',
@@ -181,7 +182,7 @@ export default function SubstitutionPanel({
           color: canConfirm ? '#fff' : '#666',
           fontSize: 14, fontWeight: 'bold', cursor: canConfirm ? 'pointer' : 'default',
         }}>
-          この交代で決定
+          {t('sub.confirm')}
         </button>
       </div>
     </div>

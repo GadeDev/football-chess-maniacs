@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { PieceData } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t, tn } from '../../i18n';
 
 interface CKGameProps {
   isAttacker: boolean;
@@ -20,16 +21,16 @@ export interface CKInput {
   placements: Array<{ pieceId: string; zone: 'near' | 'center' | 'far' }>;
 }
 
-const ZONE_LABELS: Record<string, string> = {
-  near: 'ニア',
-  center: '中央',
-  far: 'ファー',
+const ZONE_LABEL_KEYS: Record<string, string> = {
+  near: 'ck.zone_near',
+  center: 'ck.zone_center',
+  far: 'ck.zone_far',
 };
 
-const ZONE_DESCRIPTIONS: Record<string, string> = {
-  near: 'ゴール手前',
-  center: 'ゴール正面',
-  far: 'ゴール奥側',
+const ZONE_DESCRIPTION_KEYS: Record<string, string> = {
+  near: 'ck.zone_desc_near',
+  center: 'ck.zone_desc_center',
+  far: 'ck.zone_desc_far',
 };
 
 const ZONES = ['near', 'center', 'far'] as const;
@@ -103,7 +104,7 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 20 }}>
       <div style={{ fontSize: 24, fontWeight: 'bold', color: countdown <= 3 ? '#ff4444' : '#fff' }}>
-        {isAttacker ? '⚽ コーナーキック（攻撃）' : '🧤 コーナーキック（守備）'} - {countdown}秒
+        {isAttacker ? t('ck.title_attack') : t('ck.title_defend')} - {tn('ck.countdown', countdown)}
       </div>
 
       {/* ルール説明 */}
@@ -112,22 +113,22 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
         maxWidth: 400, width: '100%',
       }}>
         <div style={{ fontSize: 14, color: '#ffd700', fontWeight: 'bold', marginBottom: 6 }}>
-          📋 ルール
+          {t('ck.rule_heading')}
         </div>
         <div style={{ fontSize: 13, color: '#ccc', lineHeight: 1.6 }}>
           {isAttacker ? (
             <>
-              ① 攻撃に送り込むコマを<strong style={{ color: '#fff' }}>3枚</strong>選ぶ<br />
-              ② 3つのゾーン（ニア・中央・ファー）に1枚ずつ配置<br />
-              ③ 各ゾーンで相手の守備コマと<strong style={{ color: '#fff' }}>コスト対決</strong><br />
-              ④ <strong style={{ color: '#4ade80' }}>2ゾーン以上勝てばヘディングチャンス！</strong>
+              {t('ck.rule_atk_1')}<br />
+              {t('ck.rule_atk_2')}<br />
+              {t('ck.rule_atk_3')}<br />
+              {t('ck.rule_atk_4')}
             </>
           ) : (
             <>
-              ① 守備に出すコマを<strong style={{ color: '#fff' }}>3枚</strong>選ぶ<br />
-              ② 3つのゾーン（ニア・中央・ファー）に1枚ずつ配置<br />
-              ③ 各ゾーンで相手の攻撃コマと<strong style={{ color: '#fff' }}>コスト対決</strong><br />
-              ④ <strong style={{ color: '#4ade80' }}>2ゾーン以上守ればクリア成功！</strong>
+              {t('ck.rule_def_1')}<br />
+              {t('ck.rule_def_2')}<br />
+              {t('ck.rule_def_3')}<br />
+              {t('ck.rule_def_4')}
             </>
           )}
         </div>
@@ -137,7 +138,11 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
       {phase === 'select' && (
         <>
           <div style={{ fontSize: 14, color: '#aaa' }}>
-            {isAttacker ? '攻撃' : '守備'}コマを{MAX_PIECES}枚選択（{selectedPieces.length}/{MAX_PIECES}）
+            {t('ck.select_prompt', {
+              role: isAttacker ? t('ck.role_attack') : t('ck.role_defend'),
+              max: MAX_PIECES,
+              n: selectedPieces.length,
+            })}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 360 }}>
             {availablePieces.map((piece) => {
@@ -162,7 +167,7 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
             })}
           </div>
           <div style={{ fontSize: 12, color: '#888' }}>
-            💡 コストの高いコマほどゾーン対決で有利
+            {t('ck.hint_cost')}
           </div>
         </>
       )}
@@ -171,7 +176,7 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
       {phase === 'place' && (
         <>
           <div style={{ fontSize: 14, color: '#aaa' }}>
-            各コマをゾーンに1枚ずつ配置（タップで配置先を選択）
+            {t('ck.place_prompt')}
           </div>
           <div style={{ display: 'flex', gap: 12, width: '100%', maxWidth: 400, justifyContent: 'center' }}>
             {ZONES.map((zone) => (
@@ -187,8 +192,8 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
                   border: '1px solid rgba(255,255,255,0.1)',
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4, color: '#ffd700' }}>{ZONE_LABELS[zone]}</div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 8 }}>{ZONE_DESCRIPTIONS[zone]}</div>
+                <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4, color: '#ffd700' }}>{t(ZONE_LABEL_KEYS[zone])}</div>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 8 }}>{t(ZONE_DESCRIPTION_KEYS[zone])}</div>
                 {selectedPieces.map((pieceId) => {
                   const piece = availablePieces.find((p) => p.id === pieceId);
                   if (!piece) return null;
@@ -231,7 +236,7 @@ export default function CKGame({ isAttacker, availablePieces, onSubmit, isMobile
               cursor: submitted ? 'default' : 'pointer',
             }}
           >
-            {submitted ? '判定中...' : '✓ 確定'}
+            {submitted ? t('ck.judging') : t('ck.confirm')}
           </button>
         </>
       )}

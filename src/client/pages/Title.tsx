@@ -5,6 +5,7 @@
 import React from 'react';
 import type { Page } from '../types';
 import { type LastSetup, describeLastSetup } from '../utils/lastSetup';
+import { t } from '../i18n';
 
 interface TitleProps {
   onNavigate: (page: Page) => void;
@@ -54,20 +55,20 @@ export default function Title({ onNavigate, lastSetup, onQuickMatch }: TitleProp
         {lastSetup && onQuickMatch && (
           <QuickMatchButton subLabel={describeLastSetup(lastSetup)} onClick={onQuickMatch} />
         )}
-        <TitleButton label="モードを選んで対戦" onClick={() => onNavigate('modeSelect')} primary={!lastSetup} />
-        <TitleButton label="編成をいじる" onClick={() => onNavigate('formation')} />
-        <TitleButton label="フレンドマッチ" onClick={() => onNavigate('friendMatch')} />
-        <TitleButton label="プリセットチーム" onClick={() => onNavigate('presetTeams')} />
+        <TitleButton label={t('title.mode_select')} onClick={() => onNavigate('modeSelect')} primary={!lastSetup} />
+        <TitleButton label={t('title.edit_formation')} onClick={() => onNavigate('formation')} />
+        <TitleButton label={t('title.friend_match')} onClick={() => onNavigate('friendMatch')} />
+        <TitleButton label={t('title.preset_teams')} onClick={() => onNavigate('presetTeams')} />
       </div>
 
       {/* サブメニュー */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <SubButton label="ショップ" onClick={() => onNavigate('shop')} />
-        <SubButton label="コレクション" onClick={() => onNavigate('collection')} />
-        <SubButton label="ランキング" onClick={() => onNavigate('ranking')} />
-        <SubButton label="プロフィール" onClick={() => onNavigate('profile')} />
-        <SubButton label="リプレイ" onClick={() => onNavigate('replay')} />
-        <SubButton label="設定" onClick={() => onNavigate('settings')} />
+        <SubButton label={t('title.shop')} onClick={() => onNavigate('shop')} />
+        <SubButton label={t('title.collection')} onClick={() => onNavigate('collection')} />
+        <SubButton label={t('title.ranking')} onClick={() => onNavigate('ranking')} />
+        <SubButton label={t('title.profile')} onClick={() => onNavigate('profile')} />
+        <SubButton label={t('title.replay')} onClick={() => onNavigate('replay')} />
+        <SubButton label={t('title.settings')} onClick={() => onNavigate('settings')} />
       </div>
 
       {/* フッター */}
@@ -93,7 +94,7 @@ function QuickMatchButton({ subLabel, onClick }: { subLabel: string; onClick: ()
         transition: 'transform 0.1s',
       }}
     >
-      <div style={{ fontSize: 18, fontWeight: 900 }}>前回の編成で対戦</div>
+      <div style={{ fontSize: 18, fontWeight: 900 }}>{t('title.quick_match')}</div>
       <div style={{ fontSize: 12, fontWeight: 'bold', opacity: 0.7, marginTop: 2 }}>{subLabel}</div>
     </button>
   );

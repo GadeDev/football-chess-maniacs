@@ -2,12 +2,14 @@
 // CollectionScreen.tsx — コマ一覧・図鑑画面（B4）
 // ============================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
+import { t, tn } from '../i18n';
 
 interface CollectionScreenProps {
   onNavigate: (page: Page) => void;
+  authToken?: string;
 }
 
 type TabMode = 'owned' | 'catalog';
@@ -20,52 +22,80 @@ interface PieceEntry {
   id: string;
   position: Position;
   cost: Cost;
-  era: number;
+  era: number; // era_shelf (1-7)
   owned: boolean;
   count: number;
 }
 
-function generateMockCollection(): PieceEntry[] {
+/** /api/shop/catalog の1件（piece_master 由来） */
+interface RawCatalogItem {
+  piece_id: number;
+  position: string;
+  cost: number;
+  era_shelf?: number;
+  is_owned?: boolean;
+}
+
+/** API失敗時のフォールバック（8×5×7グリッド・全て未所持） */
+function buildFallbackCollection(): PieceEntry[] {
   const entries: PieceEntry[] = [];
   let id = 0;
   for (const pos of ALL_POSITIONS) {
     for (const cost of ALL_COSTS) {
       for (let era = 1; era <= 7; era++) {
-        const owned = (cost <= 1.5 && era <= 2) || Math.random() < 0.15;
-        entries.push({
-          id: `piece_${id++}`,
-          position: pos,
-          cost,
-          era,
-          owned,
-          count: owned ? Math.floor(Math.random() * 3) + 1 : 0,
-        });
+        entries.push({ id: `piece_${id++}`, position: pos, cost, era, owned: false, count: 0 });
       }
     }
   }
   return entries;
 }
 
-const MOCK_COLLECTION = generateMockCollection();
-
-export default function CollectionScreen({ onNavigate }: CollectionScreenProps) {
+export default function CollectionScreen({ onNavigate, authToken }: CollectionScreenProps) {
   const [tab, setTab] = useState<TabMode>('owned');
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>('ALL');
   const [costFilter, setCostFilter] = useState<Cost | 'ALL'>('ALL');
   const [sort, setSort] = useState<SortMode>('cost');
   const [selectedPiece, setSelectedPiece] = useState<PieceEntry | null>(null);
+  const [collection, setCollection] = useState<PieceEntry[]>([]);
+
+  // piece_master カタログ（所持フラグ付き）を取得。失敗時はフォールバックグリッド。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (authToken) headers.Authorization = `Bearer ${authToken}`;
+        const res = await fetch('/api/shop/catalog?limit=200', { headers });
+        if (!res.ok) throw new Error(`catalog ${res.status}`);
+        const data = (await res.json()) as { items: RawCatalogItem[] };
+        if (cancelled) return;
+        const entries: PieceEntry[] = data.items.map((it) => ({
+          id: String(it.piece_id),
+          position: it.position.toUpperCase() as Position,
+          cost: it.cost as Cost,
+          era: it.era_shelf ?? 1,
+          owned: Boolean(it.is_owned),
+          count: it.is_owned ? 1 : 0,
+        }));
+        setCollection(entries);
+      } catch {
+        if (!cancelled) setCollection(buildFallbackCollection());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authToken]);
 
   const filtered = useMemo(() => {
-    let list = MOCK_COLLECTION;
+    let list = collection;
     if (tab === 'owned') list = list.filter(p => p.owned);
     if (posFilter !== 'ALL') list = list.filter(p => p.position === posFilter);
     if (costFilter !== 'ALL') list = list.filter(p => p.cost === costFilter);
     if (sort === 'cost') list = [...list].sort((a, b) => b.cost - a.cost || a.position.localeCompare(b.position));
     else if (sort === 'position') list = [...list].sort((a, b) => ALL_POSITIONS.indexOf(a.position) - ALL_POSITIONS.indexOf(b.position) || b.cost - a.cost);
     return list;
-  }, [tab, posFilter, costFilter, sort]);
+  }, [collection, tab, posFilter, costFilter, sort]);
 
-  const ownedCount = MOCK_COLLECTION.filter(p => p.owned).length;
+  const ownedCount = collection.filter(p => p.owned).length;
 
   return (
     <div style={{
@@ -75,19 +105,19 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
       {/* ヘッダー */}
       <div style={{ padding: '16px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#fff', margin: 0 }}>COLLECTION</h2>
-        <span style={{ fontSize: 13, color: '#888' }}>{ownedCount} / 280</span>
+        <span style={{ fontSize: 13, color: '#888' }}>{ownedCount} / {collection.length}</span>
       </div>
 
       {/* タブ */}
       <div style={{ display: 'flex', gap: 4, padding: '0 16px 8px' }}>
-        {(['owned', 'catalog'] as TabMode[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
+        {(['owned', 'catalog'] as TabMode[]).map(tabId => (
+          <button key={tabId} onClick={() => setTab(tabId)} style={{
             padding: '5px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-            border: tab === t ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
-            background: tab === t ? 'rgba(68,136,204,0.2)' : 'transparent',
-            color: tab === t ? '#4488cc' : '#888',
+            border: tab === tabId ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
+            background: tab === tabId ? 'rgba(68,136,204,0.2)' : 'transparent',
+            color: tab === tabId ? '#4488cc' : '#888',
           }}>
-            {t === 'owned' ? '所持コマ' : '図鑑'}
+            {tabId === 'owned' ? t('collection.tab_owned') : t('collection.tab_catalog')}
           </button>
         ))}
       </div>
@@ -120,9 +150,9 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
           marginLeft: 'auto', padding: '2px 6px', borderRadius: 4, fontSize: 10,
           background: '#1a1a3e', color: '#888', border: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <option value="cost">コスト順</option>
-          <option value="position">ポジション順</option>
-          <option value="acquired">取得順</option>
+          <option value="cost">{t('collection.sort_cost')}</option>
+          <option value="position">{t('collection.sort_position')}</option>
+          <option value="acquired">{t('collection.sort_acquired')}</option>
         </select>
       </div>
 
@@ -166,13 +196,13 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
             </div>
             <div style={{ color: '#888', fontSize: 13 }}>Era #{selectedPiece.era}</div>
             <div style={{ color: '#aaa', fontSize: 13 }}>
-              {selectedPiece.owned ? `所持数: ${selectedPiece.count}` : '未所持'}
+              {selectedPiece.owned ? tn('collection.count', selectedPiece.count, { count: selectedPiece.count }) : t('collection.not_owned')}
             </div>
             <button onClick={() => setSelectedPiece(null)} style={{
               padding: '8px 24px', borderRadius: 8, border: 'none',
               background: '#4488cc', color: '#fff', fontSize: 14, cursor: 'pointer',
             }}>
-              閉じる
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -184,7 +214,7 @@ export default function CollectionScreen({ onNavigate }: CollectionScreenProps) 
           border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
           color: '#888', fontSize: 14, cursor: 'pointer',
         }}>
-          戻る
+          {t('common.back')}
         </button>
       </div>
     </div>

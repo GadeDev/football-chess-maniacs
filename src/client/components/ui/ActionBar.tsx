@@ -7,14 +7,18 @@
 import React, { useState } from 'react';
 import type { PieceData, ActionMode } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t, tn } from '../../i18n';
 
 interface ActionBarProps {
   selectedPiece: PieceData | null;
   actionMode: ActionMode;
   hasOrders: boolean;
+  selectedHasOrder: boolean;
   orderCount: number;
   remainingSubs: number;
   benchPieces: PieceData[];
+  onCancelSelection: () => void;
+  onRemoveSelectedOrder: () => void;
   onUndo: () => void;
   onClearAll: () => void;
   onSetMode: (mode: ActionMode) => void;
@@ -26,9 +30,12 @@ export default function ActionBar({
   selectedPiece,
   actionMode,
   hasOrders,
+  selectedHasOrder,
   orderCount,
   remainingSubs,
   benchPieces,
+  onCancelSelection,
+  onRemoveSelectedOrder,
   onUndo,
   onClearAll,
   onSetMode,
@@ -61,7 +68,7 @@ export default function ActionBar({
           }}
         >
           <div style={{ width: '100%', fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 4 }}>
-            交代先を選択（残り{remainingSubs}回）
+            {tn('actionbar.sub_target_select', remainingSubs, { count: remainingSubs })}
           </div>
           {benchPieces.map((bp) => (
             <button
@@ -95,7 +102,7 @@ export default function ActionBar({
             </button>
           ))}
           {benchPieces.length === 0 && (
-            <span style={{ fontSize: 13, color: '#666' }}>ベンチにコマがありません</span>
+            <span style={{ fontSize: 13, color: '#666' }}>{t('actionbar.bench_empty')}</span>
           )}
         </div>
       )}
@@ -104,61 +111,65 @@ export default function ActionBar({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-around',
-          height: 66,
+          flexDirection: 'column',
+          height: 106,
           background: 'rgba(20, 20, 40, 0.95)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
-          padding: '0 8px',
-          gap: 4,
+          padding: '7px 8px',
+          gap: 6,
         }}
       >
-        {/* 戻す / 全取消 (長押しで全取消) */}
-        <ActionButton label="戻す" onClick={onUndo} disabled={!hasOrders} />
-        <ActionButton label="全取消" onClick={onClearAll} disabled={!hasOrders} danger />
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+          <ActionButton label={t('common.cancel')} onClick={onCancelSelection} disabled={!hasSelection && actionMode === null} />
+          <ActionButton label={t('actionbar.remove_order')} onClick={onRemoveSelectedOrder} disabled={!selectedHasOrder} />
+          <ActionButton label={t('actionbar.undo')} onClick={onUndo} disabled={!hasOrders} />
+          <ActionButton label={t('actionbar.clear_all')} onClick={onClearAll} disabled={!hasOrders} danger />
+        </div>
 
-        {/* 移動モード（ボール非保持時の基本操作を明示） */}
-        <ActionButton
-          label="移動"
-          onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
-          disabled={!hasSelection || hasBall}
-          active={moveActive}
-        />
-
-        {/* ドリブルモード（ボール保持時のみ） */}
-        <ActionButton
-          label="ドリブル"
-          onClick={() => onSetMode(actionMode === 'dribble' ? null : 'dribble')}
-          disabled={!hasBall}
-          active={actionMode === 'dribble'}
-        />
-
-        {/* パスモード（ボール保持時のみ） */}
-        <ActionButton
-          label="パス"
-          onClick={() => onSetMode(actionMode === 'pass' ? null : 'pass')}
-          disabled={!hasBall}
-          active={actionMode === 'pass'}
-        />
-
-        {/* シュートモード（ボール保持時のみ） */}
-        <ActionButton
-          label="シュート"
-          onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
-          disabled={!hasBall}
-          active={actionMode === 'shoot'}
-        />
-
-        {/* 交代（§2-4: ベンチ一覧がスライドアップ） */}
-        <ActionButton
-          label="交代"
-          onClick={() => onSetMode(actionMode === 'substitute' ? null : 'substitute')}
-          disabled={!hasSelection || remainingSubs <= 0}
-          active={actionMode === 'substitute'}
-        />
-
-        {/* ターン確定（常時。1枚も指示なしでもOK） */}
-        <ActionButton label="✓ 確定" onClick={onConfirm} disabled={false} primary />
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+          <ActionButton
+            label={t('action.move')}
+            onClick={() => onSetMode(actionMode === 'move' ? null : 'move')}
+            disabled={!hasSelection || hasBall}
+            active={moveActive}
+            accent="#64748B"
+          />
+          <ActionButton
+            label={t('action.dribble')}
+            onClick={() => onSetMode(actionMode === 'dribble' ? null : 'dribble')}
+            disabled={!hasBall}
+            active={actionMode === 'dribble'}
+            accent="#16A34A"
+          />
+          <ActionButton
+            label={t('action.pass')}
+            onClick={() => onSetMode(actionMode === 'pass' ? null : 'pass')}
+            disabled={!hasBall}
+            active={actionMode === 'pass'}
+            accent="#2563EB"
+          />
+          <ActionButton
+            label={t('action.through_pass')}
+            onClick={() => onSetMode(actionMode === 'throughPass' ? null : 'throughPass')}
+            disabled={!hasBall}
+            active={actionMode === 'throughPass'}
+            accent="#0891B2"
+          />
+          <ActionButton
+            label={t('action.shoot')}
+            onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
+            disabled={!hasBall}
+            active={actionMode === 'shoot'}
+            accent="#DC2626"
+          />
+          <ActionButton
+            label={t('action.sub')}
+            onClick={() => onSetMode(actionMode === 'substitute' ? null : 'substitute')}
+            disabled={!hasSelection || remainingSubs <= 0}
+            active={actionMode === 'substitute'}
+          />
+          <ActionButton label={t('actionbar.confirm')} onClick={onConfirm} disabled={false} primary />
+        </div>
       </div>
     </div>
   );
@@ -171,6 +182,7 @@ function ActionButton({
   active = false,
   primary = false,
   danger = false,
+  accent,
 }: {
   label: string;
   onClick: () => void;
@@ -178,31 +190,39 @@ function ActionButton({
   active?: boolean;
   primary?: boolean;
   danger?: boolean;
+  accent?: string;
 }) {
+  const accentBg = accent && !disabled ? `${accent}${active ? '' : '30'}` : undefined;
+
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
         flex: 1,
-        height: 48,
+        height: 42,
         minWidth: 0,
-        maxWidth: 76,
-        border: 'none',
+        border: accent && !disabled ? `1px solid ${accent}${active ? '' : '99'}` : '1px solid transparent',
         borderRadius: 8,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 'bold',
         cursor: disabled ? 'default' : 'pointer',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
         background: primary
           ? '#44aa44'
           : danger && !disabled
           ? 'rgba(220,60,60,0.25)'
+          : accentBg
+          ? accentBg
           : active
           ? '#4488cc'
           : disabled
           ? 'rgba(255,255,255,0.05)'
           : 'rgba(255,255,255,0.12)',
         color: disabled ? 'rgba(255,255,255,0.3)' : danger ? '#f88' : '#fff',
+        boxShadow: active && accent ? `0 0 0 2px ${accent}55, 0 0 14px ${accent}66` : undefined,
         transition: 'background 0.15s',
       }}
     >

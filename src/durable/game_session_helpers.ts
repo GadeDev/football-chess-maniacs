@@ -36,6 +36,21 @@ export interface GameState {
   turnStartedAt: number | null;
   lastSequences: Record<string, number>;
   usedNonces: string[];
+  /**
+   * 受理済みのターン入力（player_id → 入力）。
+   * インメモリではなく GameState に持たせて永続化することで、
+   * 相手の入力を待つ間に DO がハイバネート/退避しても手が消えない。
+   */
+  turnInputs: Record<string, TurnInput>;
+  /**
+   * 各チームの編成テンプレート（D1 teams.field_pieces 由来）。
+   * 初期配置・得点後リスタート・ハーフタイムの盤面再生成に使う。
+   * null の場合は固定4-4-2にフォールバックする。
+   */
+  homeField?: FormationFieldPiece[] | null;
+  awayField?: FormationFieldPiece[] | null;
+  homeBench?: BenchFieldPiece[] | null;
+  awayBench?: BenchFieldPiece[] | null;
   remainingSubs: Record<string, number>;
   disconnectedPlayers: Record<string, number>;
   turnLog: unknown[];
@@ -67,9 +82,9 @@ export { boardContext };
 // 純粋関数
 // ================================================================
 
-/** Board.pieces → PieceInfo[] に変換（バリデーション用） */
+/** Board.pieces(+bench) → PieceInfo[] に変換（バリデーション用）。ベンチは交代検証に必要 */
 export function boardToPieceInfos(board: Board): PieceInfo[] {
-  return board.pieces.map(p => ({
+  const fieldInfos = board.pieces.map(p => ({
     id: p.id,
     team: p.team,
     position: p.position,
@@ -83,6 +98,17 @@ export function boardToPieceInfos(board: Board): PieceInfo[] {
     ),
     isBench: false,
   }));
+  const benchInfos = (board.bench ?? []).map(p => ({
+    id: p.id,
+    team: p.team,
+    position: p.position,
+    cost: p.cost,
+    coord: p.coord,
+    hasBall: false,
+    moveRange: 0,
+    isBench: true,
+  }));
+  return [...fieldInfos, ...benchInfos];
 }
 
 /** RawOrder → engine Order に変換 */
@@ -94,6 +120,7 @@ export function rawOrderToEngine(raw: RawOrder): Order {
       ? { col: raw.target_hex[0], row: raw.target_hex[1] }
       : undefined,
     targetPieceId: raw.target_piece,
+    benchPieceId: raw.bench_piece,
   };
 }
 
@@ -115,31 +142,110 @@ const INITIAL_FORMATION: Array<{ pos: Position; cost: Cost; col: number; row: nu
   { pos: 'FW', cost: 2.5, col: 10, row: 19 },
 ];
 
-/** 初期コマ配置を生成し、指定チームのFWにボールを付与 */
-export function createInitialBoard(kickoffTeam: Team): Board {
-  const pieces: Piece[] = [];
-  for (let i = 0; i < INITIAL_FORMATION.length; i++) {
-    const f = INITIAL_FORMATION[i];
-    pieces.push({
-      id: `h${String(i + 1).padStart(2, '0')}`,
-      team: 'home',
-      position: f.pos,
-      cost: f.cost,
-      coord: { col: f.col, row: f.row },
-      hasBall: false,
-    });
-    pieces.push({
-      id: `a${String(i + 1).padStart(2, '0')}`,
-      team: 'away',
-      position: f.pos,
-      cost: f.cost,
-      coord: { col: f.col, row: 33 - f.row },
-      hasBall: false,
-    });
-  }
-  const fw = pieces.find(p => p.team === kickoffTeam && p.position === 'FW');
+/**
+ * チーム編成1枚分（D1 teams.field_pieces 由来）。
+ * 座標は home 視点（row が小さいほど自陣）。away はミラー(33-row)して配置する。
+ */
+export interface FormationFieldPiece {
+  position: Position;
+  cost: Cost;
+  col: number;
+  row: number;
+}
+
+/** 固定4-4-2フォーメーション（編成未指定時のフォールバック） */
+const DEFAULT_FIELD: FormationFieldPiece[] = INITIAL_FORMATION.map(f => ({
+  position: f.pos, cost: f.cost, col: f.col, row: f.row,
+}));
+
+/** field_pieces が盤面構築に使える形か（11枚・座標が盤内）を検証 */
+export function isValidField(field: unknown): field is FormationFieldPiece[] {
+  return (
+    Array.isArray(field) &&
+    field.length === 11 &&
+    field.every(f =>
+      f && typeof f === 'object' &&
+      typeof (f as FormationFieldPiece).position === 'string' &&
+      typeof (f as FormationFieldPiece).cost === 'number' &&
+      typeof (f as FormationFieldPiece).col === 'number' &&
+      typeof (f as FormationFieldPiece).row === 'number' &&
+      (f as FormationFieldPiece).col >= 0 && (f as FormationFieldPiece).col <= 21 &&
+      (f as FormationFieldPiece).row >= 0 && (f as FormationFieldPiece).row <= 33,
+    )
+  );
+}
+
+/** ベンチコマ1枚分（D1 teams.bench_pieces 由来）。座標は交代時に上書きされる。 */
+export interface BenchFieldPiece {
+  position: Position;
+  cost: Cost;
+}
+
+/** bench_pieces が使える形か（配列で各要素に position/cost）を検証 */
+export function isValidBench(bench: unknown): bench is BenchFieldPiece[] {
+  return (
+    Array.isArray(bench) &&
+    bench.every(b =>
+      b && typeof b === 'object' &&
+      typeof (b as BenchFieldPiece).position === 'string' &&
+      typeof (b as BenchFieldPiece).cost === 'number',
+    )
+  );
+}
+
+/** 1チーム分のコマを生成（away は row をミラー）。ID接頭辞 h/a はエンジンのチーム判定に必須 */
+function placeTeam(field: FormationFieldPiece[], team: Team): Piece[] {
+  const prefix = team === 'home' ? 'h' : 'a';
+  return field.map((f, i) => ({
+    id: `${prefix}${String(i + 1).padStart(2, '0')}`,
+    team,
+    position: f.position,
+    cost: f.cost,
+    coord: { col: f.col, row: team === 'home' ? f.row : 33 - f.row },
+    hasBall: false,
+  }));
+}
+
+/** ベンチコマを生成。ID は盤面(01-11)と衝突しない 12 番以降。座標は交代時に上書きされる。 */
+function placeBench(bench: BenchFieldPiece[], team: Team): Piece[] {
+  const prefix = team === 'home' ? 'h' : 'a';
+  return bench.map((b, i) => ({
+    id: `${prefix}${String(12 + i).padStart(2, '0')}`,
+    team,
+    position: b.position,
+    cost: b.cost,
+    coord: { col: 0, row: 0 },
+    hasBall: false,
+  }));
+}
+
+/**
+ * 両チームの編成から初期盤面を生成し、キックオフ側のFWにボールを付与する。
+ * 不正/未指定の編成は固定4-4-2にフォールバック。ベンチは交代の投入元。
+ */
+export function createBoardFromFormation(
+  homeField: unknown,
+  awayField: unknown,
+  kickoffTeam: Team,
+  homeBench?: unknown,
+  awayBench?: unknown,
+): Board {
+  const home = isValidField(homeField) ? homeField : DEFAULT_FIELD;
+  const away = isValidField(awayField) ? awayField : DEFAULT_FIELD;
+  const pieces: Piece[] = [...placeTeam(home, 'home'), ...placeTeam(away, 'away')];
+  const bench: Piece[] = [
+    ...placeBench(isValidBench(homeBench) ? homeBench : [], 'home'),
+    ...placeBench(isValidBench(awayBench) ? awayBench : [], 'away'),
+  ];
+  const fw = pieces.find(p => p.team === kickoffTeam && p.position === 'FW')
+    ?? pieces.find(p => p.team === kickoffTeam);
   if (fw) fw.hasBall = true;
-  return { pieces, snapshot: [] };
+  return { pieces, snapshot: [], bench };
+}
+
+/** 固定4-4-2の初期盤面を生成（編成なしのフォールバック経路）。 */
+export function createInitialBoard(kickoffTeam: Team): Board {
+  return createBoardFromFormation(null, null, kickoffTeam);
 }
 
 /** 空のターン入力（タイムアウト時のデフォルト） */

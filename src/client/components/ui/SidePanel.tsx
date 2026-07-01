@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { PieceData, OrderData, GameEvent } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t } from '../../i18n';
 
 // ================================================================
 // §3-4 左パネル: 自チーム一覧
@@ -51,7 +52,7 @@ export function LeftPanel({ pieces, benchPieces, orders, selectedPieceId, onSele
         borderBottom: '1px solid rgba(255,255,255,0.1)',
         flexShrink: 0,
       }}>
-        自チーム
+        {t('sidepanel.my_team')}
       </div>
 
       {/* コマ一覧 */}
@@ -132,12 +133,12 @@ export function LeftPanel({ pieces, benchPieces, orders, selectedPieceId, onSele
                   {formatActionLabel(order.action)}
                 </span>
               ) : (
-                <span style={{ fontSize: 11, color: '#555' }}>未指示</span>
+                <span style={{ fontSize: 11, color: '#555' }}>{t('sidepanel.no_order')}</span>
               )}
 
               {/* ボール保持マーク */}
               {piece.hasBall && (
-                <span style={{ fontSize: 10, flexShrink: 0 }} title="ボール保持">
+                <span style={{ fontSize: 10, flexShrink: 0 }} title={t('sidepanel.has_ball')}>
                   ⚽
                 </span>
               )}
@@ -161,7 +162,7 @@ export function LeftPanel({ pieces, benchPieces, orders, selectedPieceId, onSele
                 justifyContent: 'space-between',
               }}
             >
-              <span>ベンチ ({benchPieces.length})</span>
+              <span>{t('sidepanel.bench', { count: benchPieces.length })}</span>
               <span style={{ fontSize: 10 }}>{benchExpanded ? '▲' : '▼'}</span>
             </div>
             {benchExpanded && benchPieces.map((piece, i) => (
@@ -223,11 +224,11 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
           borderBottom: '1px solid rgba(255,255,255,0.1)',
           flexShrink: 0,
         }}>
-          今ターンの指示
+          {t('sidepanel.current_orders')}
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {orderEntries.length === 0 ? (
-            <div style={{ padding: 12, color: '#555', fontSize: 13 }}>指示なし</div>
+            <div style={{ padding: 12, color: '#555', fontSize: 13 }}>{t('sidepanel.no_orders')}</div>
           ) : (
             orderEntries.map(([pieceId, order]) => {
               const piece = pieces.find((p) => p.id === pieceId);
@@ -240,7 +241,7 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
                   onClick={() => onRemoveOrder(pieceId)}
                   onMouseEnter={() => setHoveredOrderId(pieceId)}
                   onMouseLeave={() => setHoveredOrderId(null)}
-                  title="クリックで取消"
+                  title={t('sidepanel.click_to_cancel')}
                   style={{
                     padding: '5px 12px',
                     fontSize: 13,
@@ -299,7 +300,7 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
           borderTop: '1px solid rgba(255,255,255,0.06)',
           flexShrink: 0,
         }}>
-          指示済み: {orderEntries.length}/{totalField}
+          {t('sidepanel.orders_done', { done: orderEntries.length, total: totalField })}
         </div>
       </div>
 
@@ -312,11 +313,11 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
           borderBottom: '1px solid rgba(255,255,255,0.1)',
           flexShrink: 0,
         }}>
-          前ターンの結果
+          {t('sidepanel.prev_result')}
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {events.length === 0 ? (
-            <div style={{ padding: 12, color: '#555', fontSize: 13 }}>ログなし</div>
+            <div style={{ padding: 12, color: '#555', fontSize: 13 }}>{t('sidepanel.no_log')}</div>
           ) : (
             events.slice(0, 20).map((event, i) => (
               <div
@@ -345,28 +346,31 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
 
 function formatActionLabel(action: string | null): string {
   switch (action) {
-    case 'move': return '移動';
-    case 'pass': return 'パス';
-    case 'shoot': return 'シュート';
-    case 'dribble': return 'ドリブル';
-    case 'substitute': return '交代';
-    case 'skill': return 'スキル';
+    case 'move': return t('action.move');
+    case 'pass': return t('action.pass');
+    case 'shoot': return t('action.shoot');
+    case 'dribble': return t('action.dribble');
+    case 'substitute': return t('action.sub');
+    case 'skill': return t('action.skill');
     default: return String(action ?? '');
   }
 }
 
 function formatEvent(event: GameEvent): string {
   switch (event.type) {
-    case 'PIECE_MOVED': return '移動';
-    case 'ZOC_STOP': return 'ZOC停止';
-    case 'TACKLE': return 'タックル';
-    case 'FOUL': return 'ファウル → FK/PK';
-    case 'SHOOT': return `シュート → ${(event as any).result?.outcome ?? ''}`;
-    case 'PASS_DELIVERED': return 'パス成功';
-    case 'PASS_CUT': return 'パスカット';
-    case 'OFFSIDE': return 'オフサイド';
-    case 'COLLISION': return '競合';
-    case 'BALL_ACQUIRED': return 'ボール獲得';
+    case 'PIECE_MOVED': return t('sidepanel.event_moved');
+    case 'ZOC_STOP': return t('sidepanel.event_zoc_stop');
+    case 'TACKLE': return t('sidepanel.event_tackle');
+    case 'FOUL': return t('sidepanel.event_foul');
+    case 'SHOOT': return t('sidepanel.event_shoot', { outcome: (event as any).result?.outcome ?? '' });
+    case 'PASS_DELIVERED': return t('sidepanel.event_pass_delivered');
+    case 'PASS_CUT': return t('sidepanel.event_pass_cut');
+    case 'OFFSIDE': return t('sidepanel.event_offside');
+    case 'BATTLE_DELAY': return t('sidepanel.event_battle_delay');
+    case 'PASSIVE_TACTICS': return t('sidepanel.event_passive_tactics');
+    case 'SUBSTITUTION': return t('sidepanel.event_substitution');
+    case 'COLLISION': return t('sidepanel.event_collision');
+    case 'BALL_ACQUIRED': return t('sidepanel.event_ball_acquired');
     default: return event.type;
   }
 }
@@ -378,6 +382,9 @@ function eventColor(type: string): string {
     case 'PASS_DELIVERED': return '#8cf';
     case 'PASS_CUT': return '#f80';
     case 'OFFSIDE': return '#ff0';
+    case 'BATTLE_DELAY': return '#facc15';
+    case 'PASSIVE_TACTICS': return '#fb7185';
+    case 'SUBSTITUTION': return '#6ee7b7';
     case 'TACKLE': return '#fc8';
     case 'COLLISION': return '#c8f';
     default: return '#aaa';

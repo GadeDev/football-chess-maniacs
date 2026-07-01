@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase } from '../types';
+import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase, TurnSnapshot } from '../types';
 import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
@@ -33,6 +33,7 @@ import PKGame from '../components/minigame/PKGame';
 import hexMapData from '../data/hex_map.json';
 import { setBallHolder } from '../utils/ballManager';
 import CeremonyLayer from './Battle/CeremonyLayer';
+import { t, tn } from '../i18n';
 import {
   // Constants
   DEFAULT_MOVE_RANGE, HALF_TURNS, HALF_LINE_ROW, MAX_SUBSTITUTIONS, MAX_FIELD_COST,
@@ -53,14 +54,6 @@ import {
   computeReachableHexes, isShootZoneForPiece, getAccuratePassRange,
   getMatchTimeLabel, computeStats, computeMvp,
 } from './Battle/battleUtils';
-
-/** 初回3ターンチュートリアル（issue #3）: ターン番号 → ガイド文言 */
-const TUTORIAL_STEPS: Record<number, { text: string; subText: string }> = {
-  1: { text: 'コマをタップ → 移動先をタップ', subText: 'まずはコマを動かしてみよう' },
-  2: { text: 'ボール保持コマ → パス', subText: '青リングの味方へパスできます' },
-  3: { text: '相手ゴール前でシュート', subText: '赤いシュートゾーンでシュート！' },
-};
-const TUTORIAL_LAST_TURN = 3;
 
 interface BattleProps {
   onNavigate: (page: Page) => void;
@@ -92,8 +85,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
   const [events, setEvents] = useState<GameEvent[]>([]);
   const [disconnectBanner, setDisconnectBanner] = useState<string | null>(null);
+  // バナーの色トーン(再接続成功=緑 / 切断・警告=オレンジ)。翻訳文字列に依存させない
+  const [disconnectBannerPositive, setDisconnectBannerPositive] = useState(false);
   /** 全ターンの累積イベントログ（スタッツ集計用） */
   const cumulativeEventsRef = useRef<GameEvent[]>([]);
+  /** リプレイ録画: 各ターン解決後のスナップショット */
+  const replayTurnsRef = useRef<TurnSnapshot[]>([]);
 
   // サーバーサイドCOM: matchIdが gemma_com_ で始まる場合はDO経由（WebSocket接続）
   // クライアントサイドCOM: matchIdが com_ で始まる場合は従来のローカル処理
@@ -150,6 +147,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const [halftimeSubsUsed, setHalftimeSubsUsed] = useState(0);
   const [halftimeCountdown, setHalftimeCountdown] = useState(30);
   const [halftimeReady, setHalftimeReady] = useState(false);
+  // インゲーム交代の使用数（ハーフタイム交代と合算で MAX_SUBSTITUTIONS を上限とする）
+  const [inGameSubsUsed, setInGameSubsUsed] = useState(0);
 
   // ── リプレイタイマー管理（cleanup用） ──
   const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -209,7 +208,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         break;
 
       case 'OPPONENT_DISCONNECTED':
-        setDisconnectBanner(`相手が切断しました（${data.graceSeconds}秒以内に復帰しない場合、勝利となります）`);
+        setDisconnectBannerPositive(false);
+        setDisconnectBanner(tn('battle.opponent_disconnected', data.graceSeconds, { sec: data.graceSeconds }));
         break;
 
       case 'MATCH_END':
@@ -243,11 +243,13 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     onMessage: handleOnlineMessage,
     onDisconnect: () => {
       if (!isCom || isServerCom) {
-        setDisconnectBanner('サーバーとの接続が切断されました。再接続中...');
+        setDisconnectBannerPositive(false);
+        setDisconnectBanner(t('battle.server_disconnected'));
       }
     },
     onReconnect: () => {
-      setDisconnectBanner('接続が復帰しました');
+      setDisconnectBannerPositive(true);
+      setDisconnectBanner(t('battle.connection_restored'));
       setTimeout(() => setDisconnectBanner(null), RECONNECT_BANNER_MS);
     },
     autoReconnect: true,
@@ -285,6 +287,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const kickoffTeam = firstHalfKickoffRef.current;
     const pieces = createInitialPieces(formationData, kickoffTeam);
     console.log(`[Battle] COM init: 1st half kickoff = ${kickoffTeam}`);
+    replayTurnsRef.current = []; // リプレイ録画リセット（再戦時に前試合分が混ざらないように）
     dispatch({
       type: 'INIT_MATCH',
       matchId: matchId ?? `com_${Date.now()}`,
@@ -432,15 +435,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (phaseTimeoutRef.current) { clearTimeout(phaseTimeoutRef.current); phaseTimeoutRef.current = null; }
   }, []);
 
-  // ── 初回3ターンチュートリアル（issue #3） ──
-  // COM対戦の初回プレイのみ。localStorage で既読管理し2回目以降スキップ。
-  const tutorialActiveRef = useRef(
-    isCom && !isComVsCom && (() => {
-      try { return localStorage.getItem('fcms_tutorial_done') !== '1'; } catch { return true; }
-    })(),
-  );
-
-  // TURN_START → INPUT（1秒後、安全弁2秒）
+  // TURN_START → INPUT
   useEffect(() => {
     if (state.turnPhase !== 'TURN_START' || state.status !== 'playing') return;
     clearPhaseTimeout();
@@ -448,38 +443,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (state.turn > 0 && !isComVsCom) {
       showOverlay(`Turn ${state.turn}`, { duration: 800, fontSize: 36 });
     }
-    // 初回3ターンチュートリアル（Turn 1=移動 / 2=パス / 3=シュート）
-    const tutorialStep = tutorialActiveRef.current ? TUTORIAL_STEPS[state.turn] : undefined;
-    if (tutorialStep) {
-      setTimeout(() => {
-        showOverlay(tutorialStep.text, {
-          subText: tutorialStep.subText,
-          duration: 2800, fontSize: 24,
-        });
-      }, 1000);
-      if (state.turn >= TUTORIAL_LAST_TURN) {
-        tutorialActiveRef.current = false;
-        try { localStorage.setItem('fcms_tutorial_done', '1'); } catch { /* ignore */ }
-      }
-    }
-    const isTutorialTurn = !!tutorialStep;
-    const normalDelay = isComVsCom ? 500 : (state.turn === 1 ? 4000 : isTutorialTurn ? 2800 : 1000); // COM vs COMは高速化、チュートリアル中は猶予
+    const normalDelay = isComVsCom ? 500 : (state.turn === 1 ? KICKOFF_CEREMONY_MS : 1000);
     phaseTimeoutRef.current = setTimeout(() => {
       dispatch({ type: 'SAVE_SNAPSHOT' });
       dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });
     }, normalDelay);
-    // 安全弁: 通常の2倍（Turn 1は8秒、それ以外は2秒）
+    // 安全弁: 通常の2倍
     const safetyDelay = normalDelay * 2;
     const safety = setTimeout(() => {
       if (state.turnPhase === 'TURN_START') dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });
     }, safetyDelay);
     return () => { clearPhaseTimeout(); clearTimeout(safety); };
   }, [state.turnPhase, state.status, state.turn, dispatch, clearPhaseTimeout, showOverlay, isComVsCom]);
-
-  // ── 非INPUTフェーズではメニューを閉じる ──
-  useEffect(() => {
-    if (state.turnPhase !== 'INPUT') setBallActionMenu(null);
-  }, [state.turnPhase]);
 
   // ── ボール整合性チェック（INPUT開始時） ──
   useEffect(() => {
@@ -528,15 +503,14 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const [phaseEffects, setPhaseEffects] = useState<Array<{ coord: HexCoord; icon: string; color: string; text?: string; burst?: 'impact' | 'dust' }>>([]);
   const [ballTrails, setBallTrails] = useState<BallTrail[]>([]);
   const [flyingBall, setFlyingBall] = useState<FlyingBallData | null>(null);
-  const [ballActionMenu, setBallActionMenu] = useState<string | null>(null); // pieceId or null
   const flyingBallResolveRef = useRef<(() => void) | null>(null);
   const resolvingEventsRef = useRef<EngineGameEvent[]>([]);
 
   // ── A2: 移動範囲（selectedPiece の移動可能HEX） ──
   const highlightHexes = useMemo(() => {
     if (!selectedPiece || isInputDisabled) return [];
-    // パス/シュートモード中は移動範囲（緑）を出さない（パス先・シュート先のハイライトに集中）
-    if (state.actionMode === 'pass' || state.actionMode === 'shoot') return [];
+    // ボール操作モード中は移動範囲（緑）を出さない（選択中の行動ハイライトに集中）
+    if (state.actionMode === 'pass' || state.actionMode === 'shoot' || state.actionMode === 'throughPass') return [];
     const ep = toEnginePiece(selectedPiece);
     const isDribbling = selectedPiece.hasBall;
     return computeReachableHexes(ep, isDribbling, boardContext);
@@ -557,9 +531,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       .map((p) => ({ col: p.coord.col, row: p.coord.row }));
   }, [selectedPiece, isInputDisabled, state.actionMode, state.board.pieces, state.myTeam]);
 
-  // ── パスモード: スルーパス可能な空きHEX（シアン）。シュートゾーンは除外（赤で別表示） ──
+  // ── スルーパスモード: スルーパス可能な空きHEX（シアン） ──
   const throughPassHexes = useMemo(() => {
-    if (!selectedPiece || isInputDisabled || state.actionMode !== 'pass') return [];
+    if (!selectedPiece || isInputDisabled || state.actionMode !== 'throughPass') return [];
     const accurateRange = getAccuratePassRange(selectedPiece);
     const occupied = new Set(
       state.board.pieces.filter((p) => !p.isBench).map((p) => `${p.coord.col},${p.coord.row}`),
@@ -608,7 +582,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   // ── A4: シュート可能範囲HEX（シュートモード時に表示） ──
   const shootRangeHexes = useMemo(() => {
     if (!selectedPiece) return [];
-    if (state.actionMode !== 'shoot' && state.actionMode !== 'pass' && !(selectedPiece.hasBall && state.actionMode === null)) return [];
+    if (state.actionMode !== 'shoot') return [];
     // highlightHexes（移動可能範囲）のうちシュートゾーンに入るHEXを返す
     // + 現在位置がシュートゾーンなら現在位置のゴール方向HEXも含める
     const pos = selectedPiece.position;
@@ -710,6 +684,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'pass' ? null : 'pass' });
           }
           break;
+        case 't': // スルーパスモード
+          if (selectedPiece?.hasBall) {
+            dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'throughPass' ? null : 'throughPass' });
+          }
+          break;
         case 'w': // シュートモード
           if (selectedPiece?.hasBall) {
             dispatch({ type: 'SET_ACTION_MODE', mode: state.actionMode === 'shoot' ? null : 'shoot' });
@@ -784,19 +763,16 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       if (pieceId) {
         const p = state.board.pieces.find(pp => pp.id === pieceId);
 
-        // ボール保持者（味方・未命令）→ 選択してメニュー表示
+        // ボール保持者も通常選択。行動はコマ周囲のラジアルメニューから明示選択する。
         if (p?.hasBall && p.team === state.myTeam && !state.orders.has(pieceId)) {
           dispatch({ type: 'SELECT_PIECE', pieceId });
-          setBallActionMenu(pieceId);
           if (isMobile && navigator.vibrate) navigator.vibrate(30);
           return;
         }
 
         dispatch({ type: 'SELECT_PIECE', pieceId });
-        setBallActionMenu(null);
       } else {
         dispatch({ type: 'SELECT_PIECE', pieceId: null });
-        setBallActionMenu(null);
       }
 
       if (isMobile && pieceId && navigator.vibrate) navigator.vibrate(30);
@@ -810,29 +786,22 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     [handleSelectPiece],
   );
 
-  /** シュート可能ゾーン判定（ゲーム座標、ポジション別距離補正付き） */
-  const isShootZone = useCallback((coord: HexCoord) => {
-    const piece = state.selectedPieceId
-      ? state.board.pieces.find(p => p.id === state.selectedPieceId)
-      : null;
-    const pos = piece?.position ?? 'MF';
-    return isShootZoneForPiece(coord, state.myTeam, pos);
-  }, [state.myTeam, state.selectedPieceId, state.board.pieces]);
-
   const handleHexClick = useCallback(
     (coord: HexCoord) => {
       if (state.turnPhase !== 'INPUT') return;
-      setBallActionMenu(null); // メニューを閉じる
       if (!state.selectedPieceId) {
         dispatch({ type: 'SELECT_PIECE', pieceId: null });
         return;
       }
 
       const selPiece = state.board.pieces.find(p => p.id === state.selectedPieceId);
+      if (!selPiece) return;
       const hasBall = selPiece?.hasBall ?? false;
+      const isInHexes = (hexes: HexCoord[]) => hexes.some((h) => h.col === coord.col && h.row === coord.row);
 
-      // ── パスモード（ボールタッチ由来） ──
+      // ── パスモード: 青リングの味方のみ反応 ──
       if (state.actionMode === 'pass') {
+        if (!isInHexes(passTargetHexes)) return;
         const teammate = state.board.pieces.find(
           (p) => p.coord.col === coord.col && p.coord.row === coord.row
             && p.team === state.myTeam && p.id !== state.selectedPieceId && !p.isBench,
@@ -840,32 +809,45 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         if (teammate) {
           // 味方コマ → パス: ボールを即座に移動し、パス元を命令済みに
           dispatch({ type: 'PASS_BALL', fromPieceId: state.selectedPieceId, toPieceId: teammate.id });
-        } else if (isShootZone(coord)) {
-          dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'shoot', targetHex: coord } });
         } else {
-          // スルーパス: 命令登録 + ボールを元の選手から外す + フリーボール仮表示
-          dispatch({ type: 'THROUGH_PASS', fromPieceId: state.selectedPieceId, targetHex: coord });
+          return;
         }
       } else if (state.actionMode === 'shoot') {
+        if (!isInHexes(shootRangeHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'shoot', targetHex: coord } });
       } else if (state.actionMode === 'dribble') {
+        if (!hasBall || !isInHexes(highlightHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'dribble', targetHex: coord } });
       } else if (state.actionMode === 'move') {
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: hasBall ? 'dribble' : 'move', targetHex: coord } });
+        if (hasBall || !isInHexes(highlightHexes)) return;
+        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'move', targetHex: coord } });
       } else if (state.actionMode === 'throughPass') {
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'throughPass', targetHex: coord } });
+        if (!hasBall || !isInHexes(throughPassHexes)) return;
+        dispatch({ type: 'THROUGH_PASS', fromPieceId: state.selectedPieceId, targetHex: coord });
       } else if (hasBall) {
-        // ボール保持者 + モード未選択 → ドリブル（コマタッチからの遷移）
-        dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'dribble', targetHex: coord } });
+        // ボール保持者 + モード未選択では誤操作防止のため予約しない。
+        return;
       } else {
         // ボール非保持者 → 移動
+        if (!isInHexes(highlightHexes)) return;
         dispatch({ type: 'ADD_ORDER', order: { pieceId: state.selectedPieceId, action: 'move', targetHex: coord } });
       }
 
       if (isMobile && navigator.vibrate) navigator.vibrate(20);
     },
-    [state.selectedPieceId, state.actionMode, state.board.pieces, state.myTeam,
-     dispatch, isMobile, isShootZone, state.turnPhase],
+    [
+      state.selectedPieceId,
+      state.actionMode,
+      state.board.pieces,
+      state.myTeam,
+      dispatch,
+      isMobile,
+      state.turnPhase,
+      passTargetHexes,
+      shootRangeHexes,
+      highlightHexes,
+      throughPassHexes,
+    ],
   );
 
   // ── HEX座標→ピクセル座標変換（hex_mapデータを使用、flipY対応） ──
@@ -970,7 +952,22 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         }
 
         // 3. エンジン Board 構築
-        const board: EngineBoard = { pieces: enginePieces, snapshot: [], freeBallHex: state.board.freeBallHex ?? null };
+        // THROUGH_PASS入力時のfreeBallHexはUI仮表示なので、エンジンには渡さない。
+        // 前ターンから残った本物のフリーボールだけをPhase1.5で争奪させる。
+        const hasPendingThroughPass = [...state.orders.values()].some(o => o.action === 'throughPass');
+        // ベンチコマもエンジンに渡す（交代命令の投入元）
+        const benchEnginePieces = state.board.pieces.filter(p => p.isBench).map(toEnginePiece);
+        const board: EngineBoard = {
+          pieces: enginePieces,
+          snapshot: [],
+          bench: benchEnginePieces,
+          freeBallHex: hasPendingThroughPass ? null : state.board.freeBallHex ?? null,
+          freeBallLastTouchedTeam: hasPendingThroughPass ? null : state.board.freeBallLastTouchedTeam ?? null,
+          freeBallLastTouchedPieceId: hasPendingThroughPass ? null : state.board.freeBallLastTouchedPieceId ?? null,
+          freeBallSource: hasPendingThroughPass ? null : state.board.freeBallSource ?? null,
+          possessionDelay: state.board.possessionDelay ?? null,
+          passiveTacticsTeams: state.board.passiveTacticsTeams ?? [],
+        };
 
         // 4. processTurn 実行（Phase0〜3: 移動→タックル→ファウル→シュート→パスカット→オフサイド）
         const turnResult = processTurn(board, homeOrders, awayOrders, boardContext);
@@ -993,10 +990,26 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         }
         goalScoredRef.current = { scored: goalScored, scorerTeam };
 
-        // 6. エンジン結果をクライアント形式に変換（ベンチコマを保持）
-        const newFieldPieces = enginePiecesToClient(turnResult.board.pieces, state.board.pieces);
-        const benchPieces = state.board.pieces.filter(p => p.isBench);
-        const newPieces = [...newFieldPieces, ...benchPieces];
+        // 6. エンジン結果をクライアント形式に変換
+        // 交代でベンチ↔盤面が入れ替わり得るため、isBench は結果のfield/benchで上書きする。
+        const newFieldPieces = enginePiecesToClient(turnResult.board.pieces, state.board.pieces)
+          .map(p => ({ ...p, isBench: false }));
+        const newBenchPieces = enginePiecesToClient(turnResult.board.bench ?? [], state.board.pieces)
+          .map(p => ({ ...p, isBench: true }));
+        const newPieces = [...newFieldPieces, ...newBenchPieces];
+
+        // 実際に成立した交代数を使用済みに加算（試合通算の予算）
+        const appliedSubs = turnResult.events.filter(e => e.type === 'SUBSTITUTION').length;
+        if (appliedSubs > 0) setInGameSubsUsed(n => n + appliedSubs);
+
+        // リプレイ録画: このターンの結果スナップショットを記録
+        replayTurnsRef.current.push({
+          turn: state.turn,
+          pieces: newFieldPieces,
+          events: turnResult.events as unknown as GameEvent[],
+          scoreHome: newScoreHome,
+          scoreAway: newScoreAway,
+        });
 
         // 7. イベントログ保存
         setEvents(turnResult.events as unknown as GameEvent[]);
@@ -1032,6 +1045,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             scoreHome: newScoreHome,
             scoreAway: newScoreAway,
             freeBallHex: turnResult.board.freeBallHex ?? null,
+            freeBallLastTouchedTeam: turnResult.board.freeBallLastTouchedTeam ?? null,
+            freeBallLastTouchedPieceId: turnResult.board.freeBallLastTouchedPieceId ?? null,
+            freeBallSource: turnResult.board.freeBallSource ?? null,
+            possessionDelay: turnResult.board.possessionDelay ?? null,
+            passiveTacticsTeams: turnResult.board.passiveTacticsTeams ?? [],
           });
           await wait(800); // CSS transition完了を待つ
 
@@ -1192,6 +1210,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             }
           }
 
+          // 遅延行為 / 消極的戦術
+          for (const ev of evts) {
+            if (ev.type === 'BATTLE_DELAY') {
+              showOverlay('DELAY!', { duration: 1200, color: '#FACC15', fontSize: 44 });
+              await wait(500);
+            }
+            if (ev.type === 'PASSIVE_TACTICS') {
+              showOverlay('PASSIVE TACTICS!', { duration: 1200, color: '#FB7185', fontSize: 38 });
+              await wait(500);
+            }
+          }
+
           // 全フェーズ完了
           setResolvingPhase(-1);
           setPhaseEffects([]);
@@ -1305,7 +1335,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               const defenseTeam: Team = ckAttackTeam === 'home' ? 'away' : 'home';
               // 簡易CK解決: 攻撃側が50%でボール獲得
               const attackerWon = Math.random() < 0.5;
-              showOverlay(attackerWon ? 'CK: 攻撃成功' : 'CK: 守備クリア', { duration: 800, fontSize: 36 });
+              showOverlay(attackerWon ? t('battle.ck_attack_success') : t('battle.ck_defense_clear'), { duration: 800, fontSize: 36 });
               await wait(800);
               let boardPieces: PieceData[];
               let freeBallHex: HexCoord | null = null;
@@ -1410,11 +1440,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         type: 'TURN_INPUT',
         match_id: matchId ?? '',
         turn: state.turn,
-        player_id: '', // サーバー側はWS attachmentから取得するため空でも可
+        player_id: '', // サーバーが認証済みWS attachment.userId で上書きするため空で送る
         sequence: currentSeq,
         nonce: `${matchId}_${state.turn}_${Date.now()}`,
         orders: rawOrders,
-        client_hash: '', // TODO: 盤面ハッシュ
+        client_hash: '', // 盤面ハッシュ(任意のアンチチート用途)。現状サーバー未検証のため空
         timestamp: Date.now(),
       };
 
@@ -1449,8 +1479,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     [dispatch],
   );
 
+  // 交代の残り回数: 上限(MAX_SUBSTITUTIONS) − ハーフタイム使用 − インゲーム使用 − 今ターンの保留交代命令
+  const pendingSubOrders = [...state.orders.values()].filter(o => o.action === 'substitute').length;
+  const remainingSubs = Math.max(
+    0,
+    MAX_SUBSTITUTIONS - halftimeSubsUsed - inGameSubsUsed - pendingSubOrders,
+  );
+  const remainingSubsRef = useRef(remainingSubs);
+  remainingSubsRef.current = remainingSubs;
+
   const handleSubstitute = useCallback(
     (fieldPieceId: string, benchPieceId: string) => {
+      if (remainingSubsRef.current <= 0) return; // 上限到達 → 交代命令を追加しない
       dispatch({
         type: 'ADD_ORDER',
         order: { pieceId: fieldPieceId, action: 'substitute', benchPieceId },
@@ -1469,7 +1509,10 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
   // ── COM GKのゾーン選択AI（ランダムではなく傾向バイアス付き） ──
   const comGkHistory = useRef<number[]>([]);
-  const ZONE_LABELS_6 = ['左上', '中上', '右上', '左下', '中下', '右下'];
+  const ZONE_LABELS_6 = [
+    t('course.top_left'), t('course.top_center'), t('course.top_right'),
+    t('course.bottom_left'), t('course.bottom_center'), t('course.bottom_right'),
+  ];
 
   /** COMのGKゾーン選択: プレイヤーの過去選択を学習し、頻出ゾーンに寄せる */
   const pickComGkZone = useCallback((): number => {
@@ -1526,12 +1569,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     // 結果フィードバック: キッカーvsGKのゾーン対比を表示
     const kickLabel = ZONE_LABELS_6[attackerZone];
     const gkLabel = ZONE_LABELS_6[comZone];
-    const matchup = gkGuessedRight ? 'GK読み的中!' : 'GKは逆方向!';
+    const matchup = gkGuessedRight ? t('battle.gk_read_hit') : t('battle.gk_read_miss');
 
     if (kickSuccess) {
       if (fouledTeam === 'home') newScoreHome++; else newScoreAway++;
       showOverlay('GOAL!!', {
-        subText: `${kickLabel} → ${gkGuessedRight ? 'パワーで突破!' : '枠内ゴール!'}\nキッカー:${kickLabel} vs GK:${gkLabel}\n${newScoreHome} - ${newScoreAway}`,
+        subText: `${kickLabel} → ${gkGuessedRight ? t('battle.power_breakthrough') : t('battle.in_frame_goal')}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}\n${newScoreHome} - ${newScoreAway}`,
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
       const kickoff = fouledTeam === 'home' ? 'away' : 'home';
@@ -1554,7 +1597,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const gk = currentPieces.find(p => p.team === defenseTeam && p.position === 'GK' && !p.isBench);
     newHolderId = gk?.id ?? currentPieces.find(p => p.team === defenseTeam && !p.isBench)?.id ?? null;
     showOverlay(gkGuessedRight ? 'GREAT SAVE!' : 'MISSED!', {
-      subText: `${matchup}\nキッカー:${kickLabel} vs GK:${gkLabel}`,
+      subText: `${matchup}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}`,
       duration: 1500, color: '#4ade80', fontSize: 48,
     });
 
@@ -1596,12 +1639,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
     const kickLabel = ZONE_LABELS_6[kickerZone];
     const gkLabel = ZONE_LABELS_6[comZone];
-    const matchup = gkGuessedRight ? 'GK読み的中!' : 'GKは逆方向!';
+    const matchup = gkGuessedRight ? t('battle.gk_read_hit') : t('battle.gk_read_miss');
 
     if (kickSuccess) {
       if (fouledTeam === 'home') newScoreHome++; else newScoreAway++;
       showOverlay('GOAL!!', {
-        subText: `${kickLabel} → ${gkGuessedRight ? 'パワーで突破!' : '枠内ゴール!'}\nキッカー:${kickLabel} vs GK:${gkLabel}\n${newScoreHome} - ${newScoreAway}`,
+        subText: `${kickLabel} → ${gkGuessedRight ? t('battle.power_breakthrough') : t('battle.in_frame_goal')}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}\n${newScoreHome} - ${newScoreAway}`,
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
       const kickoff = fouledTeam === 'home' ? 'away' : 'home';
@@ -1624,7 +1667,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const gk = currentPieces.find(p => p.team === defenseTeam && p.position === 'GK' && !p.isBench);
     const newHolderId = gk?.id ?? currentPieces.find(p => p.team === defenseTeam && !p.isBench)?.id ?? null;
     showOverlay(gkGuessedRight ? 'GREAT SAVE!' : 'MISSED!', {
-      subText: `${matchup}\nキッカー:${kickLabel} vs GK:${gkLabel}`,
+      subText: `${matchup}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}`,
       duration: 1500, color: '#4ade80', fontSize: 48,
     });
 
@@ -1673,7 +1716,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
     // ゾーン対決: 各ゾーンで攻撃コマ vs 守備コマのコスト比較
     let attackWins = 0;
-    const CK_ZONE_LABELS = { near: 'ニア', center: '中央', far: 'ファー' } as const;
+    const CK_ZONE_LABELS = { near: t('battle.ck_zone_near'), center: t('battle.ck_zone_center'), far: t('battle.ck_zone_far') } as const;
     const zoneResults: string[] = [];
     for (const zone of ckZones) {
       const atkPlacement = data.placements.find(p => p.zone === zone);
@@ -1698,7 +1741,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
     // 結果判定: 3勝=ゴール / 2勝=ヘディングチャンス(攻撃継続) / それ以下=守備クリア=ゴールキック
     const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-    const zoneSummary = `${zoneResults.join('\n')}\n${attackWins}/3ゾーン勝利`;
+    const zoneSummary = `${zoneResults.join('\n')}\n${tn('battle.zone_wins', attackWins, { wins: attackWins })}`;
 
     setMiniGame(null);
     setMiniGameCountdown(MINIGAME_CK_COUNTDOWN);
@@ -1728,7 +1771,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (attackWins === 2) {
       const candidate = currentPieces.find(p => p.team === attackTeam && p.position === 'FW' && !p.isBench)
         ?? currentPieces.find(p => p.team === attackTeam && !p.isBench && p.position !== 'GK');
-      showOverlay('ヘディングチャンス!', { subText: zoneSummary, duration: 2000, color: '#ffd700', fontSize: 40 });
+      showOverlay(t('battle.heading_chance'), { subText: zoneSummary, duration: 2000, color: '#ffd700', fontSize: 40 });
       const ballState = setBallHolder(currentPieces, candidate?.id ?? null);
       dispatch({
         type: 'SET_BOARD',
@@ -1740,7 +1783,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     }
 
     // ── 1ゾーン以下: 守備クリア = ゴールキック（ワイプ演出 → 専用再配置） ──
-    showOverlay('クリア成功!', { subText: zoneSummary, duration: 1600, color: '#4ade80', fontSize: 40 });
+    showOverlay(t('battle.clear_success'), { subText: zoneSummary, duration: 1600, color: '#4ade80', fontSize: 40 });
     setCeremony('goalkick');
     await wait(GOALKICK_WIPE_COVER_MS); // ワイプが画面を覆い切る瞬間まで待つ
     const gkPieces = createGoalKickPieces(currentPieces, defenseTeam);
@@ -1773,7 +1816,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const disconnectBannerEl = disconnectBanner && (
     <div style={{
       padding: '6px 16px',
-      background: disconnectBanner.includes('復帰') ? '#2a8a2a' : '#cc8800',
+      background: disconnectBannerPositive ? '#2a8a2a' : '#cc8800',
       color: '#fff',
       fontSize: 13,
       textAlign: 'center',
@@ -1803,7 +1846,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       halftimeCountdown={halftimeCountdown}
       cumulativeEvents={cumulativeEventsRef.current}
       boardPieces={state.board.pieces}
-      onMatchEnd={onMatchEnd}
+      onMatchEnd={(data) => onMatchEnd?.({ ...data, replayTurns: replayTurnsRef.current })}
       onNavigate={onNavigate}
     />
   );
@@ -1817,33 +1860,37 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     return state.board.pieces;
   }, [state.board.pieces, flyingBall]);
 
-  // ── アクションガイドテキスト ──
-  const actionGuide = useMemo(() => {
-    if (state.board.freeBallHex) return 'フリーボール！コマを移動させて拾いましょう';
-    if (ballActionMenu) return 'パス or ドリブルを選んでください';
-    if (!selectedPiece) return 'コマを選んでください';
-    // パス済みコマを選択
-    if (state.orders.has(selectedPiece.id)) {
-      const order = state.orders.get(selectedPiece.id);
-      if (order?.action === 'pass') return 'このコマはパス済みです';
-      return '命令済み（取消可能）';
+  // ── 選択中コマの状態表示（操作説明ではなく、現在の状態だけを表示） ──
+  const selectedOrder = selectedPiece ? state.orders.get(selectedPiece.id) : undefined;
+  const selectedAction = selectedOrder?.action ?? state.actionMode;
+  const selectedActionLabel = (() => {
+    switch (selectedAction) {
+      case 'move': return t('action.move');
+      case 'dribble': return t('action.dribble');
+      case 'pass': return t('action.pass');
+      case 'throughPass': return t('action.through_pass');
+      case 'shoot': return t('action.shoot');
+      case 'substitute': return t('action.sub');
+      default: return null;
     }
-    const hasBall = selectedPiece.hasBall;
-    switch (state.actionMode) {
-      case 'pass': return '味方=パス / 空きHEX=スルーパス / ゴール方向=シュート';
-      case 'throughPass': return 'スルーパス先をタップ';
-      case 'shoot': return 'シュート先をタップ';
-      case 'dribble': return 'ドリブル先をタップ';
-      case 'move': return hasBall ? 'ドリブル先をタップ' : '移動先をタップ';
-      case 'substitute': return '交代先のベンチを選択';
-      default:
-        if (hasBall) return '空きHEX=ドリブル / パス・シュートは下のボタン';
-        return '移動先をタップ';
-    }
-  }, [selectedPiece, state.actionMode, state.orders, ballActionMenu, state.board.freeBallHex]);
+  })();
+  const selectedStatusLabel = selectedOrder
+    ? t('battle.status_ordered')
+    : selectedPiece?.hasBall
+    ? t('battle.status_holding_ball')
+    : selectedPiece
+    ? t('battle.status_selected')
+    : null;
+  const radialBallActionPieceId = state.turnPhase === 'INPUT'
+    && selectedPiece?.hasBall
+    && selectedPiece.team === state.myTeam
+    && state.actionMode === null
+    && !state.orders.has(selectedPiece.id)
+    ? selectedPiece.id
+    : null;
 
   // ── A10: フェーズ別ラベル ──
-  const phaseLabels = ['移動', '衝突判定', 'ファウル判定', 'ボール移動', 'パスカット/オフサイド'];
+  const phaseLabels = [t('action.move'), t('battle.phase_collision'), t('battle.phase_foul'), t('battle.phase_ball_move'), t('battle.phase_passcut_offside')];
 
   // ── 実行中 / 相手待ちバナー ──
   const resolvingBannerEl = (isResolving || isWaiting) && (
@@ -1855,8 +1902,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       zIndex: 190, pointerEvents: 'none',
     }}>
       {isResolving
-        ? `実行${resolvingPhase >= 0 ? ` — ${phaseLabels[resolvingPhase] ?? ''}` : ''}`
-        : '⏳ 相手の入力を待っています...'}
+        ? `${t('battle.executing')}${resolvingPhase >= 0 ? ` — ${phaseLabels[resolvingPhase] ?? ''}` : ''}`
+        : t('battle.waiting_opponent_input')}
     </div>
   );
 
@@ -1974,7 +2021,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             zIndex: 35,
           }}>
             {unorderedPieces.length === 0 ? (
-              <span style={{ fontSize: 12, color: '#666' }}>全コマ指示済み</span>
+              <span style={{ fontSize: 12, color: '#666' }}>{t('battle.all_ordered')}</span>
             ) : (
               unorderedPieces.map((p) => (
                 <button
@@ -2038,10 +2085,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}
             freeBallHex={state.board.freeBallHex}
-            ballActionMenu={state.turnPhase === 'INPUT' ? ballActionMenu : null}
-            onActionPass={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'pass' }); setBallActionMenu(null); }}
-            onActionDribble={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'dribble' }); setBallActionMenu(null); }}
-            onActionCancel={() => { dispatch({ type: 'SELECT_PIECE', pieceId: null }); setBallActionMenu(null); }}
+            ballActionMenu={radialBallActionPieceId}
+            onActionDribble={() => handleSetMode('dribble')}
+            onActionPass={() => handleSetMode('pass')}
+            onActionSpace={() => handleSetMode('throughPass')}
+            onActionShoot={() => handleSetMode('shoot')}
+            onActionCancel={() => dispatch({ type: 'SELECT_PIECE', pieceId: null })}
             flyingBall={flyingBall}
             onFlyingBallComplete={handleFlyingBallComplete}
           />
@@ -2116,72 +2165,84 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 {opponentPopup.position} ★{opponentPopup.cost}
               </div>
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                ZOC: 隣接6HEX
+                {t('battle.zoc_adjacent_6hex')}
               </div>
               <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-                タップで閉じる
+                {t('battle.tap_to_close')}
               </div>
             </div>
           )}
         </div>
 
-        {/* §2-5 選択状態 + 操作ガイド */}
-        <div style={{
-          minHeight: 50,
-          display: 'flex',
-          alignItems: 'center',
-          padding: '6px 12px',
-          background: 'rgba(15, 23, 42, 0.96)',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          fontSize: 13,
-          gap: 10,
-          flexShrink: 0,
-        }}>
-          {selectedPiece ? (
-            <>
-              <div style={{
-                minWidth: 76,
-                padding: '5px 8px',
-                borderRadius: 8,
-                border: `1px solid ${POSITION_COLORS[selectedPiece.position]}99`,
-                background: `${POSITION_COLORS[selectedPiece.position]}22`,
-                color: POSITION_COLORS[selectedPiece.position],
-                fontWeight: 900,
-                textAlign: 'center',
-                lineHeight: 1.1,
+        {/* §2-5 選択状態 */}
+        {selectedPiece && (
+          <div style={{
+            minHeight: 42,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '5px 10px',
+            background: 'rgba(15, 23, 42, 0.96)',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            fontSize: 12,
+            gap: 8,
+            flexShrink: 0,
+          }}>
+            <div style={{
+              minWidth: 70,
+              padding: '4px 8px',
+              borderRadius: 8,
+              border: `1px solid ${POSITION_COLORS[selectedPiece.position]}99`,
+              background: `${POSITION_COLORS[selectedPiece.position]}22`,
+              color: POSITION_COLORS[selectedPiece.position],
+              fontWeight: 900,
+              textAlign: 'center',
+              lineHeight: 1.1,
+            }}>
+              <div style={{ fontSize: 14 }}>{selectedPiece.position}</div>
+              <div style={{ fontSize: 10, color: '#facc15', marginTop: 1 }}>★{selectedPiece.cost}</div>
+            </div>
+            {selectedStatusLabel && (
+              <span style={{
+                padding: '5px 9px',
+                borderRadius: 999,
+                background: selectedPiece.hasBall ? 'rgba(37,99,235,0.22)' : 'rgba(255,255,255,0.08)',
+                color: selectedPiece.hasBall ? '#93c5fd' : '#cbd5e1',
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
               }}>
-                <div style={{ fontSize: 15 }}>{selectedPiece.position}</div>
-                <div style={{ fontSize: 11, color: '#facc15', marginTop: 2 }}>★{selectedPiece.cost}</div>
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 700 }}>
-                  {selectedPiece.hasBall ? 'ボール保持中' : state.orders.has(selectedPiece.id) ? '命令済み' : '選択中'}
-                </div>
-                <div style={{
-                  color: '#94a3b8',
-                  fontSize: 12,
-                  marginTop: 3,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {actionGuide}
-                </div>
-              </div>
-            </>
-          ) : (
-            <span style={{ color: '#94a3b8' }}>{actionGuide}</span>
-          )}
-        </div>
+                {selectedStatusLabel}
+              </span>
+            )}
+            {selectedActionLabel && (
+              <span style={{
+                padding: '5px 9px',
+                borderRadius: 999,
+                background: 'rgba(250,204,21,0.15)',
+                color: '#fde68a',
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+              }}>
+                {selectedActionLabel}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* §2-4 アクションバー — 交代時ベンチスライドアップ付き */}
         <ActionBar
           selectedPiece={selectedPiece}
           actionMode={state.actionMode}
           hasOrders={state.orders.size > 0}
+          selectedHasOrder={selectedPiece ? state.orders.has(selectedPiece.id) : false}
           orderCount={state.orders.size}
-          remainingSubs={MAX_SUBSTITUTIONS}
+          remainingSubs={remainingSubs}
           benchPieces={myBenchPieces}
+          onCancelSelection={() => {
+            dispatch({ type: 'SELECT_PIECE', pieceId: null });
+          }}
+          onRemoveSelectedOrder={() => {
+            if (selectedPiece) dispatch({ type: 'REMOVE_ORDER', pieceId: selectedPiece.id });
+          }}
           onUndo={() => dispatch({ type: 'UNDO_LAST_ORDER' })}
           onClearAll={() => dispatch({ type: 'CLEAR_ORDERS' })}
           onSetMode={handleSetMode}
@@ -2253,10 +2314,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             phaseEffects={phaseEffects}
             ballTrails={ballTrails}
             freeBallHex={state.board.freeBallHex}
-            ballActionMenu={state.turnPhase === 'INPUT' ? ballActionMenu : null}
-            onActionPass={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'pass' }); setBallActionMenu(null); }}
-            onActionDribble={() => { dispatch({ type: 'SET_ACTION_MODE', mode: 'dribble' }); setBallActionMenu(null); }}
-            onActionCancel={() => { dispatch({ type: 'SELECT_PIECE', pieceId: null }); setBallActionMenu(null); }}
+            ballActionMenu={radialBallActionPieceId}
+            onActionDribble={() => handleSetMode('dribble')}
+            onActionPass={() => handleSetMode('pass')}
+            onActionSpace={() => handleSetMode('throughPass')}
+            onActionShoot={() => handleSetMode('shoot')}
+            onActionCancel={() => dispatch({ type: 'SELECT_PIECE', pieceId: null })}
             flyingBall={flyingBall}
             onFlyingBallComplete={handleFlyingBallComplete}
           />
@@ -2278,16 +2341,17 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               }}
             >
               {[
-                { label: '移動', mode: 'move' as ActionMode, key: '' },
-                { label: 'ドリブル (D)', mode: 'dribble' as ActionMode, key: 'D', needsBall: true },
-                { label: 'パス (Q)', mode: 'pass' as ActionMode, key: 'Q', needsBall: true },
-                { label: 'シュート (W)', mode: 'shoot' as ActionMode, key: 'W', needsBall: true },
-                { label: '交代 (E)', mode: 'substitute' as ActionMode, key: 'E' },
+                { label: t('action.move'), mode: 'move' as ActionMode, shortcut: '' },
+                { label: t('action.dribble'), mode: 'dribble' as ActionMode, shortcut: 'D', needsBall: true },
+                { label: t('action.pass'), mode: 'pass' as ActionMode, shortcut: 'Q', needsBall: true },
+                { label: t('action.through_pass'), mode: 'throughPass' as ActionMode, shortcut: 'T', needsBall: true },
+                { label: t('action.shoot'), mode: 'shoot' as ActionMode, shortcut: 'W', needsBall: true },
+                { label: t('action.sub'), mode: 'substitute' as ActionMode, shortcut: 'E' },
               ].map((item) => {
-                const disabled = item.needsBall && !selectedPiece?.hasBall;
+                const disabled = (item.needsBall && !selectedPiece?.hasBall) || (item.mode === 'move' && !!selectedPiece?.hasBall);
                 return (
                   <button
-                    key={item.label}
+                    key={item.mode}
                     onClick={() => {
                       if (!disabled) dispatch({ type: 'SET_ACTION_MODE', mode: item.mode });
                       setContextMenu(null);
@@ -2306,9 +2370,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                       cursor: disabled ? 'default' : 'pointer',
                       textAlign: 'left',
                     }}
-                  >
+                    >
                     <span>{item.label}</span>
-                    {item.key && <span style={{ fontSize: 11, color: '#666' }}>{item.key}</span>}
+                    {item.shortcut && <span style={{ fontSize: 11, color: '#666' }}>{item.shortcut}</span>}
                   </button>
                 );
               })}
@@ -2387,7 +2451,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
         {/* 指示カウント */}
         <span style={{ fontSize: 13, color: '#aaa' }}>
-          <span style={{ color: '#fff', fontWeight: 'bold' }}>{orderedCount}</span>/{totalFieldPieces} 指示済
+          <span style={{ color: '#fff', fontWeight: 'bold' }}>{orderedCount}</span>/{totalFieldPieces}{` ${t('battle.ordered_count_label')}`}
         </span>
 
         {/* 戻す / 全取消 */}
@@ -2401,7 +2465,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             fontSize: 12, cursor: state.orders.size > 0 && !isInputDisabled ? 'pointer' : 'default',
           }}
         >
-          戻す (Z)
+          {t('battle.undo_z')}
         </button>
         <button
           onClick={() => dispatch({ type: 'CLEAR_ORDERS' })}
@@ -2413,16 +2477,55 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             fontSize: 12, cursor: state.orders.size > 0 && !isInputDisabled ? 'pointer' : 'default',
           }}
         >
-          全取消
+          {t('battle.clear_all')}
         </button>
 
         {/* スペーサー */}
         <div style={{ flex: 1 }} />
 
-        {/* アクションガイド + ショートカットヒント */}
-        <span style={{ fontSize: 11, color: selectedPiece ? '#94a3b8' : '#555' }}>
-          {selectedPiece ? actionGuide : 'D:ドリブル Q:パス W:シュート Z:戻す Space:確定'}
-        </span>
+        {/* 選択中コマの行動ボタン */}
+        {selectedPiece && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {[
+              { label: t('action.move'), mode: 'move' as ActionMode, color: '#64748B', disabled: selectedPiece.hasBall },
+              { label: t('action.dribble'), shortcut: 'D', mode: 'dribble' as ActionMode, color: '#16A34A', disabled: !selectedPiece.hasBall },
+              { label: t('action.pass'), shortcut: 'Q', mode: 'pass' as ActionMode, color: '#2563EB', disabled: !selectedPiece.hasBall },
+              { label: t('action.through_pass'), shortcut: 'T', mode: 'throughPass' as ActionMode, color: '#0891B2', disabled: !selectedPiece.hasBall },
+              { label: t('action.shoot'), shortcut: 'W', mode: 'shoot' as ActionMode, color: '#DC2626', disabled: !selectedPiece.hasBall },
+              { label: t('action.sub'), shortcut: 'E', mode: 'substitute' as ActionMode, color: '#7C3AED', disabled: false },
+            ].map((item) => {
+              const disabled = isInputDisabled || item.disabled;
+              const active = state.actionMode === item.mode;
+              return (
+                <button
+                  key={item.mode}
+                  onClick={() => {
+                    if (!disabled) handleSetMode(active ? null : item.mode);
+                  }}
+                  disabled={disabled}
+                  style={{
+                    height: 28,
+                    padding: '0 9px',
+                    borderRadius: 6,
+                    border: disabled ? '1px solid transparent' : `1px solid ${item.color}${active ? '' : '88'}`,
+                    background: disabled ? 'rgba(255,255,255,0.04)' : active ? item.color : `${item.color}24`,
+                    color: disabled ? '#555' : '#fff',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: disabled ? 'default' : 'pointer',
+                    boxShadow: active ? `0 0 12px ${item.color}66` : undefined,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {item.shortcut && (
+                    <span style={{ marginLeft: 5, fontSize: 9, opacity: 0.72 }}>{item.shortcut}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ターン確定ボタン */}
         <button
@@ -2440,7 +2543,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             opacity: isInputDisabled ? 0.6 : 1,
           }}
         >
-          {isResolving ? '実行中...' : isWaiting ? '⏳ 相手の入力待ち' : '✓ ターン確定'}
+          {isResolving ? t('battle.confirm_resolving') : isWaiting ? t('battle.confirm_waiting') : t('battle.confirm_turn')}
         </button>
       </div>
     </div>

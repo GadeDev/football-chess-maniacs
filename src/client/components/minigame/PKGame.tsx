@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { PieceData } from '../../types';
 import { POSITION_COLORS } from '../../types';
+import { t, tn } from '../../i18n';
 
 interface PKGameProps {
   isKicker: boolean;
@@ -23,12 +24,12 @@ interface PKGameProps {
 }
 
 const ZONES = [
-  { label: '左上', row: 0, col: 0 },
-  { label: '中上', row: 0, col: 1 },
-  { label: '右上', row: 0, col: 2 },
-  { label: '左下', row: 1, col: 0 },
-  { label: '中下', row: 1, col: 1 },
-  { label: '右下', row: 1, col: 2 },
+  { labelKey: 'course.top_left', row: 0, col: 0 },
+  { labelKey: 'course.top_center', row: 0, col: 1 },
+  { labelKey: 'course.top_right', row: 0, col: 2 },
+  { labelKey: 'course.bottom_left', row: 1, col: 0 },
+  { labelKey: 'course.bottom_center', row: 1, col: 1 },
+  { labelKey: 'course.bottom_right', row: 1, col: 2 },
 ];
 
 export default function PKGame({
@@ -83,25 +84,25 @@ export default function PKGame({
       {/* PK戦スコア */}
       {isPKShootout && shootoutScore && (
         <div style={{ fontSize: 18, fontWeight: 'bold' }}>
-          PK戦 第{shootoutRound}本目 — {shootoutScore.home} - {shootoutScore.away}
+          {tn('pk.shootout_round', shootoutRound ?? 0)} — {shootoutScore.home} - {shootoutScore.away}
         </div>
       )}
 
       <div style={{ fontSize: 24, fontWeight: 'bold', color: countdown <= 2 ? '#ff4444' : '#fff' }}>
-        {isKicker ? 'PK キック！' : 'PK セーブ！'} - {countdown}秒
+        {isKicker ? t('pk.title_kick') : t('pk.title_save')} - {tn('pk.countdown', countdown)}
       </div>
 
       {/* 操作説明 */}
       <div style={{ fontSize: 15, color: '#ffd700', textAlign: 'center' }}>
         {isKicker
-          ? 'ゴールの蹴る方向を選んでください（6ゾーン）'
-          : 'GKが飛ぶ方向を選んでください（6ゾーン）'}
+          ? t('pk.guide_kick')
+          : t('pk.guide_save')}
       </div>
 
       {/* キッカー/GK情報 */}
       <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
-        <span>キッカー: {kickerInfo.position} ★{kickerInfo.cost}</span>
-        <span>GK: {gkInfo.position} ★{gkInfo.cost}</span>
+        <span>{t('pk.kicker_info', { position: kickerInfo.position, cost: kickerInfo.cost })}</span>
+        <span>{t('pk.gk_info', { position: gkInfo.position, cost: gkInfo.cost })}</span>
       </div>
 
       {/* ゴール6ゾーン */}
@@ -135,7 +136,7 @@ export default function PKGame({
               transition: 'all 0.1s',
             }}
           >
-            {zone.label}
+            {t(zone.labelKey)}
           </button>
         ))}
       </div>
@@ -154,7 +155,7 @@ export default function PKGame({
           cursor: submitted || selectedZone === null ? 'default' : 'pointer',
         }}
       >
-        {submitted ? '待機中...' : '確定'}
+        {submitted ? t('pk.waiting') : t('pk.confirm')}
       </button>
     </div>
   );
@@ -181,7 +182,7 @@ export function PKKickerSelect({ pieces, onSubmit, isMobile }: PKKickerSelectPro
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 20 }}>
-      <div style={{ fontSize: 20, fontWeight: 'bold' }}>PK戦 蹴り順を選択</div>
+      <div style={{ fontSize: 20, fontWeight: 'bold' }}>{t('pk.kicker_select_title')}</div>
 
       {/* 蹴り順スロット */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -254,7 +255,7 @@ export function PKKickerSelect({ pieces, onSubmit, isMobile }: PKKickerSelectPro
           cursor: kickerOrder.length === 5 ? 'pointer' : 'default',
         }}
       >
-        確定 ({kickerOrder.length}/5)
+        {tn('pk.confirm_count', kickerOrder.length)}
       </button>
     </div>
   );

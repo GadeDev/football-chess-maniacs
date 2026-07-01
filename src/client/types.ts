@@ -5,6 +5,7 @@
 export type Position = 'GK' | 'DF' | 'SB' | 'VO' | 'MF' | 'OM' | 'WG' | 'FW';
 export type Cost = 1 | 1.5 | 2 | 2.5 | 3;
 export type Team = 'home' | 'away';
+export type FreeBallSource = 'throughPass' | 'loose';
 export type ActionMode = 'move' | 'pass' | 'shoot' | 'dribble' | 'throughPass' | 'substitute' | 'skill' | null;
 
 /** ターン内フェーズ（入力制御に使用） */
@@ -62,6 +63,11 @@ export interface GameState {
   board: {
     pieces: PieceData[];
     freeBallHex?: HexCoord | null;
+    freeBallLastTouchedTeam?: Team | null;
+    freeBallLastTouchedPieceId?: string | null;
+    freeBallSource?: FreeBallSource | null;
+    possessionDelay?: { team: Team | null; count: number } | null;
+    passiveTacticsTeams?: Team[];
   };
   scoreHome: number;
   scoreAway: number;
@@ -169,6 +175,15 @@ export interface MvpInfo {
   tackles: number;
 }
 
+/** リプレイ1ターン分のスナップショット（ReplayScreenが再生する単位） */
+export interface TurnSnapshot {
+  turn: number;
+  pieces: PieceData[];
+  events: GameEvent[];
+  scoreHome: number;
+  scoreAway: number;
+}
+
 /** 試合終了データ（Battle→Result引継ぎ） */
 export interface MatchEndData {
   scoreHome: number;
@@ -177,6 +192,8 @@ export interface MatchEndData {
   reason: 'completed' | 'disconnect';
   stats: MatchStats;
   mvp: MvpInfo | null;
+  /** リプレイ用の全ターン記録（COM対戦でクライアント録画。無い場合あり） */
+  replayTurns?: TurnSnapshot[];
 }
 
 /** マッチメイキングWebSocketメッセージ型 */
