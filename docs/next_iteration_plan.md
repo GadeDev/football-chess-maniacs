@@ -5,7 +5,13 @@
 
 ---
 
-## Phase A: 判定の「成功率」「なぜその結果か」の可視化（最優先）
+## Phase A: 判定の「成功率」「なぜその結果か」の可視化（最優先） — ✅ 完了（2026-07-01）
+
+A1/A2/A3すべて実装済み。テスト711件全通過・型チェッククリーン。
+- A1: `SidePanel.tsx` `formatEvent()` に TACKLE/SHOOT/PASS_CUT/COLLISION の決定的checkの `probability` を「(成功率62%)」形式で追加表示
+- A2: `engine/ball.ts` に `previewShootChainProbability()` を追加（シュート判定チェーンと同じ入力構築を再利用し判定は実行しない純粋関数）。ボール保持コマ選択中は常にPC/モバイル両方のシュートボタンラベルに「シュート 62%」を表示。事前プレビューはシュートのみに絞った（タックルは移動先確定前のZOC停止予測ロジックがクライアントに存在せず、追加コストが見合わないため見送り）
+- A3: `JudgmentResult` に `breakdown?: ProbabilityBreakdown`（コンポーネントの汎用リスト形式: base/position/zoc/distance/course/gk_zoc）を追加。`dice.ts` に `calcProbabilityBreakdown()` を新設し `calcProbability()` はその薄いラッパーに整理（挙動不変）。SidePanelのログをタップすると内訳を展開表示
+- i18nキー追加、全7言語パリティ維持
 
 ### 設計意図
 タックル・シュート・パスカット等の判定は確率制だが、プレイヤーには成功率も判定理由も見えていない。
@@ -91,5 +97,5 @@ C3以降（個別シーンの派手さ）に広げるのが効率的。
 
 ## 未決事項
 
-- [ ] Phase Aの事前プレビュー（A2）は全アクションに出すか、タックル/シュートなど主要判定のみに絞るか
+- [x] Phase Aの事前プレビュー（A2）はシュートのみに絞った（2026-07-01決定・理由は上記Phase A完了メモ参照）
 - [ ] Phase Cの優先順位（C1〜C5のどこまでを今回のスコープにするか）
