@@ -55,90 +55,97 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      minHeight: '100%', padding: '20px 16px', gap: 16, overflowY: 'auto',
+      height: '100%',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0 }}>PROFILE</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>PROFILE</h2>
 
-      {/* ユーザー情報 */}
+      {/* スクロール可能領域: BackButtonはこの外（画面下部）に固定配置 */}
       <div style={{
-        width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
-        borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
+        flex: 1, overflowY: 'auto', width: '100%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+        padding: '16px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.username')}</span>
-          {editingName ? (
-            <input value={userName} onChange={e => setUserName(e.target.value)}
-              onBlur={() => setEditingName(false)} autoFocus
-              style={{ background: '#111', border: '1px solid #444', borderRadius: 4, color: '#fff', padding: '2px 8px', fontSize: 14 }}
-            />
-          ) : (
-            <span onClick={() => setEditingName(true)} style={{ color: '#fff', fontSize: 14, cursor: 'pointer' }}>
-              {userName}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.club_name')}</span>
-          {editingClub ? (
-            <input value={clubName} onChange={e => setClubName(e.target.value)}
-              onBlur={() => setEditingClub(false)} autoFocus
-              style={{ background: '#111', border: '1px solid #444', borderRadius: 4, color: '#fff', padding: '2px 8px', fontSize: 14 }}
-            />
-          ) : (
-            <span onClick={() => setEditingClub(true)} style={{ color: '#fff', fontSize: 14, cursor: 'pointer' }}>
-              {clubName}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rating')}</span>
-          <span style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{elo}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rank')}</span>
-          <span style={{ color: rank.color, fontSize: 14, fontWeight: 'bold' }}>{rank.label}</span>
-        </div>
-      </div>
-
-      {/* 戦績 */}
-      <div style={{
-        width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
-        borderRadius: 12, padding: 16,
-      }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.record')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
-          <StatRow label={t('profile.total_matches')} value={String(total)} />
-          <StatRow label={t('profile.win_rate')} value={`${winRate}%`} />
-          <StatRow label={t('profile.wins')} value={String(wins)} color="#44aa44" />
-          <StatRow label={t('profile.losses')} value={String(losses)} color="#cc4444" />
-          <StatRow label={t('profile.draws')} value={String(draws)} />
-          <StatRow label={t('profile.win_streak')} value={String(bestStreak)} />
-          <StatRow label={t('profile.best_rating')} value={String(bestElo)} />
-          <StatRow label={t('profile.pieces_owned')} value={`${piecesOwned}/200`} />
-        </div>
-      </div>
-
-      {/* 対戦履歴 */}
-      <div style={{
-        width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
-        borderRadius: 12, padding: 16,
-      }}>
-        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.match_history')}</div>
-        {MOCK_HISTORY.map((m, i) => (
-          <div key={i} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '8px 0', borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', fontSize: 13,
-          }}>
-            <span style={{
-              width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-              background: m.won === true ? '#44aa44' : m.won === false ? '#cc4444' : '#888',
-            }} />
-            <span style={{ color: '#ddd', flex: 1, marginLeft: 8 }}>{m.opponent}</span>
-            <span style={{ color: '#aaa', marginRight: 8 }}>{m.scoreHome}-{m.scoreAway}</span>
-            <span style={{ color: '#666', fontSize: 11 }}>{m.date}</span>
+        {/* ユーザー情報 */}
+        <div style={{
+          width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
+          borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.username')}</span>
+            {editingName ? (
+              <input value={userName} onChange={e => setUserName(e.target.value)}
+                onBlur={() => setEditingName(false)} autoFocus
+                style={{ background: '#111', border: '1px solid #444', borderRadius: 4, color: '#fff', padding: '2px 8px', fontSize: 14 }}
+              />
+            ) : (
+              <span onClick={() => setEditingName(true)} style={{ color: '#fff', fontSize: 14, cursor: 'pointer' }}>
+                {userName}
+              </span>
+            )}
           </div>
-        ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.club_name')}</span>
+            {editingClub ? (
+              <input value={clubName} onChange={e => setClubName(e.target.value)}
+                onBlur={() => setEditingClub(false)} autoFocus
+                style={{ background: '#111', border: '1px solid #444', borderRadius: 4, color: '#fff', padding: '2px 8px', fontSize: 14 }}
+              />
+            ) : (
+              <span onClick={() => setEditingClub(true)} style={{ color: '#fff', fontSize: 14, cursor: 'pointer' }}>
+                {clubName}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rating')}</span>
+            <span style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{elo}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#888', fontSize: 12, width: 70 }}>{t('profile.rank')}</span>
+            <span style={{ color: rank.color, fontSize: 14, fontWeight: 'bold' }}>{rank.label}</span>
+          </div>
+        </div>
+
+        {/* 戦績 */}
+        <div style={{
+          width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
+          borderRadius: 12, padding: 16,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.record')}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+            <StatRow label={t('profile.total_matches')} value={String(total)} />
+            <StatRow label={t('profile.win_rate')} value={`${winRate}%`} />
+            <StatRow label={t('profile.wins')} value={String(wins)} color="#44aa44" />
+            <StatRow label={t('profile.losses')} value={String(losses)} color="#cc4444" />
+            <StatRow label={t('profile.draws')} value={String(draws)} />
+            <StatRow label={t('profile.win_streak')} value={String(bestStreak)} />
+            <StatRow label={t('profile.best_rating')} value={String(bestElo)} />
+            <StatRow label={t('profile.pieces_owned')} value={`${piecesOwned}/200`} />
+          </div>
+        </div>
+
+        {/* 対戦履歴 */}
+        <div style={{
+          width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.04)',
+          borderRadius: 12, padding: 16,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 }}>{t('profile.match_history')}</div>
+          {MOCK_HISTORY.map((m, i) => (
+            <div key={i} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '8px 0', borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', fontSize: 13,
+            }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                background: m.won === true ? '#44aa44' : m.won === false ? '#cc4444' : '#888',
+              }} />
+              <span style={{ color: '#ddd', flex: 1, marginLeft: 8 }}>{m.opponent}</span>
+              <span style={{ color: '#aaa', marginRight: 8 }}>{m.scoreHome}-{m.scoreAway}</span>
+              <span style={{ color: '#666', fontSize: 11 }}>{m.date}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <BackButton onClick={() => onNavigate('title')} />

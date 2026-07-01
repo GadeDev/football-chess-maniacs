@@ -246,11 +246,11 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      minHeight: '100%', padding: '20px 16px', gap: 16, overflowY: 'auto',
+      height: '100%',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      {/* ヘッダー: タイトル + インゴット残高 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 460, alignItems: 'center' }}>
+      {/* ヘッダー: タイトル + インゴット残高（BackButtonはスクロール領域の外＝画面下部に固定配置） */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 460, alignItems: 'center', padding: '20px 16px 0' }}>
         <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>SHOP</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
@@ -272,12 +272,12 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         </div>
       </div>
 
-      <div style={{ fontSize: 12, color: '#7a86a8', width: '100%', maxWidth: 460 }}>
+      <div style={{ fontSize: 12, color: '#7a86a8', width: '100%', maxWidth: 460, padding: '8px 16px 0' }}>
         {t('shop.description')}
       </div>
 
       {/* ポジションフィルター */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: '100%', maxWidth: 460 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: '100%', maxWidth: 460, padding: '8px 16px 0' }}>
         {(['ALL', ...ALL_POSITIONS] as const).map((pos) => (
           <button key={pos} onClick={() => setPosFilter(pos)} style={{
             padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
@@ -290,60 +290,66 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         ))}
       </div>
 
-      {/* コマカタログ */}
+      {/* スクロール可能領域: コマカタログ。BackButtonはこの外（画面下部）に固定配置 */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-        gap: 10, width: '100%', maxWidth: 460,
+        flex: 1, overflowY: 'auto', width: '100%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '10px 16px 16px',
       }}>
-        {visible.map((item) => {
-          const price = item.ingotPrice ?? pieceCostToIngots(item.cost);
-          const isSS = item.cost >= 2.5;
-          const isBuying = buyingId === item.pieceId;
-          const affordable = balance === null || balance >= price;
-          // undefined（フォールバック/デモ）は購入可。false のときだけ Platform 未設定で不可。
-          const configured = item.platformConfigured !== false;
-          const canBuy = !item.owned && affordable && configured && buyingId === null;
-          return (
-            <div key={item.pieceId} style={{
-              background: isSS ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.04)',
-              border: isSS ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 12, padding: 12,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            }}>
-              <PieceIcon cost={item.cost} position={item.position} side="ally" />
-              <div style={{ fontSize: 12, color: '#ddd', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
-                {item.name}
-              </div>
-              <div style={{ fontSize: 11, color: isSS ? '#ffd700' : '#8aa', }}>
-                {item.position} · {costToDisplay(item.cost)}
-              </div>
-              {item.owned ? (
-                <div style={{
-                  marginTop: 2, padding: '7px 0', width: '100%', textAlign: 'center',
-                  borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#888',
-                  fontSize: 12, fontWeight: 'bold',
-                }}>
-                  {t('shop.owned')}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+          gap: 10, width: '100%', maxWidth: 460,
+        }}>
+          {visible.map((item) => {
+            const price = item.ingotPrice ?? pieceCostToIngots(item.cost);
+            const isSS = item.cost >= 2.5;
+            const isBuying = buyingId === item.pieceId;
+            const affordable = balance === null || balance >= price;
+            // undefined（フォールバック/デモ）は購入可。false のときだけ Platform 未設定で不可。
+            const configured = item.platformConfigured !== false;
+            const canBuy = !item.owned && affordable && configured && buyingId === null;
+            return (
+              <div key={item.pieceId} style={{
+                background: isSS ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.04)',
+                border: isSS ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 12, padding: 12,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+              }}>
+                <PieceIcon cost={item.cost} position={item.position} side="ally" />
+                <div style={{ fontSize: 12, color: '#ddd', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+                  {item.name}
                 </div>
-              ) : (
-                <button onClick={() => handleBuyPiece(item)} disabled={!canBuy} style={{
-                  marginTop: 2, padding: '7px 0', width: '100%',
-                  borderRadius: 8, border: 'none',
-                  background: canBuy ? (isSS ? '#cc9a00' : '#2563eb') : '#333',
-                  color: canBuy ? '#fff' : '#666',
-                  fontSize: 12, fontWeight: 'bold', cursor: canBuy ? 'pointer' : 'default',
-                }}>
-                  {isBuying ? t('shop.buying') : !configured ? t('shop.unavailable') : `◆ ${price}`}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                <div style={{ fontSize: 11, color: isSS ? '#ffd700' : '#8aa', }}>
+                  {item.position} · {costToDisplay(item.cost)}
+                </div>
+                {item.owned ? (
+                  <div style={{
+                    marginTop: 2, padding: '7px 0', width: '100%', textAlign: 'center',
+                    borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#888',
+                    fontSize: 12, fontWeight: 'bold',
+                  }}>
+                    {t('shop.owned')}
+                  </div>
+                ) : (
+                  <button onClick={() => handleBuyPiece(item)} disabled={!canBuy} style={{
+                    marginTop: 2, padding: '7px 0', width: '100%',
+                    borderRadius: 8, border: 'none',
+                    background: canBuy ? (isSS ? '#cc9a00' : '#2563eb') : '#333',
+                    color: canBuy ? '#fff' : '#666',
+                    fontSize: 12, fontWeight: 'bold', cursor: canBuy ? 'pointer' : 'default',
+                  }}>
+                    {isBuying ? t('shop.buying') : !configured ? t('shop.unavailable') : `◆ ${price}`}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-      {visible.length === 0 && (
-        <div style={{ color: '#666', fontSize: 13, padding: 32 }}>{t('shop.loading')}</div>
-      )}
+        {visible.length === 0 && (
+          <div style={{ color: '#666', fontSize: 13, padding: 32 }}>{t('shop.loading')}</div>
+        )}
+      </div>
 
       <BackButton onClick={() => onNavigate('title')} />
 

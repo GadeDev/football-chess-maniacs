@@ -25,64 +25,71 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      minHeight: '100%', padding: '20px 16px', gap: 16, overflowY: 'auto',
+      height: '100%',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0 }}>SETTINGS</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>SETTINGS</h2>
 
-      <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* アニメーション速度 */}
-        <Section title={t('settings.animation_speed')}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {SPEED_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => update({ animationSpeed: opt.value })} style={{
-                flex: 1, padding: '8px 0', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-                border: settings.animationSpeed === opt.value ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
-                background: settings.animationSpeed === opt.value ? 'rgba(68,136,204,0.2)' : 'transparent',
-                color: settings.animationSpeed === opt.value ? '#4488cc' : '#888',
-              }}>
-                {t(opt.labelKey)} ({opt.value}x)
-              </button>
-            ))}
-          </div>
-        </Section>
+      {/* スクロール可能領域: BackButtonはこの外（画面下部）に固定配置 */}
+      <div style={{
+        flex: 1, overflowY: 'auto', width: '100%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '16px',
+      }}>
+        <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* アニメーション速度 */}
+          <Section title={t('settings.animation_speed')}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {SPEED_OPTIONS.map(opt => (
+                <button key={opt.value} onClick={() => update({ animationSpeed: opt.value })} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+                  border: settings.animationSpeed === opt.value ? '1px solid #4488cc' : '1px solid rgba(255,255,255,0.1)',
+                  background: settings.animationSpeed === opt.value ? 'rgba(68,136,204,0.2)' : 'transparent',
+                  color: settings.animationSpeed === opt.value ? '#4488cc' : '#888',
+                }}>
+                  {t(opt.labelKey)} ({opt.value}x)
+                </button>
+              ))}
+            </div>
+          </Section>
 
-        {/* サウンド */}
-        <Section title={t('settings.sound')}>
-          <ToggleRow label="BGM" checked={settings.bgmEnabled} onChange={v => update({ bgmEnabled: v })} />
-          <ToggleRow label={t('settings.sfx')} checked={settings.sfxEnabled} onChange={v => update({ sfxEnabled: v })} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-            <span style={{ color: '#888', fontSize: 13, width: 50 }}>{t('settings.volume')}</span>
-            <input type="range" min={0} max={100} value={settings.volume}
-              onChange={e => update({ volume: Number(e.target.value) })}
-              style={{ flex: 1, accentColor: '#4488cc' }}
-            />
-            <span style={{ color: '#aaa', fontSize: 12, width: 30, textAlign: 'right' }}>{settings.volume}</span>
-          </div>
-        </Section>
+          {/* サウンド */}
+          <Section title={t('settings.sound')}>
+            <ToggleRow label="BGM" checked={settings.bgmEnabled} onChange={v => update({ bgmEnabled: v })} />
+            <ToggleRow label={t('settings.sfx')} checked={settings.sfxEnabled} onChange={v => update({ sfxEnabled: v })} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+              <span style={{ color: '#888', fontSize: 13, width: 50 }}>{t('settings.volume')}</span>
+              <input type="range" min={0} max={100} value={settings.volume}
+                onChange={e => update({ volume: Number(e.target.value) })}
+                style={{ flex: 1, accentColor: '#4488cc' }}
+              />
+              <span style={{ color: '#aaa', fontSize: 12, width: 30, textAlign: 'right' }}>{settings.volume}</span>
+            </div>
+          </Section>
 
-        {/* 表示設定 */}
-        <Section title={t('settings.display')}>
-          <ToggleRow label={t('settings.always_show_offside_line')} checked={settings.showOffsideLine} onChange={v => update({ showOffsideLine: v })} />
-          <ToggleRow label={t('settings.show_zoc')} checked={settings.showZoc} onChange={v => update({ showZoc: v })} />
-          <ToggleRow label={t('settings.pass_line_warning')} checked={settings.showPassWarning} onChange={v => update({ showPassWarning: v })} />
-        </Section>
+          {/* 表示設定 */}
+          <Section title={t('settings.display')}>
+            <ToggleRow label={t('settings.always_show_offside_line')} checked={settings.showOffsideLine} onChange={v => update({ showOffsideLine: v })} />
+            <ToggleRow label={t('settings.show_zoc')} checked={settings.showZoc} onChange={v => update({ showZoc: v })} />
+            <ToggleRow label={t('settings.pass_line_warning')} checked={settings.showPassWarning} onChange={v => update({ showPassWarning: v })} />
+          </Section>
 
-        {/* その他 */}
-        <Section title={t('settings.other')}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color: '#888', fontSize: 13, flex: 1 }}>{t('settings.language')}</span>
-            <LanguageSelect style={{
-              background: '#1a1a3e', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 4, padding: '4px 8px', fontSize: 13,
-            }} />
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#555' }}>
-            <span>{t('settings.terms')}</span>
-            <span>{t('settings.privacy_policy')}</span>
-            <span>Version 0.9.0 (Phase B)</span>
-          </div>
-        </Section>
+          {/* その他 */}
+          <Section title={t('settings.other')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ color: '#888', fontSize: 13, flex: 1 }}>{t('settings.language')}</span>
+              <LanguageSelect style={{
+                background: '#1a1a3e', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 4, padding: '4px 8px', fontSize: 13,
+              }} />
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#555' }}>
+              <span>{t('settings.terms')}</span>
+              <span>{t('settings.privacy_policy')}</span>
+              <span>Version 0.9.0 (Phase B)</span>
+            </div>
+          </Section>
+        </div>
       </div>
 
       <BackButton onClick={() => onNavigate('title')} />
