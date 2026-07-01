@@ -5,8 +5,7 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page, GameMode, Team, MatchmakingWsMessage, ComDifficulty } from '../types';
-import { getWsBaseUrl } from '../types';
+import { apiUrl, getWsBaseUrl, type Page, type GameMode, type Team, type MatchmakingWsMessage, type ComDifficulty } from '../types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { t } from '../i18n';
 
@@ -24,7 +23,7 @@ interface MatchingProps {
  */
 async function resolveActiveTeamId(token: string): Promise<string> {
   try {
-    const res = await fetch('/api/teams', { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(apiUrl('/api/teams'), { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return 'default';
     const data = (await res.json()) as { teams?: Array<{ id: string; is_active?: boolean }> };
     const teams = data.teams ?? [];
@@ -131,11 +130,9 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
       // サーバーサイドCOM: GameSession DO を作成して接続
       let cancelled = false;
       let matched = false;
-      const baseUrl = viteEnv.VITE_API_BASE ?? '';
-
       (async () => {
         try {
-          const res = await fetch(`${baseUrl}/match/com`, {
+          const res = await fetch(apiUrl('/match/com'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Page, Position, Cost } from '../types';
+import { apiUrl, type Page, type Position, type Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import { t, tn } from '../i18n';
 
@@ -65,7 +65,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
       try {
         const headers: Record<string, string> = {};
         if (authToken) headers.Authorization = `Bearer ${authToken}`;
-        const res = await fetch('/api/shop/catalog?limit=200', { headers });
+        const res = await fetch(apiUrl('/api/shop/catalog?limit=200'), { headers });
         if (!res.ok) throw new Error(`catalog ${res.status}`);
         const data = (await res.json()) as { items: RawCatalogItem[] };
         if (cancelled) return;

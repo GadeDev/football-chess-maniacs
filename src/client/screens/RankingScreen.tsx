@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
-import type { Page } from '../types';
+import { apiUrl, type Page } from '../types';
 import { t } from '../i18n';
 
 interface RankingScreenProps {
@@ -44,7 +44,7 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
       try {
         const headers: Record<string, string> = {};
         if (authToken) headers.Authorization = `Bearer ${authToken}`;
-        const res = await fetch('/api/ranking', { headers });
+        const res = await fetch(apiUrl('/api/ranking'), { headers });
         if (!res.ok) throw new Error(`ranking ${res.status}`);
         const data = (await res.json()) as { top: RankEntry[]; me: RankEntry | null };
         if (cancelled) return;

@@ -11,7 +11,7 @@ import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
-import { POSITION_COLORS, getWsBaseUrl, MAX_ROW } from '../types';
+import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { useGameState } from '../hooks/useGameState';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -111,8 +111,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     maxTurn: number,
   ): Promise<EngineOrder[] | null> => {
     try {
-      const baseUrl = viteEnv.VITE_API_BASE ?? '';
-      const res = await fetch(`${baseUrl}/api/ai/turn`, {
+      const res = await fetch(apiUrl('/api/ai/turn'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

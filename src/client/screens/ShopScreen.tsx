@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import type { Page, Position, Cost } from '../types';
+import { apiUrl, type Page, type Position, type Cost } from '../types';
 import { pieceCostToIngots, costToDisplay } from '../../types/piece';
 import PieceIcon from '../components/board/PieceIcon';
 import { t } from '../i18n';
@@ -93,7 +93,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/shop/wallet', { headers: authHeaders });
+        const res = await fetch(apiUrl('/api/shop/wallet'), { headers: authHeaders });
         if (!res.ok) throw new Error(`wallet ${res.status}`);
         const data = (await res.json()) as { ingots: number };
         if (!cancelled) setBalance(data.ingots);
@@ -111,7 +111,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/shop/ingot-products', { headers: authHeaders });
+        const res = await fetch(apiUrl('/api/shop/ingot-products'), { headers: authHeaders });
         if (!res.ok) throw new Error(`ingot-products ${res.status}`);
         const data = (await res.json()) as { items: IngotProduct[] };
         if (!cancelled) setIngotProducts(Array.isArray(data.items) ? data.items : []);
@@ -129,7 +129,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/shop/catalog?limit=200', { headers: authHeaders });
+        const res = await fetch(apiUrl('/api/shop/catalog?limit=200'), { headers: authHeaders });
         if (!res.ok) throw new Error(`catalog ${res.status}`);
         const data = (await res.json()) as { items: RawCatalogItem[] };
         if (cancelled) return;
@@ -166,7 +166,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     }
     setBuyingId(item.pieceId);
     try {
-      const res = await fetch('/api/shop/purchase', {
+      const res = await fetch(apiUrl('/api/shop/purchase'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ piece_id: item.pieceId }),
@@ -204,7 +204,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     }
     setBuyingIngots(true);
     try {
-      const res = await fetch('/api/shop/ingots', {
+      const res = await fetch(apiUrl('/api/shop/ingots'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({

@@ -205,10 +205,43 @@ export type MatchmakingWsMessage =
   | { type: 'PONG' }
   | { type: 'ERROR'; message: string };
 
-/** WebSocket接続先ベースURL取得（dev: wrangler devポート, prod: 同一オリジン） */
+const PRODUCTION_WORKER_ORIGIN = 'https://football-chess-maniacs.yanagiho.workers.dev';
+const PRODUCTION_PAGES_HOST = 'football-chess-maniacs.pages.dev';
+
+function getViteEnv(): Record<string, string | undefined> {
+  return (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+function isPagesHost(hostname: string): boolean {
+  return hostname === PRODUCTION_PAGES_HOST || hostname.endsWith(`.${PRODUCTION_PAGES_HOST}`);
+}
+
+/** REST API接続先ベースURL取得（dev: wrangler dev、Pages: Worker、Worker配信: 同一オリジン） */
+export function getApiBaseUrl(): string {
+  const configured = getViteEnv().VITE_API_BASE;
+  if (configured) return trimTrailingSlash(configured);
+  if (typeof window === 'undefined') return '';
+  if (window.location.port === '5173') return 'http://localhost:8787';
+  return isPagesHost(window.location.hostname) ? PRODUCTION_WORKER_ORIGIN : '';
+}
+
+/** REST API URLを生成する。pathは /api/... または /match/... を渡す。 */
+export function apiUrl(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${getApiBaseUrl()}${normalizedPath}`;
+}
+
+/** WebSocket接続先ベースURL取得（dev: wrangler dev、Pages: Worker、Worker配信: 同一オリジン） */
 export function getWsBaseUrl(): string {
+  const configured = getViteEnv().VITE_WS_BASE;
+  if (configured) return trimTrailingSlash(configured);
   if (typeof window === 'undefined') return 'ws://localhost:8787';
   if (location.port === '5173') return 'ws://localhost:8787';
+  if (isPagesHost(location.hostname)) return 'wss://football-chess-maniacs.yanagiho.workers.dev';
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${location.host}`;
 }
