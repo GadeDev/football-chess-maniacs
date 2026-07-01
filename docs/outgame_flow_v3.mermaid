@@ -1,0 +1,64 @@
+flowchart TD
+    Start([起動]) --> MyPage
+
+    subgraph MYPAGE["マイページ（自チームハブ）"]
+        MyPage["自チームカード\nエンブレム・チーム名・スタメン概要"]
+        MyPage -->|選手を買う| Shop["ショップ\n選手購入"]
+        MyPage -->|編成する| Formation["編成\nスタメン選択＋配置調整\n（1画面で完結）"]
+        Shop -->|戻る| MyPage
+        Formation -->|確定/戻る| MyPage
+    end
+
+    MyPage -->|対戦へ| BattleType
+
+    BattleType{"対戦タイプを選ぶ"}
+    BattleType -->|COM対戦| ComSetup
+    BattleType -->|オンライン対戦| OnlineSetup
+    BattleType -->|フレンド対戦| FriendSetup
+
+    subgraph COM["COM対戦"]
+        ComSetup["難易度選択\n＋対戦相手プレビュー\n（NPCチーム・エンブレム表示）"]
+    end
+
+    subgraph ONLINE["オンライン対戦"]
+        OnlineSetup["ランク / カジュアル選択"]
+        OnlineSetup --> OnlineQueue["マッチング\n人がいなければBotで補完"]
+    end
+
+    subgraph FRIEND["フレンド対戦"]
+        FriendChoice{"招待する側？\n参加する側？"}
+        FriendChoice -->|招待する| FriendInvite["招待コード / URL発行\n→ コピペで相手に共有"]
+        FriendChoice -->|参加する| FriendJoin["コード or URLを入力して参加"]
+    end
+
+    FriendSetup["フレンド対戦"] --> FriendChoice
+
+    ComSetup --> Matching
+    OnlineQueue --> Matching
+    FriendInvite --> Matching
+    FriendJoin --> Matching
+
+    Matching["マッチング〜合流\n自チーム vs 対戦相手（名前・エンブレム表示）"] --> Battle["対戦画面"]
+    Battle --> Result["リザルト画面"]
+
+    Result -->|もう一度| Matching
+    Result -->|チームを編成し直す| Formation
+    Result -->|マイページへ| MyPage
+
+    subgraph SUB["補助機能（マイページから随時アクセス）"]
+        direction LR
+        Collection["コレクション"]
+        Ranking["ランキング"]
+        Profile["プロフィール"]
+        Replay["リプレイ"]
+        Settings["設定"]
+    end
+
+    MyPage -.->|試合フローとは別軸| SUB
+
+    style MyPage fill:#2a6a2a,color:#fff
+    style Matching fill:#c9920f,color:#1a1a1a
+    style Battle fill:#8a2a2a,color:#fff
+    style ComSetup fill:#3c5a9c,color:#fff
+    style OnlineSetup fill:#3c5a9c,color:#fff
+    style FriendSetup fill:#3c5a9c,color:#fff
