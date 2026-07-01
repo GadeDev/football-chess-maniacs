@@ -238,7 +238,7 @@ public/
 | コード分割（2026-06-28, `b47ec02`） | App.tsxの画面を`React.lazy`+`Suspense`で遅延ロード。単一735kB→画面別チャンク(初期97kB gzip/Battle44.7kB/HexBoard14.7kB…)。タイトル初回ロード約45%削減、>500kB警告解消 | ✅ |
 | ショップ購入テスト（2026-06-28, `a5fcea7`） | `POST /api/shop/purchase`のマネー経路をHono app.request+フェイクD1で検証(7件): ガード付き減算/残高不足402/二重購入409/購入不可400/未認証401 | ✅ |
 | Cloudflare再デプロイ（2026-06-28） | 本セッションのサーバー変更(対人3ブロッカー/選手交代DO/`/api/ranking`新設/レーティング永続化/shop) を Worker(`wrangler deploy`)で本番反映。新規D1マイグレーションなし(既存テーブルのみ)。クライアント(Vite)はPages別運用 | ✅ |
-| INGOT Platform連携 FCMS側（2026-07-01, runbook §6） | ショップ課金をPlatform台帳に接続。`auth.ts`をBearer(game/user/none)認証+Idempotency-Key方式へ移行(レスポンスHMAC廃止)。`/wallet`=Platform残高`GET /v1/commerce/currencies/{game_id}`(障害は502)、`/catalog`=Platform product情報(product_id/ingot_price/is_on_sale/platform_configured)をSKUでマージ(取得失敗は`platform_configured:false`で継続)、`/purchase`=`POST /v1/commerce/items/purchase`(piece_id→SKU→product解決、§6.4エラー変換表、granted_items→`user_pieces_v2`冪等同期)、`/ingots`=product_id/price_id方式のcheckout。Webhookに`currency.granted/revoked`追加。`ShopScreen`は未設定商品の購入ボタンを`shop.unavailable`(7言語)で無効化。テスト計682件パス。正本 docs/fcms_ingot_platform_service_runbook.md。**未了=Platform側(§5/§8手順1〜7)と実機検証(§9.3〜9.5)** | ✅(FCMS側) |
+| INGOT Platform連携（2026-07-01, runbook §6/§8/§9） | ショップ課金をPlatform台帳に接続。`auth.ts`をBearer(game/user/none)認証+Idempotency-Key方式へ移行(レスポンスHMAC廃止)。`/wallet`=Platform残高`GET /v1/commerce/currencies/{game_id}`(障害は502)、`/catalog`=Platform product情報(product_id/ingot_price/is_on_sale/platform_configured)をSKUでマージ(取得失敗は`platform_configured:false`で継続)、`/purchase`=`POST /v1/commerce/items/purchase`(piece_id→SKU→product解決、§6.4エラー変換表、granted_items→`user_pieces_v2`冪等同期)、`/ingots`=product_id/price_id方式のcheckout。Webhookに`currency.granted/revoked`追加。`ShopScreen`は未設定商品の購入ボタンを`shop.unavailable`(7言語)で無効化。Platform本番DBにINGOT pack 3件 + FCMS purchasable piece 188件を投入済み。Worker/Pages本番デプロイ済み。公開API smoke: catalog 188/188 configured、INGOT pack 3件、未ログイン購入系401、Pages/health 200。JWT付き実購入/Stripe checkoutは実ユーザー状態を変更するため未実施。正本 docs/fcms_ingot_platform_service_runbook.md。 | ✅ |
 
 ---
 
@@ -263,15 +263,15 @@ public/
   - `piece_image_prompts.md` — キャラ画像生成プロンプト集
 
 ### ショップ/インゴット（2026-06-04）
-- **⚠️ 2026-07-01 以降は Platform 台帳が正**（残高/購入は Platform 経由。下記の「FCMS D1 で減算」等の記述は移行前の旧仕様。現行の正本は docs/fcms_ingot_platform_service_runbook.md と上表「INGOT Platform連携 FCMS側」を参照）。
+- **⚠️ 2026-07-01 以降は Platform 台帳が正**（残高/購入は Platform 経由。下記の「FCMS D1 で減算」等の記述は移行前の旧仕様。現行の正本は docs/fcms_ingot_platform_service_runbook.md と上表「INGOT Platform連携」を参照）。
 - **2通貨モデル**: コマはインゴット（ゲーム内通貨）で購入。インゴット自体はプラットフォーム決済で購入。
 - **コマ価格**: コスト帯別 1〜3 インゴット（`pieceCostToIngots`: 低=1 / 中=2 / 高=3。`src/types/piece.ts`）
-- **インゴット購入**: `POST /api/shop/ingots` → プラットフォーム `/v1/commerce/purchase` を呼び `checkout_url` を返す。SKU は `fcms_ingots_standard/plus/mega`（`INGOT_SKU_AMOUNTS` = 5/12/30、要プラットフォームカタログ整合）
-- **加算経路**: Platform決済完了 → `entitlement.created` Webhook（`POST /webhook/purchase`、HMAC検証+冪等化）→ `user_wallets.ingots` に加算（インゴットは consumable のため revoke 無視）
-- **コマ購入**: `POST /api/shop/purchase`（サーバー権威）— `user_wallets` をガード付き減算（`ingots >= price`）→ `user_pieces_v2` に付与。付与失敗時はインゴット返金。残高不足は 402、所持済みは 409
-- **残高管理は FCMS の D1**: マイグレーション `0003_ingot_wallet.sql`（`user_wallets` テーブル）。本番反映には `wrangler d1 migrations apply` が必要
-- **クライアント**: `ShopScreen.tsx`（`authToken` prop）— `/api/shop/wallet` で残高、`/api/shop/catalog` でカタログ取得。コマ購入ボタン `◆N`、「+ インゴットを購入」で checkout_url へ遷移
-- **未検証（ユーザー指示で課金検証は後回し）**: 実プラットフォーム接続/JWT付きE2E、インゴットパック数量・SKU名のプラットフォームカタログ整合
+- **インゴット購入**: `POST /api/shop/ingots` → Platform `/v1/commerce/purchase` を呼び `checkout_url` を返す。Platform商品 slug は `fcms_ingot_pack_starter/standard/mega`（付与INGOT 5/12/30、EUR Stripe price）。
+- **加算経路**: Platform決済完了 → `currency.granted` Webhook（`POST /webhook/purchase`、HMAC検証+冪等化）→ FCMS D1 `user_wallets.ingots` は表示/互換キャッシュとして同期。正本はPlatform `game_currency_balances`。
+- **コマ購入**: `POST /api/shop/purchase`（サーバー権威）→ Platform `/v1/commerce/items/purchase`。Platform側でINGOT減算とentitlement付与を原子的に実行し、FCMSは `granted_items` とWebhookで `user_pieces_v2` に冪等同期する。残高不足は 402 `INSUFFICIENT_INGOTS`、所持済みは 409 `ALREADY_OWNED`。
+- **残高管理の正本**: Platform `game_currency_balances`。FCMS D1 `user_wallets` は復旧判断・購入可否の根拠にしない。
+- **クライアント**: `ShopScreen.tsx`（`authToken` prop）— `/api/shop/wallet` でPlatform残高、`/api/shop/catalog` でPlatform product情報つきカタログ取得。`platform_configured=false` の商品は購入不可表示。
+- **本番公開確認（2026-07-01）**: FCMS purchasable piece 188件すべて `platform_configured=true`、INGOT価格分布は 1=86 / 2=81 / 3=21。INGOT pack 3件は `/api/shop/ingot-products` で公開済み。JWT付き実購入/Stripe checkoutは実ユーザー状態を変更するため未実施。
 
 ### 攻撃方向（重要）
 - **home → row 33 方向に攻撃**（ball.ts: `GOAL_ROW.home = 33`）
@@ -755,4 +755,3 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 
 ### 構造的リスク
 - `docs/fcms_spec_v3.md` は §7(判定式)/§8(数値) を「v9.2と同一のため省略」→ 判定式の実数値を検証できる権威ドキュメントが無く、**コードが唯一の真実源**。Unity移植の閾値/補正値も出典欠如の暫定値（`docs/unity_football_chess_rules.md` 自身が実値不明と明記）。spec未確定の値（foul forceFoul閾値等）は勝手に確定しない。
-
