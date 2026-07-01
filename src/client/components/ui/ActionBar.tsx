@@ -17,6 +17,8 @@ interface ActionBarProps {
   orderCount: number;
   remainingSubs: number;
   benchPieces: PieceData[];
+  /** Phase A2: シュートの事前ゴール成功率プレビュー（%、算出不可時はnull） */
+  shootProbability?: number | null;
   onCancelSelection: () => void;
   onRemoveSelectedOrder: () => void;
   onUndo: () => void;
@@ -34,6 +36,7 @@ export default function ActionBar({
   orderCount,
   remainingSubs,
   benchPieces,
+  shootProbability = null,
   onCancelSelection,
   onRemoveSelectedOrder,
   onUndo,
@@ -156,7 +159,7 @@ export default function ActionBar({
             accent="#0891B2"
           />
           <ActionButton
-            label={t('action.shoot')}
+            label={hasBall && shootProbability !== null ? `${t('action.shoot')} ${shootProbability}%` : t('action.shoot')}
             onClick={() => onSetMode(actionMode === 'shoot' ? null : 'shoot')}
             disabled={!hasBall}
             active={actionMode === 'shoot'}

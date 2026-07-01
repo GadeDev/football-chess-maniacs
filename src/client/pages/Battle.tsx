@@ -23,6 +23,7 @@ import { LeftPanel, RightPanel } from '../components/ui/SidePanel';
 import { generateRuleBasedOrders } from '../../ai/rule_based';
 import { processTurn, createBoardContext, hasGoal, getFoulEvent } from '../../engine/turn_processor';
 import { hexKey, hexDistance, buildZocMap, buildZoc2Map } from '../../engine/movement';
+import { previewShootChainProbability } from '../../engine/ball';
 import type {
   Piece as EnginePiece, Board as EngineBoard, Order as EngineOrder,
   ShootEvent, FoulEvent as EngineFoulEvent, GameEvent as EngineGameEvent,
@@ -602,6 +603,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     }
     return result;
   }, [selectedPiece, state.actionMode, state.myTeam, boardContext]);
+
+  // ── Phase A2: シュート事前成功率プレビュー（ボール保持中は常に現在盤面ベースで算出） ──
+  const shootGoalProbability = useMemo(() => {
+    if (!selectedPiece?.hasBall || isInputDisabled) return null;
+    return previewShootChainProbability(state.board.pieces, selectedPiece.id);
+  }, [selectedPiece, isInputDisabled, state.board.pieces]);
 
   // ── A4/A9: ロングパス警告 ──
   const longPassWarnings = useMemo(() => {
@@ -2239,6 +2246,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           orderCount={state.orders.size}
           remainingSubs={remainingSubs}
           benchPieces={myBenchPieces}
+          shootProbability={shootGoalProbability}
           onCancelSelection={() => {
             dispatch({ type: 'SELECT_PIECE', pieceId: null });
           }}
@@ -2493,7 +2501,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               { label: t('action.dribble'), shortcut: 'D', mode: 'dribble' as ActionMode, color: '#16A34A', disabled: !selectedPiece.hasBall },
               { label: t('action.pass'), shortcut: 'Q', mode: 'pass' as ActionMode, color: '#2563EB', disabled: !selectedPiece.hasBall },
               { label: t('action.through_pass'), shortcut: 'T', mode: 'throughPass' as ActionMode, color: '#0891B2', disabled: !selectedPiece.hasBall },
-              { label: t('action.shoot'), shortcut: 'W', mode: 'shoot' as ActionMode, color: '#DC2626', disabled: !selectedPiece.hasBall },
+              {
+                label: selectedPiece.hasBall && shootGoalProbability !== null
+                  ? `${t('action.shoot')} ${shootGoalProbability}%`
+                  : t('action.shoot'),
+                shortcut: 'W', mode: 'shoot' as ActionMode, color: '#DC2626', disabled: !selectedPiece.hasBall,
+              },
               { label: t('action.sub'), shortcut: 'E', mode: 'substitute' as ActionMode, color: '#7C3AED', disabled: false },
             ].map((item) => {
               const disabled = isInputDisabled || item.disabled;

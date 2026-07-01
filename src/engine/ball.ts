@@ -8,7 +8,7 @@
 //   9. パスカット2: 受け手の移動後 ZOC 内に守備コマがいるか判定
 // ============================================================
 
-import { resolveShootChain } from './shoot';
+import { resolveShootChain, blockCheck, savingCheck, shootSuccessCheck, calcShootCourseModifier } from './shoot';
 import { resolvePass } from './pass';
 import {
   buildZocMap,
@@ -149,6 +149,55 @@ function isOnShootCourse(gk: Piece, shootPath: HexCoord[]): boolean {
     if (k === gkKey || gkZocKeys.has(k)) return true;
   }
   return false;
+}
+
+/**
+ * シュート実行前のゴール成功率プレビュー（UI用、判定は実行しない）。
+ * shooterが実際にシュートした場合の現盤面に基づく「①コース②ブロック③セーブ④成功」の合成確率。
+ * ブロック/セーブされた場合はゴールにならないため、P(goal) = (1-Pblock)×(1-Psave)×Psuccess。
+ */
+export function previewShootChainProbability(pieces: Piece[], shooterId: string): number | null {
+  const shooter = pieces.find(p => p.id === shooterId);
+  if (!shooter || !shooter.hasBall) return null;
+
+  const attackTeam  = shooter.team;
+  const defenseTeam: Team = attackTeam === 'home' ? 'away' : 'home';
+  const goal = goalCoord(attackTeam);
+  const gkRaw = findGk(defenseTeam, pieces);
+  const shootPath = hexLinePath(shooter.coord, goal);
+  const gk = gkRaw && isOnShootCourse(gkRaw, shootPath) ? gkRaw : null;
+  const blocker = findBlockerOnPath(shootPath, defenseTeam, pieces);
+
+  const shooterZocKeys = new Set(getZocHexes(shooter.coord).map(hexKey));
+  const defInShooterZoc = pieces.filter(
+    p => p.team === defenseTeam && shooterZocKeys.has(hexKey(p.coord)),
+  ).length;
+
+  const distToGk = gk ? hexDistance(shooter.coord, gk.coord) : 99;
+  const defInGkZoc = gk
+    ? pieces.filter(p =>
+        p.team === defenseTeam &&
+        p.id !== gk.id &&
+        new Set(getZocHexes(gk.coord).map(hexKey)).has(hexKey(p.coord)),
+      ).length
+    : 0;
+  const distToGoal = hexDistance(shooter.coord, goal);
+
+  const blockZocAdj: ZocAdjacency = blocker
+    ? getZocAdjacency(blocker.coord, attackTeam, pieces)
+    : { attackCount: 0, defenseCount: 0 };
+  const savingZocAdj: ZocAdjacency = gk
+    ? getZocAdjacency(gk.coord, attackTeam, pieces)
+    : { attackCount: 0, defenseCount: 0 };
+  const successZocAdj = getZocAdjacency(shooter.coord, attackTeam, pieces);
+
+  const blockProb = blocker ? blockCheck({ blocker, shooter, zoc: blockZocAdj }).probability : 0;
+  const saveProb  = gk ? savingCheck({ gk, shooter, distanceToGk: distToGk, defenderCountInGkZoc: defInGkZoc, zoc: savingZocAdj }).probability : 0;
+  const courseMod = calcShootCourseModifier(defInShooterZoc);
+  const successProb = shootSuccessCheck({ shooter, distanceToGoal: distToGoal, zoc: successZocAdj, courseMod }).probability;
+
+  const goalProb = (1 - blockProb / 100) * (1 - saveProb / 100) * successProb;
+  return Math.round(Math.max(0, Math.min(100, goalProb)));
 }
 
 // ============================================================

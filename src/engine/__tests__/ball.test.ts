@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as diceModule from '../dice';
-import { processBall } from '../ball';
+import { processBall, previewShootChainProbability } from '../ball';
 import type { BoardContext, Cost, HexCoord, Order, Piece, Team } from '../types';
 
 // ── モック設定 ────────────────────────────────────────────────
@@ -105,6 +105,37 @@ describe('シュート命令', () => {
     const acquired = result.events.find(e => e.type === 'BALL_ACQUIRED');
     expect(acquired).toBeDefined();
     expect((acquired as any).pieceId).toBe('bl1');
+  });
+});
+
+// ============================================================
+// シュート事前プレビュー（previewShootChainProbability）
+// ============================================================
+describe('シュート事前プレビュー', () => {
+  it('ボール非保持コマは null', () => {
+    const notHolding = { ...shooter, hasBall: false };
+    expect(previewShootChainProbability([notHolding], 'fw1')).toBeNull();
+  });
+
+  it('GK・ブロッカーなし → shootSuccessCheckの確率がそのまま反映される', () => {
+    const gkOffCourse = makePiece({ id: 'gk1', position: 'GK', cost: 2 as Cost, team: 'away' as Team, coord: { col: 0, row: 32 } });
+    mockJudge.mockReturnValueOnce(ok(80)); // ④ shootSuccess のみ呼ばれる
+    const pieces = [{ ...shooter }, gkOffCourse];
+
+    expect(previewShootChainProbability(pieces, 'fw1')).toBe(80);
+    expect(mockJudge).toHaveBeenCalledTimes(1);
+  });
+
+  it('GKがコース上（ブロッカー兼） → P(goal) = (1-block%)×(1-save%)×success%', () => {
+    mockJudge
+      .mockReturnValueOnce(ok(30)) // ② block
+      .mockReturnValueOnce(ok(50)) // ③ saving
+      .mockReturnValueOnce(ok(80)); // ④ shootSuccess
+    const pieces = [{ ...shooter }, { ...gk }];
+
+    // (1-0.3)×(1-0.5)×80 = 28
+    expect(previewShootChainProbability(pieces, 'fw1')).toBe(28);
+    expect(mockJudge).toHaveBeenCalledTimes(3);
   });
 });
 
