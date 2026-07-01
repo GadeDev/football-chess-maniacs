@@ -460,6 +460,7 @@ const pt: Dict = {
 
   // ----- formation screen (formation.*) -----
   'formation.title': 'Escalação',
+  'formation.team_name_label': 'Nome do time',
   'formation.cost_ratio': 'Custo: {cost}/{max}',
   'formation.starters_ratio': 'Titulares: {count}/{max}',
   'formation.bench_ratio': 'Reservas: {count}/{max}',

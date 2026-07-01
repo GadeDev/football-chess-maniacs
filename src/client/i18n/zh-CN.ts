@@ -461,6 +461,7 @@ const zhCN: Dict = {
 
   // ----- 編成画面(formation.*) -----
   'formation.title': '阵容',
+  'formation.team_name_label': '队伍名称',
   'formation.cost_ratio': '费用: {cost}/{max}',
   'formation.starters_ratio': '首发: {count}/{max}',
   'formation.bench_ratio': '替补: {count}/{max}',

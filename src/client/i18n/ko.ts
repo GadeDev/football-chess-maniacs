@@ -461,6 +461,7 @@ const ko: Dict = {
 
   // ----- 編成画面(formation.*) -----
   'formation.title': '편성',
+  'formation.team_name_label': '팀 이름',
   'formation.cost_ratio': '코스트: {cost}/{max}',
   'formation.starters_ratio': '주전: {count}/{max}',
   'formation.bench_ratio': '서브: {count}/{max}',

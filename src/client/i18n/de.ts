@@ -460,6 +460,7 @@ const de: Dict = {
 
   // ----- 編成画面(formation.*) -----
   'formation.title': 'Kader',
+  'formation.team_name_label': 'Teamname',
   'formation.cost_ratio': 'Kosten: {cost}/{max}',
   'formation.starters_ratio': 'Startelf: {count}/{max}',
   'formation.bench_ratio': 'Ersatz: {count}/{max}',

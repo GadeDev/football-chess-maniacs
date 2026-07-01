@@ -190,6 +190,9 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
   // 手持ちコマ（本来はサーバーから取得）
   const [owned] = useState<OwnedPiece[]>(createInitialOwned);
 
+  // チーム名（Phase B1: 未入力/空白のみは既定で t('team.default_name') にフォールバック）
+  const [teamName, setTeamName] = useState('');
+
   // スタメン・サブ
   const [starters, setStarters] = useState<StarterPiece[]>(() => applyPreset('4-4-2', createInitialOwned()));
   const [bench, setBench] = useState<OwnedPiece[]>([]);
@@ -381,6 +384,8 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
         onBack={() => onNavigate('title')}
         isPremium={isPremium}
         premiumMessage={premiumMessage}
+        teamName={teamName}
+        onTeamNameChange={setTeamName}
       />
 
       {/* ═══ メインエリア ═══ */}
@@ -446,6 +451,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
                 bench: bench.map(b => ({
                   id: b.id, position: b.position, cost: b.cost, col: 0, row: 0,
                 })),
+                teamName: teamName.trim() || undefined,
                 origin: 'custom',
               });
             } else {
@@ -480,15 +486,30 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
 
 // ── ヘッダー ──
 
-function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onBack, isPremium, premiumMessage }: {
+function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onBack, isPremium, premiumMessage, teamName, onTeamNameChange }: {
   totalCost: number; starterCount: number; benchCount: number; hasGK: boolean;
   currentPreset: string; onPresetChange: (k: string) => void; onShowSlots: () => void; onBack: () => void;
   isPremium: boolean; premiumMessage: boolean;
+  teamName: string; onTeamNameChange: (name: string) => void;
 }) {
   const costOver = totalCost > MAX_FIELD_COST;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>{t('formation.title')}</h2>
+
+      {/* Phase B1: チーム名入力 */}
+      <input
+        type="text"
+        value={teamName}
+        onChange={e => onTeamNameChange(e.target.value)}
+        placeholder={t('team.default_name')}
+        maxLength={16}
+        aria-label={t('formation.team_name_label')}
+        style={{
+          padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)',
+          background: '#1e293b', color: '#e2e8f0', fontSize: 13, width: 140,
+        }}
+      />
 
       {/* ステータスバッジ */}
       <span style={{ fontSize: 13, color: costOver ? '#ef4444' : '#4ade80', fontWeight: 600 }}>

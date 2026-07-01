@@ -461,6 +461,7 @@ const ja: Dict = {
 
   // ----- 編成画面(formation.*) -----
   'formation.title': '編成',
+  'formation.team_name_label': 'チーム名',
   'formation.cost_ratio': 'コスト: {cost}/{max}',
   'formation.starters_ratio': 'スタメン: {count}/{max}',
   'formation.bench_ratio': 'サブ: {count}/{max}',
