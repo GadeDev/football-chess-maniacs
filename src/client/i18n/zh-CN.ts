@@ -19,8 +19,10 @@ const zhCN: Dict = {
   'team.default_name': '我的球队',
   'team.starters_summary': '首发{count}人・费用{cost}',
   'team.go_to_battle': '前往对战',
-  'team.quick_match_formed': '使用上次阵容对战',
-  'team.quick_match_unformed': '立即对战',
+  'team.quick_match_com': 'COM对战',
+  'team.quick_match_online': '随机对战',
+  'team.quick_match_formed_hint': '使用上次阵容',
+  'team.quick_match_unformed_hint': '使用随机队伍',
   'team.opponent_label': '对手：',
   'team.era_label': '（Era{era}）',
 

@@ -18,8 +18,10 @@ const pt: Dict = {
   'team.default_name': 'Meu Time',
   'team.starters_summary': '{count} titulares · Custo {cost}',
   'team.go_to_battle': 'Ir para a partida',
-  'team.quick_match_formed': 'Jogar com a última escalação',
-  'team.quick_match_unformed': 'Jogar agora',
+  'team.quick_match_com': 'Partida contra COM',
+  'team.quick_match_online': 'Partida aleatória',
+  'team.quick_match_formed_hint': 'Com sua última escalação',
+  'team.quick_match_unformed_hint': 'Com um time aleatório',
   'team.opponent_label': 'Adversário:',
   'team.era_label': '(Era {era})',
 

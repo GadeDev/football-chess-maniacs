@@ -19,8 +19,10 @@ const ja: Dict = {
   'team.default_name': 'マイチーム',
   'team.starters_summary': 'スタメン{count}人・コスト{cost}',
   'team.go_to_battle': '対戦へ',
-  'team.quick_match_formed': '前回の編成で対戦',
-  'team.quick_match_unformed': '今すぐ対戦',
+  'team.quick_match_com': 'COM対戦',
+  'team.quick_match_online': 'ランダム対戦',
+  'team.quick_match_formed_hint': '前回の編成で',
+  'team.quick_match_unformed_hint': 'ランダムなチームで',
   'team.opponent_label': '対戦相手：',
   'team.era_label': '（Era{era}）',
 

@@ -12,11 +12,13 @@ interface TitleProps {
   onNavigate: (page: Page) => void;
   /** 前回の対戦設定（自チームカードの表示に使用） */
   lastSetup?: LastSetup | null;
-  /** T11: ワンクリック対戦（編成済みなら前回の編成で、未編成ならランダムNPCチームで即マッチングへ） */
+  /** T11/T12: 「COM対戦」ボタン（編成済みなら前回の編成で、未編成ならランダムNPCチームで即マッチングへ、常にmode='com'固定） */
   onQuickMatch: () => void;
+  /** T12: 「ランダム対戦」ボタン（対戦タイプ選択を経由せずオンライン/カジュアルへ直行。未ログイン時はログイン誘導） */
+  onQuickOnlineMatch: () => void;
 }
 
-export default function Title({ onNavigate, lastSetup, onQuickMatch }: TitleProps) {
+export default function Title({ onNavigate, lastSetup, onQuickMatch, onQuickOnlineMatch }: TitleProps) {
   return (
     <div
       style={{
@@ -52,9 +54,10 @@ export default function Title({ onNavigate, lastSetup, onQuickMatch }: TitleProp
       {/* T10c: ゲスト/ログイン状態表示 + ログイン導線 */}
       <AuthStatusBar />
 
-      {/* 自チームカード（マイページハブ）— 試合を始める入口はここの「対戦へ」のみ。
+      {/* 自チームカード（マイページハブ）— T12: 試合を始める主入口は「COM対戦」「ランダム対戦」の2大ボタン
+          （マイページ最上位から1クリックで完結）。「対戦へ」は設定を変えたい人向けの控えめなリンクとして残す。
           T9a: エンブレム/チーム名を画面の主役として大きく中央配置する */}
-      <TeamCard lastSetup={lastSetup} onNavigate={onNavigate} onQuickMatch={onQuickMatch} />
+      <TeamCard lastSetup={lastSetup} onNavigate={onNavigate} onQuickMatch={onQuickMatch} onQuickOnlineMatch={onQuickOnlineMatch} />
 
       {/* 補助機能（試合フローとは別軸）— T9c: 3列×2行の均等グリッド */}
       <div style={{
@@ -116,16 +119,18 @@ function TeamCard({
   lastSetup,
   onNavigate,
   onQuickMatch,
+  onQuickOnlineMatch,
 }: {
   lastSetup?: LastSetup | null;
   onNavigate: (page: Page) => void;
   onQuickMatch: () => void;
+  onQuickOnlineMatch: () => void;
 }) {
   const teamName = resolveTeamName(lastSetup?.teamName);
   const teamEmoji = lastSetup?.teamEmoji || '⚽';
   const starters = lastSetup?.formationData?.starters ?? [];
   const totalCost = starters.reduce((sum, p) => sum + p.cost, 0);
-  // T11: 一度でも編成を確定していれば「前回の編成で対戦」、初回/未編成なら「今すぐ対戦」（毎回ランダムNPCチーム）
+  // T11: 一度でも編成を確定していれば「前回の編成で」、初回/未編成なら「ランダムなNPCチームで」対戦する
   const isFormed = !!lastSetup?.formationData;
 
   return (
@@ -165,7 +170,20 @@ function TeamCard({
         {t('team.starters_summary', { count: String(starters.length), cost: String(totalCost) })}
       </div>
 
+      {/* T12: マイページ最上位に同格の大ボタンを2つ配置（COM対戦/ランダム対戦、スクロール・追加クリックなしで実行可能） */}
       <div style={{ display: 'flex', gap: 8, marginTop: 18, width: '100%' }}>
+        <button onClick={onQuickMatch} style={{ ...teamCardBtnStyle(true), display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0', gap: 2 }}>
+          <span style={{ fontSize: 15 }}>{t('team.quick_match_com')}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.75 }}>
+            {isFormed ? t('team.quick_match_formed_hint') : t('team.quick_match_unformed_hint')}
+          </span>
+        </button>
+        <button onClick={onQuickOnlineMatch} style={{ ...teamCardBtnStyle(true), padding: '12px 0', fontSize: 15 }}>
+          {t('team.quick_match_online')}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, width: '100%' }}>
         <button onClick={() => onNavigate('shop')} style={teamCardBtnStyle()}>
           {t('title.shop')}
         </button>
@@ -173,12 +191,11 @@ function TeamCard({
           {t('title.edit_formation')}
         </button>
       </div>
-      {/* T11: ワンクリック対戦（編成済み=前回の編成 / 未編成=毎回ランダムなNPCチーム） */}
-      <button onClick={onQuickMatch} style={{ ...teamCardBtnStyle(true), width: '100%', marginTop: 8, padding: '12px 0', fontSize: 15 }}>
-        {isFormed ? t('team.quick_match_formed') : t('team.quick_match_unformed')}
-      </button>
-      {/* T9b: 設定を変えたい時用に対戦タイプ選択画面への遷移も維持 */}
-      <button onClick={() => onNavigate('modeSelect')} style={{ ...teamCardBtnStyle(), width: '100%', marginTop: 6, padding: '9px 0', fontSize: 13 }}>
+      {/* T12: フレンド対戦・ランク戦・COM観戦・難易度変更など、あえて選びたい人向けの控えめなリンクとして残す */}
+      <button onClick={() => onNavigate('modeSelect')} style={{
+        marginTop: 10, background: 'none', border: 'none', color: '#888',
+        fontSize: 12, textDecoration: 'underline', cursor: 'pointer',
+      }}>
         {t('team.go_to_battle')}
       </button>
     </div>

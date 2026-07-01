@@ -35,6 +35,7 @@ import { pickNpcOpponent, pickRandomNpcTeam } from '../data/presetTeams';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 import { useLocale } from './i18n/useLocale';
+import { t } from './i18n';
 
 /** PresetTeam（NPC_TEAMS由来）をFormationDataへ変換する（自チーム割当・プリセット選択の両方で使用） */
 function presetTeamToFormationData(team: PresetTeam): FormationData {
@@ -81,7 +82,7 @@ function AppShell() {
   useLocale(); // ロケール変更時にルートから再描画し、全画面の t()/tn() 表示を更新する
 
   // JWT認証トークン: AuthProvider が Universo SSO fragment 消費 / ログインモーダル / localStorage を一元管理する
-  const { accessToken: authToken } = useAuth();
+  const { accessToken: authToken, isLoggedIn, requireLogin } = useAuth();
 
   const [page, setPage] = useState<Page>('title');
   const [matchId, setMatchId] = useState<string | null>(null);
@@ -165,17 +166,29 @@ function AppShell() {
     [startMatch, gameMode, comDifficulty, pendingOpponent],
   );
 
-  // T11: マイページのワンクリック対戦。編成済みなら前回の編成でそのまま対戦、
-  // 未編成なら顔のあるNPCチームを毎回ランダムに1つ自チームとして割り当てて対戦へ直行する
+  // T11/T12: マイページの「COM対戦」ワンクリックボタン。編成済みなら前回の編成でそのまま対戦、
+  // 未編成なら顔のあるNPCチームを毎回ランダムに1つ自チームとして割り当てて対戦へ直行する。
+  // T12でのバグ修正: モードは常に'com'固定（lastSetup.gameModeがオンライン系だと、
+  // ワンクリックのはずが待機マッチングに化けてしまう不具合があったため引き継がない）
   const handleQuickMatch = useCallback(() => {
     if (lastSetup?.formationData) {
-      startMatch(lastSetup.gameMode, lastSetup.comDifficulty, lastSetup.formationData);
+      startMatch('com', lastSetup.comDifficulty, lastSetup.formationData);
     } else {
       const opponent = pickNpcOpponent(comDifficulty);
       const myTeamPreset = pickRandomNpcTeam(opponent.id);
       startMatch('com', comDifficulty, presetTeamToFormationData(myTeamPreset), opponent, true);
     }
   }, [lastSetup, comDifficulty, startMatch]);
+
+  // T12: マイページの「ランダム対戦」ワンクリックボタン。対戦タイプ選択を経由せずオンライン(カジュアル)へ直行する。
+  // 未ログイン時はModeSelectのオンライン導線と同様にログインモーダルへ誘導する
+  const handleQuickOnlineMatch = useCallback(() => {
+    if (!isLoggedIn) {
+      requireLogin(t('modeselect.online_type'));
+      return;
+    }
+    startMatch('casual', comDifficulty, formationData);
+  }, [isLoggedIn, requireLogin, startMatch, comDifficulty, formationData]);
 
   // サーバーサイドCOM用のトークン（POST /match/com が返すuserId）
   const [comAuthToken, setComAuthToken] = useState<string | null>(null);
@@ -241,7 +254,7 @@ function AppShell() {
           </div>
         }>
         {page === 'title' && (
-          <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
+          <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} onQuickOnlineMatch={handleQuickOnlineMatch} />
         )}
         {page === 'modeSelect' && (
           <ModeSelect

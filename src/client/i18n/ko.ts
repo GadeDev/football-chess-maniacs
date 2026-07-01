@@ -19,8 +19,10 @@ const ko: Dict = {
   'team.default_name': '마이팀',
   'team.starters_summary': '선발 {count}명 · 코스트 {cost}',
   'team.go_to_battle': '대전으로',
-  'team.quick_match_formed': '저번 편성으로 대전',
-  'team.quick_match_unformed': '지금 바로 대전',
+  'team.quick_match_com': 'COM 대전',
+  'team.quick_match_online': '랜덤 대전',
+  'team.quick_match_formed_hint': '저번 편성으로',
+  'team.quick_match_unformed_hint': '랜덤 팀으로',
   'team.opponent_label': '상대:',
   'team.era_label': '(Era{era})',
 

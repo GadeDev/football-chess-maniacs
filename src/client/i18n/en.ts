@@ -18,8 +18,10 @@ const en: Dict = {
   'team.default_name': 'My Team',
   'team.starters_summary': '{count} starters · Cost {cost}',
   'team.go_to_battle': 'Battle',
-  'team.quick_match_formed': 'Play with last squad',
-  'team.quick_match_unformed': 'Play now',
+  'team.quick_match_com': 'COM Match',
+  'team.quick_match_online': 'Random Match',
+  'team.quick_match_formed_hint': 'With your last squad',
+  'team.quick_match_unformed_hint': 'With a random team',
   'team.opponent_label': 'Opponent:',
   'team.era_label': '(Era {era})',
 

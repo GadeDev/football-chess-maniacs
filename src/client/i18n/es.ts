@@ -18,8 +18,10 @@ const es: Dict = {
   'team.default_name': 'Mi Equipo',
   'team.starters_summary': '{count} titulares · Coste {cost}',
   'team.go_to_battle': 'Ir a jugar',
-  'team.quick_match_formed': 'Jugar con la última plantilla',
-  'team.quick_match_unformed': 'Jugar ahora',
+  'team.quick_match_com': 'Partido COM',
+  'team.quick_match_online': 'Partido aleatorio',
+  'team.quick_match_formed_hint': 'Con tu última plantilla',
+  'team.quick_match_unformed_hint': 'Con un equipo aleatorio',
   'team.opponent_label': 'Rival:',
   'team.era_label': '(Era {era})',
 
