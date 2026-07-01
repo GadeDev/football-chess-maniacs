@@ -6,6 +6,9 @@
 
 import React, { useEffect, useRef } from 'react';
 
+const reducedMotion =
+  typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export interface FlyingBallData {
   fromX: number;
   fromY: number;
@@ -64,6 +67,19 @@ export default function FlyingBall({ data, onComplete }: FlyingBallProps) {
     : data.type === 'throughPass' ? 'rgba(0,210,210,0.6)'
     : 'rgba(60,140,255,0.6)';
 
+  // ── C1: 進行方向の光の尾（シュートは長く太く、パスは控えめ、ドリブルはなし）──
+  const angleDeg = Math.atan2(data.toY - data.fromY, data.toX - data.fromX) * 180 / Math.PI;
+  const trail = reducedMotion ? null : data.type === 'shoot'
+    ? { length: 42, thickness: 5 }
+    : data.type === 'throughPass'
+    ? { length: 30, thickness: 4 }
+    : data.type === 'pass'
+    ? { length: 22, thickness: 3 }
+    : null; // dribble は地上を転がるため軌跡なし
+
+  // ── C2: スルーパス（ロブ系）はふわっと山なりの弧を描く ──
+  const isLobbed = !reducedMotion && data.type === 'throughPass';
+
   return (
     <div
       ref={elRef}
@@ -76,14 +92,36 @@ export default function FlyingBall({ data, onComplete }: FlyingBallProps) {
         filter: `drop-shadow(0 0 12px ${glowColor})`,
       }}
     >
-      <style>{`@keyframes fcms-ball-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      <svg width={SZ} height={SZ} viewBox={`0 0 ${SZ} ${SZ}`} style={{ animation: 'fcms-ball-spin 0.5s linear infinite' }}>
-        <circle cx={HALF} cy={HALF} r={HALF - 1} fill="white" stroke="#333" strokeWidth={1} />
-        {Array.from({ length: 5 }, (_, i) => {
-          const a = ((i * 72 - 90) * Math.PI) / 180;
-          return <circle key={i} cx={HALF + 6 * Math.cos(a)} cy={HALF + 6 * Math.sin(a)} r={2} fill="#333" />;
-        })}
-      </svg>
+      <style>{`
+        @keyframes fcms-ball-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes fcms-ball-arc{0%{transform:translateY(0)}50%{transform:translateY(-22px)}100%{transform:translateY(0)}}
+      `}</style>
+      {trail && (
+        <div
+          style={{
+            position: 'absolute',
+            left: HALF,
+            top: HALF - trail.thickness / 2,
+            width: trail.length,
+            height: trail.thickness,
+            transformOrigin: '0 50%',
+            transform: `rotate(${angleDeg + 180}deg)`,
+            background: `linear-gradient(to right, ${glowColor}, transparent)`,
+            borderRadius: trail.thickness / 2,
+          }}
+        />
+      )}
+      <div
+        style={isLobbed ? { animation: `fcms-ball-arc ${data.durationMs}ms ease-in-out 1` } : undefined}
+      >
+        <svg width={SZ} height={SZ} viewBox={`0 0 ${SZ} ${SZ}`} style={{ animation: 'fcms-ball-spin 0.5s linear infinite' }}>
+          <circle cx={HALF} cy={HALF} r={HALF - 1} fill="white" stroke="#333" strokeWidth={1} />
+          {Array.from({ length: 5 }, (_, i) => {
+            const a = ((i * 72 - 90) * Math.PI) / 180;
+            return <circle key={i} cx={HALF + 6 * Math.cos(a)} cy={HALF + 6 * Math.sin(a)} r={2} fill="#333" />;
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
