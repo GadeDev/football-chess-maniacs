@@ -18,6 +18,8 @@ const pt: Dict = {
   'team.default_name': 'Meu Time',
   'team.starters_summary': '{count} titulares · Custo {cost}',
   'team.go_to_battle': 'Ir para a partida',
+  'team.quick_match_formed': 'Jogar com a última escalação',
+  'team.quick_match_unformed': 'Jogar agora',
   'team.opponent_label': 'Adversário:',
   'team.era_label': '(Era {era})',
 
@@ -139,6 +141,7 @@ const pt: Dict = {
   'result.stat_corner_kicks': 'Escanteios',
   'result.watch_replay': 'Ver replay',
   'result.change_formation': 'Mudar escalação',
+  'result.formation_banner': 'Gostou desse time? Tente montar sua própria escalação.',
 
   // ----- replay (replay.*) -----
   'replay.back': '← Voltar',

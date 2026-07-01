@@ -17,6 +17,8 @@ interface ResultScreenProps {
   mvp: MvpInfo | null;
   gameMode: 'ranked' | 'casual' | 'com' | 'comVsCom';
   onNavigate: (page: Page) => void;
+  /** T11: 未編成プレイヤーがワンクリック対戦（今すぐ対戦）を使った試合後にのみ、編成への軽い案内を表示 */
+  showFormationBanner?: boolean;
 }
 
 const STAT_ROWS: { labelKey: string; key: keyof MatchStats }[] = [
@@ -40,7 +42,7 @@ function formatStat(stats: MatchStats, key: keyof MatchStats, team: 'home' | 'aw
 }
 
 export default function ResultScreen({
-  scoreHome, scoreAway, myTeam, reason, stats, mvp, gameMode, onNavigate,
+  scoreHome, scoreAway, myTeam, reason, stats, mvp, gameMode, onNavigate, showFormationBanner = false,
 }: ResultScreenProps) {
   const myScore = myTeam === 'home' ? scoreHome : scoreAway;
   const opScore = myTeam === 'home' ? scoreAway : scoreHome;
@@ -123,6 +125,17 @@ export default function ResultScreen({
           </tbody>
         </table>
       </div>
+
+      {/* T11: 未編成プレイヤーが「今すぐ対戦」を使った直後のみ、押し付けない編成誘導バナーを表示 */}
+      {showFormationBanner && gameMode === 'com' && (
+        <div style={{
+          width: '100%', maxWidth: 360, padding: '10px 16px', borderRadius: 10,
+          background: 'rgba(255,214,0,0.08)', border: '1px solid rgba(255,214,0,0.25)',
+          color: '#ffd700', fontSize: 13, textAlign: 'center',
+        }}>
+          {t('result.formation_banner')}
+        </div>
+      )}
 
       {/* ボタン */}
       <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>

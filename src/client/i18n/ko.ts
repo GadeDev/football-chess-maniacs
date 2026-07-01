@@ -19,6 +19,8 @@ const ko: Dict = {
   'team.default_name': '마이팀',
   'team.starters_summary': '선발 {count}명 · 코스트 {cost}',
   'team.go_to_battle': '대전으로',
+  'team.quick_match_formed': '저번 편성으로 대전',
+  'team.quick_match_unformed': '지금 바로 대전',
   'team.opponent_label': '상대:',
   'team.era_label': '(Era{era})',
 
@@ -140,6 +142,7 @@ const ko: Dict = {
   'result.stat_corner_kicks': '코너킥',
   'result.watch_replay': '리플레이 보기',
   'result.change_formation': '편성 변경',
+  'result.formation_banner': '마음에 드는 팀이 있다면 편성해볼까요?',
 
   // ----- リプレイ画面(replay.*) -----
   'replay.back': '← 뒤로',

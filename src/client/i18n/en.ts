@@ -18,6 +18,8 @@ const en: Dict = {
   'team.default_name': 'My Team',
   'team.starters_summary': '{count} starters · Cost {cost}',
   'team.go_to_battle': 'Battle',
+  'team.quick_match_formed': 'Play with last squad',
+  'team.quick_match_unformed': 'Play now',
   'team.opponent_label': 'Opponent:',
   'team.era_label': '(Era {era})',
 
@@ -139,6 +141,7 @@ const en: Dict = {
   'result.stat_corner_kicks': 'Corner Kicks',
   'result.watch_replay': 'Watch Replay',
   'result.change_formation': 'Change Formation',
+  'result.formation_banner': 'Liked this team? Try building your own squad.',
 
   // ----- replay (replay.*) -----
   'replay.back': '← Back',

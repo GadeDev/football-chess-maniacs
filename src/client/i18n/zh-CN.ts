@@ -19,6 +19,8 @@ const zhCN: Dict = {
   'team.default_name': '我的球队',
   'team.starters_summary': '首发{count}人・费用{cost}',
   'team.go_to_battle': '前往对战',
+  'team.quick_match_formed': '使用上次阵容对战',
+  'team.quick_match_unformed': '立即对战',
   'team.opponent_label': '对手：',
   'team.era_label': '（Era{era}）',
 
@@ -140,6 +142,7 @@ const zhCN: Dict = {
   'result.stat_corner_kicks': '角球',
   'result.watch_replay': '观看回放',
   'result.change_formation': '更改阵容',
+  'result.formation_banner': '喜欢这支队伍吗？试着编组自己的阵容吧。',
 
   // ----- リプレイ画面(replay.*) -----
   'replay.back': '← 返回',

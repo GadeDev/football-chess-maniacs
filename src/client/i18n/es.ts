@@ -18,6 +18,8 @@ const es: Dict = {
   'team.default_name': 'Mi Equipo',
   'team.starters_summary': '{count} titulares · Coste {cost}',
   'team.go_to_battle': 'Ir a jugar',
+  'team.quick_match_formed': 'Jugar con la última plantilla',
+  'team.quick_match_unformed': 'Jugar ahora',
   'team.opponent_label': 'Rival:',
   'team.era_label': '(Era {era})',
 
@@ -139,6 +141,7 @@ const es: Dict = {
   'result.stat_corner_kicks': 'Saques de esquina',
   'result.watch_replay': 'Ver repetición',
   'result.change_formation': 'Cambiar formación',
+  'result.formation_banner': '¿Te gustó este equipo? Prueba a crear tu propia plantilla.',
 
   // ----- replay (replay.*) -----
   'replay.back': '← Atrás',

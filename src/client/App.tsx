@@ -31,10 +31,27 @@ const PresetTeamsScreen = lazy(() => import('./screens/PresetTeamsScreen'));
 const ReplayScreen = lazy(() => import('./screens/ReplayScreen'));
 
 import type { PresetTeam } from '../data/presetTeams';
-import { pickNpcOpponent } from '../data/presetTeams';
+import { pickNpcOpponent, pickRandomNpcTeam } from '../data/presetTeams';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 import { useLocale } from './i18n/useLocale';
+
+/** PresetTeam（NPC_TEAMS由来）をFormationDataへ変換する（自チーム割当・プリセット選択の両方で使用） */
+function presetTeamToFormationData(team: PresetTeam): FormationData {
+  return {
+    starters: team.pieces.map((piece) => ({
+      id: `preset-${team.id}-${piece.pieceId}`,
+      position: piece.position,
+      cost: piece.cost,
+      col: piece.col,
+      row: MAX_ROW - piece.row,
+    })),
+    bench: [],
+    teamName: team.name,
+    teamEmoji: team.emoji,
+    origin: 'preset',
+  };
+}
 
 
 /** デフォルトの空スタッツ */
@@ -87,31 +104,38 @@ function AppShell() {
 
   // 前回の対戦設定（速い層）。タイトルの「前回の編成で対戦」で復元
   const [lastSetup, setLastSetup] = useState<LastSetup | null>(() => loadLastSetup());
+  // Phase5 T11: 未編成プレイヤーが「今すぐ対戦」でNPCチームを割り当てられた試合かどうか（リザルト画面の編成誘導バナー用）
+  const [quickMatchBanner, setQuickMatchBanner] = useState(false);
 
   const navigate = useCallback((p: Page) => setPage(p), []);
 
   // マッチング開始の共通処理: 状態反映 + 前回設定の永続化 + 遷移
   // opponent省略時（前回設定の復元等）はCOM系モードのみ新規抽選。ModeSelectでプレビュー済みの場合はそのまま引き継ぐ
   const startMatch = useCallback(
-    (mode: GameMode, difficulty: ComDifficulty, formation: FormationData | null, opponent?: PresetTeam | null) => {
+    (mode: GameMode, difficulty: ComDifficulty, formation: FormationData | null, opponent?: PresetTeam | null, unformedQuickMatch = false) => {
       setGameMode(mode);
       setComDifficulty(difficulty);
       setFormationData(formation);
+      setQuickMatchBanner(unformedQuickMatch);
       setComOpponent(
         opponent !== undefined
           ? opponent
           : (mode === 'com' || mode === 'comVsCom') ? pickNpcOpponent(difficulty) : null,
       );
-      const setup: LastSetup = {
-        gameMode: mode,
-        comDifficulty: difficulty,
-        formationData: formation,
-        teamName: formation?.teamName,
-        teamEmoji: formation?.teamEmoji,
-        origin: formation?.origin ?? 'custom',
-      };
-      saveLastSetup(setup);
-      setLastSetup(setup);
+      // T11: 未編成プレイヤーへの自動割当チームは「編成済み」扱いにしない
+      // （lastSetupを更新すると次回以降ずっと同じチーム固定になり、毎回ランダムという設計意図に反するため）
+      if (!unformedQuickMatch) {
+        const setup: LastSetup = {
+          gameMode: mode,
+          comDifficulty: difficulty,
+          formationData: formation,
+          teamName: formation?.teamName,
+          teamEmoji: formation?.teamEmoji,
+          origin: formation?.origin ?? 'custom',
+        };
+        saveLastSetup(setup);
+        setLastSetup(setup);
+      }
       setPage('matching');
     },
     [],
@@ -141,6 +165,18 @@ function AppShell() {
     [startMatch, gameMode, comDifficulty, pendingOpponent],
   );
 
+  // T11: マイページのワンクリック対戦。編成済みなら前回の編成でそのまま対戦、
+  // 未編成なら顔のあるNPCチームを毎回ランダムに1つ自チームとして割り当てて対戦へ直行する
+  const handleQuickMatch = useCallback(() => {
+    if (lastSetup?.formationData) {
+      startMatch(lastSetup.gameMode, lastSetup.comDifficulty, lastSetup.formationData);
+    } else {
+      const opponent = pickNpcOpponent(comDifficulty);
+      const myTeamPreset = pickRandomNpcTeam(opponent.id);
+      startMatch('com', comDifficulty, presetTeamToFormationData(myTeamPreset), opponent, true);
+    }
+  }, [lastSetup, comDifficulty, startMatch]);
+
   // サーバーサイドCOM用のトークン（POST /match/com が返すuserId）
   const [comAuthToken, setComAuthToken] = useState<string | null>(null);
 
@@ -167,20 +203,7 @@ function AppShell() {
   }, []);
 
   const handleSelectPresetTeam = useCallback((team: PresetTeam) => {
-    const formation: FormationData = {
-      starters: team.pieces.map((piece) => ({
-        id: `preset-${team.id}-${piece.pieceId}`,
-        position: piece.position,
-        cost: piece.cost,
-        col: piece.col,
-        row: MAX_ROW - piece.row,
-      })),
-      bench: [],
-      teamName: team.name,
-      teamEmoji: team.emoji,
-      origin: 'preset',
-    };
-    startMatch('com', comDifficulty, formation);
+    startMatch('com', comDifficulty, presetTeamToFormationData(team));
   }, [startMatch, comDifficulty]);
 
   return (
@@ -218,7 +241,7 @@ function AppShell() {
           </div>
         }>
         {page === 'title' && (
-          <Title onNavigate={navigate} lastSetup={lastSetup} />
+          <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
         )}
         {page === 'modeSelect' && (
           <ModeSelect
@@ -274,6 +297,7 @@ function AppShell() {
             mvp={matchEndData.mvp}
             gameMode={gameMode}
             onNavigate={navigate}
+            showFormationBanner={quickMatchBanner}
           />
         )}
         {page === 'replay' && (

@@ -185,3 +185,13 @@ export function pickNpcOpponent(difficulty: NpcOpponentDifficulty = 'regular'): 
     : PRESET_TEAMS_BY_COST;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+/**
+ * NPC_TEAMS（プリセット7チーム）からランダムに1チームを選出する（outgame_plan_v2 Phase5 T11: ワンクリック対戦用）。
+ * excludeId指定時はそのチームを除外したプールから選ぶ（自チームと対戦相手が同一チームになるのを避ける）。
+ */
+export function pickRandomNpcTeam(excludeId?: string): PresetTeam {
+  const pool = excludeId ? PRESET_TEAMS.filter((team) => team.id !== excludeId) : PRESET_TEAMS;
+  const source = pool.length > 0 ? pool : PRESET_TEAMS;
+  return source[Math.floor(Math.random() * source.length)];
+}

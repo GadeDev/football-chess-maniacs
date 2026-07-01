@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NPC_TEAMS } from '../npc_teams';
-import { PRESET_TEAMS, pickNpcOpponent } from '../presetTeams';
+import { PRESET_TEAMS, pickNpcOpponent, pickRandomNpcTeam } from '../presetTeams';
 
 describe('PRESET_TEAMS', () => {
   it('NPCチーム定義から世界観プリセットを生成する', () => {
@@ -61,5 +61,27 @@ describe('pickNpcOpponent', () => {
     for (let i = 0; i < 20; i++) {
       expect(highCostIds.has(pickNpcOpponent('maniac').id)).toBe(true);
     }
+  });
+});
+
+describe('pickRandomNpcTeam', () => {
+  it('常にPRESET_TEAMSの中から1チームを返す', () => {
+    for (let i = 0; i < 20; i++) {
+      const picked = pickRandomNpcTeam();
+      expect(PRESET_TEAMS.some(t => t.id === picked.id)).toBe(true);
+    }
+  });
+
+  it('excludeId指定時はそのチームを除外して選出する', () => {
+    const excluded = PRESET_TEAMS[0].id;
+    for (let i = 0; i < 20; i++) {
+      expect(pickRandomNpcTeam(excluded).id).not.toBe(excluded);
+    }
+  });
+
+  it('プールが1チームしかない場合の除外指定でも例外を投げず選出する', () => {
+    // PRESET_TEAMSは7チーム(全除外は起きない)が、境界として存在しないIDを渡しても全プールから選出される
+    const picked = pickRandomNpcTeam('__not_a_real_team_id__');
+    expect(PRESET_TEAMS.some(t => t.id === picked.id)).toBe(true);
   });
 });

@@ -18,6 +18,8 @@ const de: Dict = {
   'team.default_name': 'Mein Team',
   'team.starters_summary': '{count} Startspieler · Kosten {cost}',
   'team.go_to_battle': 'Zum Match',
+  'team.quick_match_formed': 'Mit letzter Aufstellung spielen',
+  'team.quick_match_unformed': 'Jetzt spielen',
   'team.opponent_label': 'Gegner:',
   'team.era_label': '(Ära {era})',
 
@@ -139,6 +141,7 @@ const de: Dict = {
   'result.stat_corner_kicks': 'Eckstöße',
   'result.watch_replay': 'Wiederholung ansehen',
   'result.change_formation': 'Aufstellung ändern',
+  'result.formation_banner': 'Dieses Team gefallen? Stell dir deine eigene Aufstellung zusammen.',
 
   // ----- リプレイ画面(replay.*) -----
   'replay.back': '← Zurück',

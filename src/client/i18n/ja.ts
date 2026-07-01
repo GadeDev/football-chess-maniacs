@@ -19,6 +19,8 @@ const ja: Dict = {
   'team.default_name': 'マイチーム',
   'team.starters_summary': 'スタメン{count}人・コスト{cost}',
   'team.go_to_battle': '対戦へ',
+  'team.quick_match_formed': '前回の編成で対戦',
+  'team.quick_match_unformed': '今すぐ対戦',
   'team.opponent_label': '対戦相手：',
   'team.era_label': '（Era{era}）',
 
@@ -140,6 +142,7 @@ const ja: Dict = {
   'result.stat_corner_kicks': 'コーナーキック',
   'result.watch_replay': 'リプレイを見る',
   'result.change_formation': '編成を変える',
+  'result.formation_banner': '気に入ったチームがあれば編成してみる？',
 
   // ----- リプレイ画面(replay.*) -----
   'replay.back': '← 戻る',

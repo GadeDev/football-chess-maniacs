@@ -12,9 +12,11 @@ interface TitleProps {
   onNavigate: (page: Page) => void;
   /** 前回の対戦設定（自チームカードの表示に使用） */
   lastSetup?: LastSetup | null;
+  /** T11: ワンクリック対戦（編成済みなら前回の編成で、未編成ならランダムNPCチームで即マッチングへ） */
+  onQuickMatch: () => void;
 }
 
-export default function Title({ onNavigate, lastSetup }: TitleProps) {
+export default function Title({ onNavigate, lastSetup, onQuickMatch }: TitleProps) {
   return (
     <div
       style={{
@@ -52,7 +54,7 @@ export default function Title({ onNavigate, lastSetup }: TitleProps) {
 
       {/* 自チームカード（マイページハブ）— 試合を始める入口はここの「対戦へ」のみ。
           T9a: エンブレム/チーム名を画面の主役として大きく中央配置する */}
-      <TeamCard lastSetup={lastSetup} onNavigate={onNavigate} />
+      <TeamCard lastSetup={lastSetup} onNavigate={onNavigate} onQuickMatch={onQuickMatch} />
 
       {/* 補助機能（試合フローとは別軸）— T9c: 3列×2行の均等グリッド */}
       <div style={{
@@ -113,14 +115,18 @@ const authStatusBtnStyle: React.CSSProperties = {
 function TeamCard({
   lastSetup,
   onNavigate,
+  onQuickMatch,
 }: {
   lastSetup?: LastSetup | null;
   onNavigate: (page: Page) => void;
+  onQuickMatch: () => void;
 }) {
   const teamName = resolveTeamName(lastSetup?.teamName);
   const teamEmoji = lastSetup?.teamEmoji || '⚽';
   const starters = lastSetup?.formationData?.starters ?? [];
   const totalCost = starters.reduce((sum, p) => sum + p.cost, 0);
+  // T11: 一度でも編成を確定していれば「前回の編成で対戦」、初回/未編成なら「今すぐ対戦」（毎回ランダムNPCチーム）
+  const isFormed = !!lastSetup?.formationData;
 
   return (
     <div
@@ -167,8 +173,12 @@ function TeamCard({
           {t('title.edit_formation')}
         </button>
       </div>
-      {/* T9b: 対戦への主導線はModeSelect側で2大ボタンに再編されるため、ここは単一の遷移ボタンのまま強調 */}
-      <button onClick={() => onNavigate('modeSelect')} style={{ ...teamCardBtnStyle(true), width: '100%', marginTop: 8, padding: '12px 0', fontSize: 15 }}>
+      {/* T11: ワンクリック対戦（編成済み=前回の編成 / 未編成=毎回ランダムなNPCチーム） */}
+      <button onClick={onQuickMatch} style={{ ...teamCardBtnStyle(true), width: '100%', marginTop: 8, padding: '12px 0', fontSize: 15 }}>
+        {isFormed ? t('team.quick_match_formed') : t('team.quick_match_unformed')}
+      </button>
+      {/* T9b: 設定を変えたい時用に対戦タイプ選択画面への遷移も維持 */}
+      <button onClick={() => onNavigate('modeSelect')} style={{ ...teamCardBtnStyle(), width: '100%', marginTop: 6, padding: '9px 0', fontSize: 13 }}>
         {t('team.go_to_battle')}
       </button>
     </div>
