@@ -12,6 +12,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
 import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
+import type { PresetTeam } from '../../data/presetTeams';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { useGameState } from '../hooks/useGameState';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -64,9 +65,11 @@ interface BattleProps {
   formationData?: FormationData | null;
   onMatchEnd?: (data: MatchEndData) => void;
   comDifficulty?: 'beginner' | 'regular' | 'maniac';
+  /** COM対戦の対戦相手（NPC_TEAMSから選出、なければ固定4-4-2） */
+  opponent?: PresetTeam | null;
 }
 
-export default function Battle({ onNavigate, matchId, gameMode, authToken, myTeam: propMyTeam, formationData, onMatchEnd, comDifficulty = 'regular' }: BattleProps) {
+export default function Battle({ onNavigate, matchId, gameMode, authToken, myTeam: propMyTeam, formationData, onMatchEnd, comDifficulty = 'regular', opponent }: BattleProps) {
   const device = useDeviceType();
   const { settings } = useSettings();
   const animSpeed = settings.animationSpeed || 1;
@@ -284,8 +287,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (!isCom) return;
 
     const kickoffTeam = firstHalfKickoffRef.current;
-    const pieces = createInitialPieces(formationData, kickoffTeam);
-    console.log(`[Battle] COM init: 1st half kickoff = ${kickoffTeam}`);
+    const pieces = createInitialPieces(formationData, kickoffTeam, opponent);
+    console.log(`[Battle] COM init: 1st half kickoff = ${kickoffTeam}, opponent = ${opponent?.name ?? '(default)'}`);
     replayTurnsRef.current = []; // リプレイ録画リセット（再戦時に前試合分が混ざらないように）
     dispatch({
       type: 'INIT_MATCH',
@@ -293,7 +296,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       myTeam: 'home',
       board: { pieces },
     });
-  }, [isCom, matchId, dispatch, formationData]);
+  }, [isCom, matchId, dispatch, formationData, opponent]);
 
   // ── 演出フェーズ管理 ──
   const [ceremony, setCeremony] = useState<CeremonyPhase>(null);
@@ -359,7 +362,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const secondHalfKickoff: Team = firstHalfKickoffRef.current === 'home' ? 'away' : 'home';
 
     const buildSecondHalfPieces = () => {
-      const resetPieces = createGoalRestartPieces(formationData, secondHalfKickoff);
+      const resetPieces = createGoalRestartPieces(formationData, secondHalfKickoff, undefined, opponent);
       const updatedReset = resetPieces.map(rp => {
         const current = capturedPieces.find(cp => cp.id === rp.id);
         if (current) {
@@ -1267,7 +1270,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 });
                 await wait(2000);
                 const kickoff = fouledTeam === 'home' ? 'away' : 'home';
-                const resetPieces = createGoalRestartPieces(formationData, kickoff, state.board.pieces);
+                const resetPieces = createGoalRestartPieces(formationData, kickoff, state.board.pieces, opponent);
                 goalScoredRef.current = { scored: false, scorerTeam: null };
                 dispatch({
                   type: 'SET_BOARD',
@@ -1386,7 +1389,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             await wait(GOAL_CEREMONY_MS);
             setCeremony(null);
             const kickoff = goalScoredRef.current.scorerTeam === 'home' ? 'away' : 'home';
-            const resetPieces = createGoalRestartPieces(formationData, kickoff, state.board.pieces);
+            const resetPieces = createGoalRestartPieces(formationData, kickoff, state.board.pieces, opponent);
             goalScoredRef.current = { scored: false, scorerTeam: null };
             dispatch({
               type: 'SET_BOARD',
@@ -1577,7 +1580,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
       const kickoff = fouledTeam === 'home' ? 'away' : 'home';
-      const resetPieces = createGoalRestartPieces(formationData, kickoff, currentPieces);
+      const resetPieces = createGoalRestartPieces(formationData, kickoff, currentPieces, opponent);
       setMiniGame(null);
       setMiniGameCountdown(MINIGAME_FK_PK_COUNTDOWN);
       dispatch({
@@ -1647,7 +1650,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
       const kickoff = fouledTeam === 'home' ? 'away' : 'home';
-      const resetPieces = createGoalRestartPieces(formationData, kickoff, currentPieces);
+      const resetPieces = createGoalRestartPieces(formationData, kickoff, currentPieces, opponent);
       setMiniGame(null);
       setMiniGameCountdown(MINIGAME_FK_PK_COUNTDOWN);
       dispatch({
@@ -1756,7 +1759,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       await wait(GOAL_CEREMONY_MS);
       setCeremony(null);
       // 失点した守備側がキックオフ
-      const resetPieces = createGoalRestartPieces(formationData, defenseTeam, currentPieces);
+      const resetPieces = createGoalRestartPieces(formationData, defenseTeam, currentPieces, opponent);
       dispatch({
         type: 'SET_BOARD',
         board: { pieces: resetPieces },

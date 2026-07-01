@@ -18,6 +18,8 @@ const en: Dict = {
   'team.default_name': 'My Team',
   'team.starters_summary': '{count} starters · Cost {cost}',
   'team.go_to_battle': 'Battle',
+  'team.opponent_label': 'Opponent:',
+  'team.era_label': '(Era {era})',
 
   // ----- goal course / direction (course.*) -----
   'course.top_left': 'Top-L',

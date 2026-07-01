@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NPC_TEAMS } from '../npc_teams';
-import { PRESET_TEAMS } from '../presetTeams';
+import { PRESET_TEAMS, pickNpcOpponent } from '../presetTeams';
 
 describe('PRESET_TEAMS', () => {
   it('NPCチーム定義から世界観プリセットを生成する', () => {
@@ -33,6 +33,33 @@ describe('PRESET_TEAMS', () => {
         expect(piece.row).toBeGreaterThanOrEqual(17);
         expect(piece.row).toBeLessThanOrEqual(33);
       }
+    }
+  });
+});
+
+describe('pickNpcOpponent', () => {
+  it('常にPRESET_TEAMSの中から1チームを返す', () => {
+    for (let i = 0; i < 20; i++) {
+      const picked = pickNpcOpponent();
+      expect(PRESET_TEAMS.some(t => t.id === picked.id)).toBe(true);
+    }
+  });
+
+  it('beginnerは低コスト寄りのプールから選出する', () => {
+    const sorted = [...PRESET_TEAMS].sort((a, b) => a.totalCost - b.totalCost);
+    const poolSize = Math.ceil(sorted.length / 3);
+    const lowCostIds = new Set(sorted.slice(0, poolSize).map(t => t.id));
+    for (let i = 0; i < 20; i++) {
+      expect(lowCostIds.has(pickNpcOpponent('beginner').id)).toBe(true);
+    }
+  });
+
+  it('maniacは高コスト寄りのプールから選出する', () => {
+    const sorted = [...PRESET_TEAMS].sort((a, b) => a.totalCost - b.totalCost);
+    const poolSize = Math.ceil(sorted.length / 3);
+    const highCostIds = new Set(sorted.slice(sorted.length - poolSize).map(t => t.id));
+    for (let i = 0; i < 20; i++) {
+      expect(highCostIds.has(pickNpcOpponent('maniac').id)).toBe(true);
     }
   });
 });

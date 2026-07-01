@@ -18,6 +18,8 @@ const de: Dict = {
   'team.default_name': 'Mein Team',
   'team.starters_summary': '{count} Startspieler · Kosten {cost}',
   'team.go_to_battle': 'Zum Match',
+  'team.opponent_label': 'Gegner:',
+  'team.era_label': '(Ära {era})',
 
   // ----- ゴールコース / 方向ラベル(course.*) -----
   'course.top_left': 'Oben-L',

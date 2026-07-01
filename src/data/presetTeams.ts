@@ -165,3 +165,23 @@ export const PRESET_TEAMS: PresetTeam[] = NPC_TEAMS.map((team) => {
     pieces,
   };
 });
+
+/** COM対戦の相手選出に使う難易度キー（src/client/types.ts の ComDifficulty と同一） */
+export type NpcOpponentDifficulty = 'beginner' | 'regular' | 'maniac';
+
+const PRESET_TEAMS_BY_COST = [...PRESET_TEAMS].sort((a, b) => a.totalCost - b.totalCost);
+
+/**
+ * NPC_TEAMS（プリセット7チーム）から COM対戦の対戦相手を1チーム選出する。
+ * 難易度に応じて総コストの低い/高いチームに寄せて抽選する（beginner=低コスト寄り, maniac=高コスト寄り）。
+ */
+export function pickNpcOpponent(difficulty: NpcOpponentDifficulty = 'regular'): PresetTeam {
+  const n = PRESET_TEAMS_BY_COST.length;
+  const poolSize = Math.max(1, Math.ceil(n / 3));
+  const pool = difficulty === 'beginner'
+    ? PRESET_TEAMS_BY_COST.slice(0, poolSize)
+    : difficulty === 'maniac'
+    ? PRESET_TEAMS_BY_COST.slice(n - poolSize)
+    : PRESET_TEAMS_BY_COST;
+  return pool[Math.floor(Math.random() * pool.length)];
+}

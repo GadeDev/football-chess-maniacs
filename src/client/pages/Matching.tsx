@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiUrl, getWsBaseUrl, type Page, type GameMode, type Team, type MatchmakingWsMessage, type ComDifficulty } from '../types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { t } from '../i18n';
+import type { PresetTeam } from '../../data/presetTeams';
 
 interface MatchingProps {
   onNavigate: (page: Page) => void;
@@ -15,6 +16,8 @@ interface MatchingProps {
   gameMode: GameMode;
   authToken: string;
   comDifficulty?: ComDifficulty;
+  /** COM対戦の対戦相手（NPC_TEAMSから選出済み。COM対戦のみ渡される） */
+  opponent?: PresetTeam | null;
 }
 
 /**
@@ -33,7 +36,7 @@ async function resolveActiveTeamId(token: string): Promise<string> {
   }
 }
 
-export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular' }: MatchingProps) {
+export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular', opponent }: MatchingProps) {
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<'searching' | 'found' | 'com_suggested' | 'error'>('searching');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -194,6 +197,18 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
         justifyContent: 'center', height: '100%', gap: 24,
       }}>
         <h2 style={{ fontSize: 22, fontWeight: 'bold' }}>{gameMode === 'comVsCom' ? t('mode.com_watch') : t('mode.com')}</h2>
+        {opponent && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 16px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <span style={{ fontSize: 12, color: '#888' }}>{t('team.opponent_label')}</span>
+            <span style={{ fontSize: 16, fontWeight: 'bold', color: '#cc8800' }}>{opponent.emoji}</span>
+            <span style={{ fontSize: 15, fontWeight: 'bold' }}>{opponent.name}</span>
+            <span style={{ fontSize: 12, color: '#888' }}>{t('team.era_label', { era: opponent.era })}</span>
+          </div>
+        )}
         <div style={{
           width: 60, height: 60, borderRadius: '50%',
           border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#44aa44',

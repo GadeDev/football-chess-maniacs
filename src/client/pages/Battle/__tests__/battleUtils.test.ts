@@ -209,6 +209,17 @@ describe('createInitialPieces', () => {
     // DEFAULT_TEMPLATE[0] = GK at row 1 → away row = 33 - 1 = 32
     expect(away[0].coord.row).toBe(33 - DEFAULT_TEMPLATE[0].row);
   });
+
+  it('opponent指定時はNPCチームの座標・ポジション・コストをそのまま使う', async () => {
+    const { PRESET_TEAMS } = await import('../../../../data/presetTeams');
+    const npc = PRESET_TEAMS[0];
+    const away = createDefaultAwayPieces(npc);
+    expect(away).toHaveLength(npc.pieces.length);
+    expect(away[0].coord).toEqual({ col: npc.pieces[0].col, row: npc.pieces[0].row });
+    expect(away[0].position).toBe(npc.pieces[0].position);
+    expect(away[0].cost).toBe(npc.pieces[0].cost);
+    expect(away.every(p => p.team === 'away')).toBe(true);
+  });
 });
 
 // ────────────────────────────────────────────────────────────

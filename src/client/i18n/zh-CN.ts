@@ -19,6 +19,8 @@ const zhCN: Dict = {
   'team.default_name': '我的球队',
   'team.starters_summary': '首发{count}人・费用{cost}',
   'team.go_to_battle': '前往对战',
+  'team.opponent_label': '对手：',
+  'team.era_label': '（Era{era}）',
 
   // ----- ゴールコース / 方向ラベル(course.*) -----
   'course.top_left': '左上',

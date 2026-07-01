@@ -19,6 +19,8 @@ const ja: Dict = {
   'team.default_name': 'マイチーム',
   'team.starters_summary': 'スタメン{count}人・コスト{cost}',
   'team.go_to_battle': '対戦へ',
+  'team.opponent_label': '対戦相手：',
+  'team.era_label': '（Era{era}）',
 
   // ----- ゴールコース / 方向ラベル(course.*) -----
   'course.top_left': '左上',

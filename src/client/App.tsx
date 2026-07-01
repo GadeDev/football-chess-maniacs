@@ -30,6 +30,7 @@ const PresetTeamsScreen = lazy(() => import('./screens/PresetTeamsScreen'));
 const ReplayScreen = lazy(() => import('./screens/ReplayScreen'));
 
 import type { PresetTeam } from '../data/presetTeams';
+import { pickNpcOpponent } from '../data/presetTeams';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 import { useLocale } from './i18n/useLocale';
@@ -104,6 +105,8 @@ export default function App() {
   const [myTeam, setMyTeam] = useState<Team>('home');
   const [formationData, setFormationData] = useState<FormationData | null>(null);
   const [comDifficulty, setComDifficulty] = useState<ComDifficulty>('regular');
+  // COM対戦の対戦相手（NPC_TEAMSから選出）。startMatch呼び出し毎にCOM系モードのみ再抽選
+  const [comOpponent, setComOpponent] = useState<PresetTeam | null>(null);
   // JWT認証トークン（Universo SSO fragment → localStorage フォールバック）
   const [authToken, setAuthToken] = useState<string>(() => readLocalStorage('fcms_token'));
 
@@ -138,6 +141,7 @@ export default function App() {
       setGameMode(mode);
       setComDifficulty(difficulty);
       setFormationData(formation);
+      setComOpponent(mode === 'com' || mode === 'comVsCom' ? pickNpcOpponent(difficulty) : null);
       const setup: LastSetup = {
         gameMode: mode,
         comDifficulty: difficulty,
@@ -273,6 +277,7 @@ export default function App() {
             gameMode={gameMode}
             authToken={authToken}
             comDifficulty={comDifficulty}
+            opponent={comOpponent}
           />
         )}
         {page === 'battle' && (
@@ -285,6 +290,7 @@ export default function App() {
             formationData={formationData}
             onMatchEnd={handleMatchEnd}
             comDifficulty={comDifficulty}
+            opponent={comOpponent}
           />
         )}
         {page === 'halfTime' && (

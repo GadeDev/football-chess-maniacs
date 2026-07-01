@@ -18,6 +18,8 @@ const pt: Dict = {
   'team.default_name': 'Meu Time',
   'team.starters_summary': '{count} titulares · Custo {cost}',
   'team.go_to_battle': 'Ir para a partida',
+  'team.opponent_label': 'Adversário:',
+  'team.era_label': '(Era {era})',
 
   // ----- goal course / direction (course.*) -----
   'course.top_left': 'Sup. esq.',
