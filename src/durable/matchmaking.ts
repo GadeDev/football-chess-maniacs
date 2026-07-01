@@ -174,16 +174,12 @@ export class Matchmaking extends DurableObject<Env['Bindings']> {
 
   async alarm(): Promise<void> {
     if (this.waitingPlayers.size < 2) {
-      // COM提案チェック
-      for (const [userId, player] of this.waitingPlayers) {
-        const waitTime = Date.now() - player.joinedAt;
-        if (waitTime > COM_TIMEOUT_MS) {
-          this.sendToPlayer(userId, {
-            type: 'COM_SUGGESTED',
-            message: 'No opponent found. Play against COM?',
-            waitTimeSeconds: Math.floor(waitTime / 1000),
-          });
-        }
+      // COM_TIMEOUT_MS超過 → Botで補完（人が見つからなくても一定時間内に試合を開始する）
+      const overdue = [...this.waitingPlayers.values()].filter(
+        (player) => Date.now() - player.joinedAt > COM_TIMEOUT_MS,
+      );
+      for (const player of overdue) {
+        await this.assignBotMatch(player);
       }
 
       if (this.waitingPlayers.size > 0) {
@@ -263,6 +259,42 @@ export class Matchmaking extends DurableObject<Env['Bindings']> {
     if (this.waitingPlayers.size > 0) {
       await this.ctx.storage.setAlarm(Date.now() + MATCH_CHECK_INTERVAL_MS);
     }
+  }
+
+  // ── Botで補完（一定時間、対戦相手が見つからない場合のフォールバック） ──
+
+  private async assignBotMatch(player: WaitingPlayer): Promise<void> {
+    const matchId = `m_${crypto.randomUUID()}`;
+    // 'com_ai' は既存の isRatedMatch（src/server/rating.ts）がレーティング対象外として
+    // 認識する予約IDのため、Bot補完マッチはそのままレーティング/ランキング対象から除外される。
+    const botUserId = 'com_ai';
+
+    // GameSession DOを isComMatch=true で作成（DO側がaway命令を自動生成する）
+    const doId = this.env.GAME_SESSION.idFromName(matchId);
+    const stub = this.env.GAME_SESSION.get(doId);
+    await stub.fetch(new Request('https://internal/init', {
+      method: 'POST',
+      body: JSON.stringify({
+        matchId,
+        homeUserId: player.userId,
+        awayUserId: botUserId,
+        homeTeamId: player.teamId,
+        awayTeamId: 'default',
+        isComMatch: true,
+      }),
+    }));
+
+    // D1に試合サマリ作成
+    await this.env.DB.prepare(
+      'INSERT INTO matches (id, home_user_id, away_user_id, status, score_home, score_away, created_at) VALUES (?, ?, ?, ?, 0, 0, ?)',
+    )
+      .bind(matchId, player.userId, botUserId, 'playing', new Date().toISOString())
+      .run();
+
+    this.sendToPlayer(player.userId, { type: 'MATCH_FOUND', matchId, opponent: botUserId, team: 'home' });
+
+    this.waitingPlayers.delete(player.userId);
+    this.rateLimiters.delete(player.userId);
   }
 
   // ── クロスリージョン照会（Coordinatorから） ──
