@@ -387,6 +387,7 @@ const ko: Dict = {
   'sidepanel.event_substitution': '교체',
   'sidepanel.event_collision': '경합',
   'sidepanel.event_ball_acquired': '볼 획득',
+  'sidepanel.success_rate': ' (성공률 {probability}%)',
 
   // ----- FKミニゲーム(fk.*) -----
   'fk.title_attack': '프리킥!',

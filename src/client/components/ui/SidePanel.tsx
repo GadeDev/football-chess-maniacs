@@ -356,20 +356,46 @@ function formatActionLabel(action: string | null): string {
   }
 }
 
+function successRateSuffix(probability: number | undefined): string {
+  return typeof probability === 'number' ? t('sidepanel.success_rate', { probability }) : '';
+}
+
+/** シュートチェーンの結果を決定づけたcheckのprobabilityを選ぶ（outcome別に対応するcheckが異なるため） */
+function shootDecisiveProbability(result: any): number | undefined {
+  switch (result?.outcome) {
+    case 'blocked': return result.blockCheck?.probability;
+    case 'saved_catch': return result.catchCheck?.probability ?? result.savingCheck?.probability;
+    case 'saved_ck': return result.savingCheck?.probability;
+    case 'goal':
+    case 'missed':
+    default: return result?.shootSuccessCheck?.probability;
+  }
+}
+
+/** パスカットの結果を決定づけたcheckのprobabilityを選ぶ */
+function passCutDecisiveProbability(result: any): number | undefined {
+  switch (result?.outcome) {
+    case 'cut1': return result.cut1?.probability;
+    case 'cut2': return result.cut2?.probability;
+    default: return undefined;
+  }
+}
+
 function formatEvent(event: GameEvent): string {
   switch (event.type) {
     case 'PIECE_MOVED': return t('sidepanel.event_moved');
     case 'ZOC_STOP': return t('sidepanel.event_zoc_stop');
-    case 'TACKLE': return t('sidepanel.event_tackle');
+    case 'TACKLE': return t('sidepanel.event_tackle') + successRateSuffix((event as any).result?.probability);
     case 'FOUL': return t('sidepanel.event_foul');
-    case 'SHOOT': return t('sidepanel.event_shoot', { outcome: (event as any).result?.outcome ?? '' });
+    case 'SHOOT': return t('sidepanel.event_shoot', { outcome: (event as any).result?.outcome ?? '' })
+      + successRateSuffix(shootDecisiveProbability((event as any).result));
     case 'PASS_DELIVERED': return t('sidepanel.event_pass_delivered');
-    case 'PASS_CUT': return t('sidepanel.event_pass_cut');
+    case 'PASS_CUT': return t('sidepanel.event_pass_cut') + successRateSuffix(passCutDecisiveProbability((event as any).result));
     case 'OFFSIDE': return t('sidepanel.event_offside');
     case 'BATTLE_DELAY': return t('sidepanel.event_battle_delay');
     case 'PASSIVE_TACTICS': return t('sidepanel.event_passive_tactics');
     case 'SUBSTITUTION': return t('sidepanel.event_substitution');
-    case 'COLLISION': return t('sidepanel.event_collision');
+    case 'COLLISION': return t('sidepanel.event_collision') + successRateSuffix((event as any).result?.probability);
     case 'BALL_ACQUIRED': return t('sidepanel.event_ball_acquired');
     default: return event.type;
   }

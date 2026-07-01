@@ -387,6 +387,7 @@ const ja: Dict = {
   'sidepanel.event_substitution': '交代',
   'sidepanel.event_collision': '競合',
   'sidepanel.event_ball_acquired': 'ボール獲得',
+  'sidepanel.success_rate': ' (成功率{probability}%)',
 
   // ----- FKミニゲーム(fk.*) -----
   'fk.title_attack': 'フリーキック！',

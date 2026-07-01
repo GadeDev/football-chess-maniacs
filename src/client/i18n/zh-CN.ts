@@ -387,6 +387,7 @@ const zhCN: Dict = {
   'sidepanel.event_substitution': '换人',
   'sidepanel.event_collision': '争抢',
   'sidepanel.event_ball_acquired': '获得球权',
+  'sidepanel.success_rate': '（成功率{probability}%）',
 
   // ----- FKミニゲーム(fk.*) -----
   'fk.title_attack': '任意球！',

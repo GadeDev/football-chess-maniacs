@@ -386,6 +386,7 @@ const pt: Dict = {
   'sidepanel.event_substitution': 'Substituição',
   'sidepanel.event_collision': 'Colisão',
   'sidepanel.event_ball_acquired': 'Bola recuperada',
+  'sidepanel.success_rate': ' (taxa de sucesso {probability}%)',
 
   // ----- FK minigame (fk.*) -----
   'fk.title_attack': 'Tiro livre!',

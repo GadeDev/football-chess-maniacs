@@ -386,6 +386,7 @@ const en: Dict = {
   'sidepanel.event_substitution': 'Substitution',
   'sidepanel.event_collision': 'Collision',
   'sidepanel.event_ball_acquired': 'Ball gained',
+  'sidepanel.success_rate': ' (success rate {probability}%)',
 
   // ----- FK minigame (fk.*) -----
   'fk.title_attack': 'Free Kick!',

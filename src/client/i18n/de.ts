@@ -386,6 +386,7 @@ const de: Dict = {
   'sidepanel.event_substitution': 'Auswechslung',
   'sidepanel.event_collision': 'Kollision',
   'sidepanel.event_ball_acquired': 'Ball erobert',
+  'sidepanel.success_rate': ' (Erfolgsquote {probability}%)',
 
   // ----- FKミニゲーム(fk.*) -----
   'fk.title_attack': 'Freistoß!',
