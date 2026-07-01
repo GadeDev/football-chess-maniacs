@@ -9,6 +9,7 @@ import { apiUrl, getWsBaseUrl, type Page, type GameMode, type Team, type Matchma
 import { useWebSocket } from '../hooks/useWebSocket';
 import { t } from '../i18n';
 import type { PresetTeam } from '../../data/presetTeams';
+import { resolveActiveTeamId } from '../utils/resolveActiveTeamId';
 
 interface MatchingProps {
   onNavigate: (page: Page) => void;
@@ -18,22 +19,6 @@ interface MatchingProps {
   comDifficulty?: ComDifficulty;
   /** COM対戦の対戦相手（NPC_TEAMSから選出済み。COM対戦のみ渡される） */
   opponent?: PresetTeam | null;
-}
-
-/**
- * マッチメイキングに渡す編成チームIDを解決する。
- * is_active なチーム → 無ければ先頭 → 無ければ 'default'（サーバーは固定4-4-2にフォールバック）。
- */
-async function resolveActiveTeamId(token: string): Promise<string> {
-  try {
-    const res = await fetch(apiUrl('/api/teams'), { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return 'default';
-    const data = (await res.json()) as { teams?: Array<{ id: string; is_active?: boolean }> };
-    const teams = data.teams ?? [];
-    return (teams.find(t => t.is_active) ?? teams[0])?.id ?? 'default';
-  } catch {
-    return 'default';
-  }
 }
 
 export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular', opponent }: MatchingProps) {

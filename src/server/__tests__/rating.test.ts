@@ -66,6 +66,7 @@ describe('isRatedMatch', () => {
   it('COM/フレンドは対象外', () => {
     expect(isRatedMatch('com_123', 'u1', 'u2')).toBe(false);
     expect(isRatedMatch('gemma_com_1', 'u1', 'u2')).toBe(false);
+    expect(isRatedMatch('friend_abc', 'u1', 'u2')).toBe(false);
     expect(isRatedMatch('m_abc', 'u1', 'com_ai')).toBe(false);
     expect(isRatedMatch('m_abc', 'com_player_x', 'u2')).toBe(false);
   });

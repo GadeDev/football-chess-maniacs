@@ -206,6 +206,13 @@ export default function App() {
     setPage('battle');
   }, []);
 
+  // フレンド対戦の合流成立: レーティング非対象の通常オンライン試合として開始する
+  const handleFriendMatchFound = useCallback((id: string, team?: Team) => {
+    setGameMode('casual');
+    setComOpponent(null);
+    handleMatchFound(id, team);
+  }, [handleMatchFound]);
+
   const handleMatchEnd = useCallback((data: MatchEndData) => {
     setMatchEndData(data);
     setReplayTurns(data.replayTurns ?? []);
@@ -330,7 +337,9 @@ export default function App() {
         {page === 'collection' && <CollectionScreen onNavigate={navigate} authToken={authToken} />}
         {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
         {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
-        {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
+        {page === 'friendMatch' && (
+          <FriendMatchScreen onNavigate={navigate} authToken={authToken} onMatchFound={handleFriendMatchFound} />
+        )}
         {page === 'presetTeams' && (
           <PresetTeamsScreen onNavigate={navigate} onSelectPresetTeam={handleSelectPresetTeam} />
         )}

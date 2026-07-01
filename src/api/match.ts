@@ -91,6 +91,140 @@ match.get('/', async (c) => {
   return c.json({ matches: result.results });
 });
 
+// ── フレンド対戦: 招待コード発行/参加 ──
+// KV: friend_room:{roomId} = { hostUserId, hostTeamId, matchId?, createdAt } (TTL FRIEND_ROOM_TTL_SEC)
+// isRatedMatch(server/rating.ts) は matchId が 'friend_' で始まる試合をレーティング対象外として扱う。
+const FRIEND_ROOM_TTL_SEC = 600; // 10分（未参加なら失効）
+const FRIEND_ROOM_ID_PATTERN = /^[A-Z0-9]{6}$/;
+const FRIEND_ROOM_ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい0/O, 1/I 除外
+
+function generateFriendRoomId(): string {
+  return Array.from({ length: 6 }, () => FRIEND_ROOM_ID_CHARS[Math.floor(Math.random() * FRIEND_ROOM_ID_CHARS.length)]).join('');
+}
+
+interface FriendRoom {
+  hostUserId: string;
+  hostTeamId: string;
+  matchId?: string;
+  createdAt: number;
+}
+
+// 招待する側: ルーム作成（既存IDと衝突したら最大5回まで再抽選）
+match.post('/friend/create', async (c) => {
+  const userId = c.get('userId');
+  let body: { teamId?: string };
+  try {
+    body = await c.req.json() as { teamId?: string };
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  let roomId = '';
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generateFriendRoomId();
+    const existing = await c.env.KV.get(`friend_room:${candidate}`);
+    if (!existing) {
+      roomId = candidate;
+      break;
+    }
+  }
+  if (!roomId) {
+    return c.json({ error: 'Failed to allocate room id' }, 500);
+  }
+
+  const room: FriendRoom = {
+    hostUserId: userId,
+    hostTeamId: body.teamId ?? 'default',
+    createdAt: Date.now(),
+  };
+  await c.env.KV.put(`friend_room:${roomId}`, JSON.stringify(room), { expirationTtl: FRIEND_ROOM_TTL_SEC });
+
+  return c.json({ roomId, expiresInSec: FRIEND_ROOM_TTL_SEC });
+});
+
+// 招待する側: 参加待ちポーリング（参加者がいればmatchIdを返しルームを消費する）
+match.get('/friend/status/:roomId', async (c) => {
+  const userId = c.get('userId');
+  const roomId = c.req.param('roomId');
+  if (!FRIEND_ROOM_ID_PATTERN.test(roomId)) {
+    return c.json({ error: 'Invalid room id' }, 400);
+  }
+
+  const raw = await c.env.KV.get(`friend_room:${roomId}`);
+  if (!raw) {
+    return c.json({ matched: false, expired: true });
+  }
+  const room = JSON.parse(raw) as FriendRoom;
+  if (room.hostUserId !== userId) {
+    return c.json({ error: 'Not the room host' }, 403);
+  }
+  if (!room.matchId) {
+    return c.json({ matched: false });
+  }
+
+  await c.env.KV.delete(`friend_room:${roomId}`);
+  return c.json({ matched: true, matchId: room.matchId, team: 'home' as const });
+});
+
+// 参加する側: ルームコードでGameSession DOを作成し合流する
+match.post('/friend/join', async (c) => {
+  const userId = c.get('userId');
+  let body: { roomId?: string; teamId?: string };
+  try {
+    body = await c.req.json() as { roomId?: string; teamId?: string };
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const roomId = (body.roomId ?? '').toUpperCase();
+  if (!FRIEND_ROOM_ID_PATTERN.test(roomId)) {
+    return c.json({ error: 'INVALID_ROOM_ID' }, 400);
+  }
+
+  const kvKey = `friend_room:${roomId}`;
+  const raw = await c.env.KV.get(kvKey);
+  if (!raw) {
+    return c.json({ error: 'ROOM_NOT_FOUND' }, 404);
+  }
+  const room = JSON.parse(raw) as FriendRoom;
+  if (room.matchId) {
+    return c.json({ error: 'ROOM_ALREADY_USED' }, 409);
+  }
+  if (room.hostUserId === userId) {
+    return c.json({ error: 'CANNOT_JOIN_OWN_ROOM' }, 400);
+  }
+
+  const matchId = `friend_${crypto.randomUUID()}`;
+  const doId = c.env.GAME_SESSION.idFromName(matchId);
+  const stub = c.env.GAME_SESSION.get(doId);
+  const initRes = await stub.fetch(new Request('https://do/init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      matchId,
+      homeUserId: room.hostUserId,
+      awayUserId: userId,
+      homeTeamId: room.hostTeamId,
+      awayTeamId: body.teamId ?? 'default',
+    }),
+  }));
+  if (!initRes.ok) {
+    const errBody = await initRes.text();
+    return c.json({ error: 'Failed to initialize session', detail: errBody }, 500);
+  }
+
+  await c.env.DB.prepare(
+    'INSERT INTO matches (id, home_user_id, away_user_id, status, score_home, score_away, created_at) VALUES (?, ?, ?, ?, 0, 0, ?)',
+  )
+    .bind(matchId, room.hostUserId, userId, 'playing', new Date().toISOString())
+    .run();
+
+  // ホストのポーリング用にmatchIdを書き戻す（残りTTLは短縮し、参加後の放置滞留を防ぐ）
+  await c.env.KV.put(kvKey, JSON.stringify({ ...room, matchId }), { expirationTtl: 60 });
+
+  return c.json({ matchId, team: 'away' as const });
+});
+
 // ── COM対戦セッション作成（サーバーサイドAI用） ──
 // VITE_USE_GEMMA=true 時に Matching.tsx から呼ばれる
 // GameSession DO を作成し /init を COM パラメータ付きで呼び出す

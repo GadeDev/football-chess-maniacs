@@ -152,6 +152,12 @@ app.use('/match/*', async (c, next) => {
       await rateLimitMiddleware(RATE_LIMITS.comSessionCreateHour)(c, next);
     });
   }
+  // フレンド対戦の作成/参加は認証必須 + レート制限（ルーム/DO大量生成の防止）
+  if (c.req.path === '/match/friend/create' || c.req.path === '/match/friend/join') {
+    return jwtMiddleware()(c, async () => {
+      await rateLimitMiddleware(RATE_LIMITS.matching)(c, next);
+    });
+  }
   // REST APIパスにはJWT認証を適用
   return jwtMiddleware()(c, next);
 });

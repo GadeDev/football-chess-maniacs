@@ -63,7 +63,7 @@ export { INITIAL_RATING, K };
 
 /** COM戦/フレンドマッチ等、レーティング非対象のmatchId/相手を判定 */
 export function isRatedMatch(matchId: string, homeUserId: string, awayUserId: string): boolean {
-  if (matchId.startsWith('com_') || matchId.startsWith('gemma_com_')) return false;
+  if (matchId.startsWith('com_') || matchId.startsWith('gemma_com_') || matchId.startsWith('friend_')) return false;
   if (homeUserId === 'com_ai' || awayUserId === 'com_ai') return false;
   if (homeUserId.startsWith('com_player_') || awayUserId.startsWith('com_player_')) return false;
   return true;
