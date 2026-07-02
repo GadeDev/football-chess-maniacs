@@ -1109,7 +1109,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 const tkr = te.result.tackler;
                 showOverlay('TACKLE!', {
                   subText: `${tkr.position} \u2605${tkr.cost}`,
-                  duration: 1000, fontSize: 48,
+                  duration: 1000, color: '#F97316', fontSize: 48,
                 });
                 soundManager.play('tackle');
               } else {
@@ -1221,7 +1221,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               p4Effects.push({ coord, icon: '✋', color: '#ff8800', text: 'INTERCEPTED' });
               showOverlay('BALL CUT!', {
                 subText: interceptor ? `${interceptor.position} \u2605${interceptor.cost}` : undefined,
-                duration: 1200, fontSize: 48,
+                duration: 1200, color: '#ff8800', fontSize: 48,
               });
               soundManager.play('tackle');
             }
