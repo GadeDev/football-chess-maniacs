@@ -83,6 +83,10 @@ export const KICKOFF_HOLD_MS = 1500;
 export const SECONDHALF_CEREMONY_MS = 1500;
 /** Turn表示（試合時間ラベル横の小さなフェード切替） */
 export const TURN_INDICATOR_MS = 600;
+/** HALF TIME / FULL TIME のスケールイン */
+export const CEREMONY_SCALE_IN_MS = 600;
+/** FULL TIME のホイッスル振動 */
+export const FULLTIME_SHAKE_MS = 500;
 export const HALFTIME_CEREMONY_MS = 3000;
 export const FULLTIME_RESULT_BTN_DELAY_MS = 3000;
 export const GOAL_CEREMONY_MS = 2600;

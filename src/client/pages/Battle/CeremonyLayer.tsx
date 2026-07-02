@@ -12,6 +12,7 @@ import { computeStats, computeMvp } from './battleUtils';
 import {
   CEREMONY_BACKDROP_FADE_MS, CUTIN_IN_MS, CUTIN_OUT_MS,
   KICKOFF_HOLD_MS, SECONDHALF_CEREMONY_MS, GOALKICK_WIPE_TOTAL_MS,
+  CEREMONY_SCALE_IN_MS, FULLTIME_SHAKE_MS,
 } from './battleUtils';
 import { t } from '../../i18n';
 
@@ -92,7 +93,7 @@ export default function CeremonyLayer({
         @keyframes fcms-fade-out { from { opacity:1; } to { opacity:0; } }
         @keyframes fcms-scale-in { 0% { opacity:0; transform:translate(-50%,-50%) scale(0.5); } 25% { opacity:1; transform:translate(-50%,-50%) scale(1.08); } 40% { transform:translate(-50%,-50%) scale(1); } 100% { opacity:1; transform:translate(-50%,-50%) scale(1); } }
         @keyframes fcms-scale-out { 0% { opacity:1; transform:translate(-50%,-50%) scale(1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(0.8); } }
-        @keyframes fcms-whistle { 0%,100% { transform:translate(-50%,-50%); } 10% { transform:translate(-48%,-50%); } 20% { transform:translate(-52%,-50%); } 30% { transform:translate(-49%,-50%); } 40% { transform:translate(-51%,-50%); } 50% { transform:translate(-50%,-50%); } }
+        @keyframes fcms-whistle-shake { 0%,100% { transform:translateX(0); } 15% { transform:translateX(-8px); } 30% { transform:translateX(7px); } 45% { transform:translateX(-5px); } 60% { transform:translateX(4px); } 75% { transform:translateX(-2px); } }
         @keyframes fcms-wipe { 0% { transform:translateX(-105%); } 38% { transform:translateX(0); } 62% { transform:translateX(0); } 100% { transform:translateX(105%); } }
         @keyframes fcms-wipe-label { 0%,28% { opacity:0; transform:translate(-50%,-50%) translateX(-30px); } 42% { opacity:1; transform:translate(-50%,-50%) translateX(0); } 60% { opacity:1; } 72% { opacity:0; } 100% { opacity:0; } }
       `}</style>
@@ -156,7 +157,7 @@ export default function CeremonyLayer({
           <div style={{
             position: 'absolute', left: '50%', top: '50%',
             textAlign: 'center',
-            animation: 'fcms-scale-in 0.6s ease-out forwards',
+            animation: `fcms-scale-in ${CEREMONY_SCALE_IN_MS}ms ease-out forwards`,
           }}>
             <div style={{ fontSize: 40, fontWeight: 900, color: '#FFD700', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
               HALF TIME
@@ -200,13 +201,17 @@ export default function CeremonyLayer({
           <div style={{
             position: 'absolute', left: '50%', top: '50%',
             textAlign: 'center',
-            animation: 'fcms-whistle 0.5s ease-out, fcms-scale-in 0.6s ease-out forwards',
+            // 外側=配置transform（scale-in）。振動は内側divに分離
+            // （同一要素にfcms-whistleとfcms-scale-inを重ねるとtransform二重指定で振動が消えるため）
+            animation: `fcms-scale-in ${CEREMONY_SCALE_IN_MS}ms ease-out forwards`,
           }}>
-            <div style={{ fontSize: 42, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
-              FULL TIME
-            </div>
-            <div style={{ fontSize: 32, color: '#fff', marginTop: 16, fontWeight: 700, letterSpacing: 6 }}>
-              {scoreHome} - {scoreAway}
+            <div style={{ animation: reducedMotion ? 'none' : `fcms-whistle-shake ${FULLTIME_SHAKE_MS}ms ease-out` }}>
+              <div style={{ fontSize: 42, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
+                FULL TIME
+              </div>
+              <div style={{ fontSize: 32, color: '#fff', marginTop: 16, fontWeight: 700, letterSpacing: 6 }}>
+                {scoreHome} - {scoreAway}
+              </div>
             </div>
             {showResultBtn && (
               <button
