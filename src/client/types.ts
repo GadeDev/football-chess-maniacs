@@ -97,7 +97,8 @@ export type WsMessage =
   | { type: 'OPPONENT_DISCONNECTED'; graceSeconds: number }
   | { type: 'RECONNECT'; state: { turn: number; board: GameState['board']; scoreHome: number; scoreAway: number } }
   | { type: 'INPUT_ACCEPTED'; turn: number }
-  | { type: 'INPUT_REJECTED'; violations: unknown[] }
+  | { type: 'INPUT_REJECTED'; violations: unknown[]; expectedSequence?: number }
+  | { type: 'HALFTIME'; scoreHome: number; scoreAway: number; secondHalfKickoff: Team; board: { pieces: PieceData[] }; turn: number }
   | { type: 'RATE_LIMIT_WARNING' }
   | { type: 'PONG'; timestamp: number }
   | { type: 'ERROR'; message: string };

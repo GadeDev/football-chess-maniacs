@@ -29,6 +29,17 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const reconnectCountRef = useRef(0);
   const [status, setStatus] = useState<ConnectionStatus>('disconnected' as ConnectionStatus);
 
+  // ハンドラは最新をrefで保持し、connect の useCallback 依存から外す。
+  // 呼び出し元がinline関数を渡すと connect の identity が毎レンダー変わり、
+  // 呼び出し元の useEffect（deps: [wsConnect]）が「切断→再接続」を無限ループしていた
+  // （オンラインE2E検証で発見: WSが永遠に'connecting'のまま + /api/teams への429ストーム）
+  const onMessageRef = useRef(onMessage);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onReconnectRef = useRef(onReconnect);
+  onMessageRef.current = onMessage;
+  onDisconnectRef.current = onDisconnect;
+  onReconnectRef.current = onReconnect;
+
   const connect = useCallback(() => {
     // OPEN または CONNECTING 中は重複接続を防止
     const rs = wsRef.current?.readyState;
@@ -45,7 +56,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     ws.onopen = () => {
       setStatus('connected');
       if (reconnectCountRef.current > 0) {
-        onReconnect?.();
+        onReconnectRef.current?.();
       }
       reconnectCountRef.current = 0;
 
@@ -60,7 +71,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     ws.onclose = () => {
       if (pingInterval) clearInterval(pingInterval);
       setStatus('disconnected');
-      onDisconnect?.();
+      onDisconnectRef.current?.();
 
       if (autoReconnect && reconnectCountRef.current < 5) {
         const delay = Math.min(1000 * 2 ** reconnectCountRef.current, 10_000);
@@ -77,12 +88,12 @@ export function useWebSocket(options: UseWebSocketOptions) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data) as WsMessage;
-        onMessage(msg);
+        onMessageRef.current(msg);
       } catch {
         // 不正なJSONは無視
       }
     };
-  }, [url, token, onMessage, onDisconnect, onReconnect, autoReconnect]);
+  }, [url, token, autoReconnect]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -94,10 +105,14 @@ export function useWebSocket(options: UseWebSocketOptions) {
     setStatus('disconnected');
   }, []);
 
-  const send = useCallback((data: unknown) => {
+  const send = useCallback((data: unknown): boolean => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
+      return true;
     }
+    // 再接続中などOPENでない間は送信されない。呼び出し元が再試行を判断できるように成否を返す
+    console.warn('[useWebSocket] send dropped: socket not open');
+    return false;
   }, []);
 
   useEffect(() => {

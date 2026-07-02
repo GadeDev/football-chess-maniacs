@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase, TurnSnapshot } from '../types';
+import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, WsMessage, FormationData, MatchEndData, TurnPhase, TurnSnapshot, OrderData } from '../types';
 import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
@@ -192,6 +192,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const sequenceRef = useRef(0);
 
   // ── オンライン対戦: WS メッセージ処理 ──
+  // showOverlay はこの下で宣言されるため ref 経由で参照（handleConfirmRef と同じパターン）
+  const showOverlayRef = useRef<((text: string, opts?: { subText?: string; duration?: number; color?: string; fontSize?: number; glow?: boolean }) => void) | null>(null);
   const handleOnlineMessage = useCallback((msg: unknown) => {
     const data = msg as WsMessage;
     switch (data.type) {
@@ -216,15 +218,47 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         dispatch({ type: 'SET_STATUS', status: 'waiting_opponent' });
         break;
 
-      case 'INPUT_REJECTED':
-        console.warn('[Battle] Input rejected:', data.violations);
+      case 'INPUT_REJECTED': {
+        console.warn('[Battle] Input rejected:', JSON.stringify(data.violations));
+        // sequenceのズレはサーバーの期待値に再同期して自己回復する
+        const expected = (data as { expectedSequence?: number }).expectedSequence;
+        if (typeof expected === 'number') {
+          sequenceRef.current = expected;
+        }
         dispatch({ type: 'SET_STATUS', status: 'playing' });
+        // WAITINGのままだと再確定できず詰むため、INPUTに戻して再試行可能にする
+        dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });
         break;
+      }
 
       case 'OPPONENT_DISCONNECTED':
         setDisconnectBannerPositive(false);
         setDisconnectBanner(tn('battle.opponent_disconnected', data.graceSeconds, { sec: data.graceSeconds }));
         break;
+
+      case 'HALFTIME': {
+        // サーバー権威のハーフタイム通知（後半キックオフの盤面リセットを同梱）。
+        // TURN_RESULTの反映（REPLAY_DURATION遅延）の後に適用されるよう同じ遅延+マージンで処理。
+        // オンラインではサーバーがターンタイマーを止めないため、交代パネル等の
+        // インタラクティブなハーフタイムUIは出さず演出のみ（ハーフタイム交代はオンライン未対応）
+        const ht = data as unknown as {
+          board: { pieces: PieceData[] }; turn: number; scoreHome: number; scoreAway: number;
+        };
+        setTimeout(() => {
+          showOverlayRef.current?.('HALF TIME', {
+            subText: `${ht.scoreHome} - ${ht.scoreAway}`,
+            duration: 2000, color: '#FFD700', fontSize: 48,
+          });
+          dispatch({
+            type: 'SET_BOARD',
+            board: ht.board,
+            turn: ht.turn,
+            scoreHome: ht.scoreHome,
+            scoreAway: ht.scoreAway,
+          });
+        }, REPLAY_DURATION + 200);
+        break;
+      }
 
       case 'MATCH_END':
         dispatch({ type: 'SET_STATUS', status: 'finished' });
@@ -443,9 +477,33 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     return id;
   }, []);
 
+  showOverlayRef.current = showOverlay;
+
   const handleOverlayComplete = useCallback((id: string) => {
     setOverlayQueue(prev => prev.filter(item => item.id !== id));
   }, []);
+
+  // ── E2E検証用フック（DEVビルドのみ・本番には含まれない） ──
+  // __fcmsBoard: 2クライアント間の盤面同期をPlaywrightから比較するためのダイジェスト
+  // __fcmsAddOrder: UI座標計算を介さず命令を注入するテスト用ディスパッチ
+  useEffect(() => {
+    const isDev = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV;
+    if (!isDev) return;
+    const w = window as unknown as { __fcmsBoard?: unknown; __fcmsAddOrder?: (order: OrderData) => void };
+    w.__fcmsBoard = {
+      turn: state.turn,
+      turnPhase: state.turnPhase,
+      status: state.status,
+      myTeam: state.myTeam,
+      scoreHome: state.scoreHome,
+      scoreAway: state.scoreAway,
+      pieces: state.board.pieces
+        .filter(p => !p.isBench)
+        .map(p => ({ id: p.id, team: p.team, col: p.coord.col, row: p.coord.row, hasBall: p.hasBall }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    };
+    w.__fcmsAddOrder = (order: OrderData) => dispatch({ type: 'ADD_ORDER', order });
+  }, [state.turn, state.turnPhase, state.status, state.myTeam, state.scoreHome, state.scoreAway, state.board.pieces, dispatch]);
 
   // ── turnPhase 遷移管理 ──
   const phaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1611,7 +1669,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     } else {
       // ── オンライン対戦: TURN_INPUT をWebSocket送信 ──
       const currentSeq = sequenceRef.current;
-      sequenceRef.current++;
 
       const rawOrders = [...state.orders.values()].map(order => ({
         piece_id: order.pieceId,
@@ -1627,13 +1684,23 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         turn: state.turn,
         player_id: '', // サーバーが認証済みWS attachment.userId で上書きするため空で送る
         sequence: currentSeq,
-        nonce: `${matchId}_${state.turn}_${Date.now()}`,
+        // 同一ミリ秒の二重送信でも衝突しないよう sequence + 乱数を含める
+        // （旧形式 matchId_turn_ms は二重確定で Duplicate nonce 拒否の原因になっていた）
+        nonce: `${matchId}_${state.turn}_${currentSeq}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         orders: rawOrders,
         client_hash: '', // 盤面ハッシュ(任意のアンチチート用途)。現状サーバー未検証のため空
         timestamp: Date.now(),
       };
 
-      wsSend(turnInput);
+      const sent = wsSend(turnInput);
+      if (sent) {
+        // sequenceは送信に成功した時だけ消費する
+        // （再接続中のsend破棄でsequenceだけ進むと、以後の入力が全拒否される原因になっていた）
+        sequenceRef.current++;
+      } else {
+        // 送信できなかったらINPUTに戻して再試行可能にする
+        dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });
+      }
     }
     if (isMobile && navigator.vibrate) {
       navigator.vibrate([50, 30, 50]);

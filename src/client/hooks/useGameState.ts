@@ -295,16 +295,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'APPLY_TURN_RESULT': {
-      // オンライン対戦: サーバーからのターン結果を反映（ハーフタイム/試合終了の判定付き）
-      const halfEnd = HALF_TURNS + state.additionalTime1;
-      const fullEnd = HALF_TURNS * 2 + state.additionalTime1 + state.additionalTime2;
-
-      let newStatus: GameState['status'] = 'playing';
-      if (action.turn > fullEnd) {
-        newStatus = 'finished';
-      } else if (state.turn <= halfEnd && action.turn > halfEnd) {
-        newStatus = 'halftime';
-      }
+      // オンライン対戦: サーバーからのターン結果を反映。
+      // ハーフタイム/試合終了はサーバー権威（HALFTIME / MATCH_ENDメッセージ）に従う。
+      // 旧実装はクライアントローカルの乱数AT（additionalTime1/2）から推定していたため、
+      // サーバーのAT値と食い違うと片側だけ早くFULL TIMEになる等の乖離が起きていた。
+      // 最終ターンのTURN_RESULTはリプレイ遅延でMATCH_ENDの後に適用されるため、
+      // finishedは巻き戻さない（巻き戻すとFULL TIME演出の結果ボタンが消える）
+      const isFinished = state.status === 'finished';
+      const newStatus: GameState['status'] = isFinished ? 'finished' : 'playing';
 
       return {
         ...state,
@@ -313,6 +311,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         scoreHome: action.scoreHome,
         scoreAway: action.scoreAway,
         status: newStatus,
+        // 確定時に'WAITING'へ移行したturnPhaseを次ターン開始に戻す。
+        // これがないとオンライン対戦は2ターン目以降INPUTに戻れず進行不能
+        // （TURN_START→INPUT遷移は既存のturnPhase効果が担う）
+        turnPhase: isFinished ? state.turnPhase : 'TURN_START',
         orders: new Map(),
         selectedPieceId: null,
         actionMode: null,
