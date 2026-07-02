@@ -107,9 +107,22 @@ C3以降（個別シーンの派手さ）に広げるのが効率的。
 
 ---
 
-## Phase D: 動きの物理的説得力（2026-07-01追加・最優先で着手）
+## Phase D: 動きの物理的説得力（2026-07-01追加） — ✅ 完了（2026-07-02）
 
 > ユーザー指定の優先順位: D1（ボール軌跡）→ D2（コマ移動）の順で確定。
+
+D1/D2とも実装済み。テスト724件全通過・型チェッククリーン。
+- D1（`46b238e`）: `BallTrail`に`flight?: { startedAt, durationMs }`を追加し、Battle.tsxがパス/シュート/パスカットの
+  軌跡push時に`flightDurationMs`（FlyingBallと同一の距離比例式・animSpeed込み）で刻印。`renderBallTrails`は進捗に
+  応じてfrom→ボール現在位置まで線を補間描画し、終端マーカーは飛行完了時のみ描画。Overlayは飛行中の軌跡がある間
+  だけ`requestAnimationFrame`で再描画し、飛行が終わればループ停止（静的描画のままでパフォーマンス維持）。
+  reduced-motion時とflightなし軌跡（ドリブル等）は従来通り完成線を即時描画。純粋関数テスト6件追加
+- D2（`afc95ce`）: `battleUtils.ts`に`calcPieceMoveDurationMs`（300〜800msクランプ・3ms/px）を新設し、
+  Piece.tsxのCSS transitionとBattle.tsxのPhase0待機の両方が同式を共有（片側だけの変更によるフェーズずれなし）。
+  Piece側は前回表示位置からの移動ピクセル距離+animationSpeed設定で算出、Battle側は移動したコマの最長移動距離
+  から待機時間を動的算出（移動なしターンは待機スキップ）。テスト4件追加
+- Playwright回帰 `e2e/mobile_battle_failsafe.mjs` を iPhone13/WebKit・Pixel7/Chromium 両方で実行し全項目PASS
+  （演出タイミング変更でフェイルセーフ非破壊を確認）。**実機ブラウザでの目視確認は未実施**
 
 ### 現状の再監査（Phase Cから踏み込んで確認）
 
