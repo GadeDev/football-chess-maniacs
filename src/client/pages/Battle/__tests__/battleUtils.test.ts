@@ -15,6 +15,10 @@ import {
   getMatchTimeLabel,
   computeStats,
   computeMvp,
+  calcPieceMoveDurationMs,
+  PIECE_MOVE_MIN_MS,
+  PIECE_MOVE_MAX_MS,
+  PIECE_MOVE_MS_PER_PX,
   HALF_LINE_ROW,
   DEFAULT_TEMPLATE,
 } from '../battleUtils';
@@ -356,5 +360,32 @@ describe('computeMvp', () => {
     const mvp = computeMvp(events);
     expect(mvp?.pieceId).toBe('h05');
     expect(mvp?.tackles).toBe(2);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// calcPieceMoveDurationMs（D2: コマ移動の距離連動速度）
+// ────────────────────────────────────────────────────────────
+describe('calcPieceMoveDurationMs', () => {
+  it('移動なし（距離0以下・非有限）は0', () => {
+    expect(calcPieceMoveDurationMs(0)).toBe(0);
+    expect(calcPieceMoveDurationMs(-10)).toBe(0);
+    expect(calcPieceMoveDurationMs(NaN)).toBe(0);
+    expect(calcPieceMoveDurationMs(Infinity)).toBe(0);
+  });
+
+  it('短距離は下限にクランプ（1HEX ≈ 45px → 300ms）', () => {
+    expect(calcPieceMoveDurationMs(45)).toBe(PIECE_MOVE_MIN_MS);
+    expect(calcPieceMoveDurationMs(1)).toBe(PIECE_MOVE_MIN_MS);
+  });
+
+  it('中距離は距離比例（丸め込み）', () => {
+    const dist = 150; // 約3.5HEX
+    expect(calcPieceMoveDurationMs(dist)).toBe(Math.round(dist * PIECE_MOVE_MS_PER_PX)); // 450ms
+  });
+
+  it('長距離は上限にクランプ（従来の0.8sと同じ）', () => {
+    expect(calcPieceMoveDurationMs(300)).toBe(PIECE_MOVE_MAX_MS);
+    expect(calcPieceMoveDurationMs(10000)).toBe(PIECE_MOVE_MAX_MS);
   });
 });

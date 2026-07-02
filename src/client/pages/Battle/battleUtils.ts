@@ -93,6 +93,28 @@ export const TOTAL_ANIMATION_MS = PHASE_TIMINGS.reduce((a, b) => a + b, 0); // 2
 export const REPLAY_DURATION = 2500;
 
 // ============================================================
+// D2: コマ移動アニメーション（距離連動速度）
+// ============================================================
+
+/** コマ移動 1pxあたりのアニメーション時間（1HEX ≈ 40〜45px） */
+export const PIECE_MOVE_MS_PER_PX = 3;
+/** コマ移動アニメーションの下限（短距離でもこれよりは速くしない） */
+export const PIECE_MOVE_MIN_MS = 300;
+/** コマ移動アニメーションの上限（従来の固定0.8sと同じ） */
+export const PIECE_MOVE_MAX_MS = 800;
+
+/**
+ * コマ移動アニメーション時間（ms）を移動ピクセル距離から算出。
+ * Piece.tsx のCSS transitionと Battle.tsx のフェーズ待機の両方がこれを使う
+ * （片方だけ変えると次フェーズ演出のタイミングがズレるため必ず共有すること）。
+ * 移動なし（距離0以下）は 0。
+ */
+export function calcPieceMoveDurationMs(distPx: number): number {
+  if (!Number.isFinite(distPx) || distPx <= 0) return 0;
+  return Math.max(PIECE_MOVE_MIN_MS, Math.min(PIECE_MOVE_MAX_MS, Math.round(distPx * PIECE_MOVE_MS_PER_PX)));
+}
+
+// ============================================================
 // デフォルトテンプレート
 // ============================================================
 

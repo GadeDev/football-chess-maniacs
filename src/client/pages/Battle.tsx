@@ -52,7 +52,7 @@ import {
   type MiniGameState, type CeremonyPhase, type GoalCelebrationInfo,
   // Functions
   createInitialPieces, createGoalRestartPieces, createGoalKickPieces, toEnginePiece,
-  clientOrderToEngine, enginePiecesToClient,
+  clientOrderToEngine, enginePiecesToClient, calcPieceMoveDurationMs,
   computeReachableHexes, isShootZoneForPiece, getAccuratePassRange,
   getMatchTimeLabel, computeStats, computeMvp,
 } from './Battle/battleUtils';
@@ -1062,9 +1062,19 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           if (viteDev && (window as unknown as { __fcmsForceReplayError?: boolean }).__fcmsForceReplayError) {
             throw new Error('__fcms_test_replay_error');
           }
-          // Phase0: 全コマ同時移動（0.3秒待ち → APPLY_ENGINE_RESULT → CSS transition 0.8秒）
+          // Phase0: 全コマ同時移動（0.3秒待ち → APPLY_ENGINE_RESULT → 距離連動CSS transition）
           setResolvingPhase(0);
           await wait(300);
+          // D2: 最長移動距離のコマに合わせて待機時間を算出
+          // （Piece.tsxのtransitionと同じcalcPieceMoveDurationMsを使い、フェーズ演出とコマ移動を同期）
+          let maxMoveMs = 0;
+          for (const np of newFieldPieces) {
+            const pp = prePieces.find(p => p.id === np.id);
+            if (!pp || (pp.coord.col === np.coord.col && pp.coord.row === np.coord.row)) continue;
+            const fromPx = hexToPixel(pp.coord);
+            const toPx = hexToPixel(np.coord);
+            maxMoveMs = Math.max(maxMoveMs, calcPieceMoveDurationMs(Math.hypot(toPx.x - fromPx.x, toPx.y - fromPx.y)));
+          }
           dispatch({
             type: 'APPLY_ENGINE_RESULT',
             pieces: newPieces,
@@ -1077,7 +1087,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             possessionDelay: turnResult.board.possessionDelay ?? null,
             passiveTacticsTeams: turnResult.board.passiveTacticsTeams ?? [],
           });
-          await wait(800); // CSS transition完了を待つ
+          if (maxMoveMs > 0) await wait(maxMoveMs); // CSS transition完了を待つ（D2: 距離連動）
 
           // ドリブル軌跡を追加（移動完了後に表示）
           for (const ev of evts) {

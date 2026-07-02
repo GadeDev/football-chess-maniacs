@@ -4,10 +4,12 @@
 // ボール保持者はコマ横に大きいボールアイコンを別要素で表示。
 // ============================================================
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import type { PieceData, OrderData, HexCoord } from '../../types';
 import PieceIcon, { pieceSize } from './PieceIcon';
 import type { Cost, Position, Side } from './PieceIcon';
+import { calcPieceMoveDurationMs, PIECE_MOVE_MIN_MS } from '../../pages/Battle/battleUtils';
+import { useSettings } from '../../contexts/SettingsContext';
 
 interface PieceProps {
   piece: PieceData;
@@ -52,6 +54,20 @@ function BallIcon({ size, onClick }: { size: number; onClick?: (e: React.MouseEv
 }
 
 export default function Piece({ piece, x, y, isSelected, hasOrder, order, myTeam = 'home', onBallClick, ballPulse = false }: PieceProps) {
+  const { settings } = useSettings();
+  const animSpeed = settings.animationSpeed || 1;
+
+  // D2: 移動距離に比例したtransition時間（Battle.tsxのフェーズ待機と同じ算出式で同期）
+  const prevPosRef = useRef<{ x: number; y: number } | null>(null);
+  const moveDurRef = useRef(PIECE_MOVE_MIN_MS);
+  const prevPos = prevPosRef.current;
+  if (prevPos && (prevPos.x !== x || prevPos.y !== y)) {
+    const dist = Math.hypot(x - prevPos.x, y - prevPos.y);
+    moveDurRef.current = Math.round(calcPieceMoveDurationMs(dist) / animSpeed);
+  }
+  prevPosRef.current = { x, y };
+  const moveDurMs = moveDurRef.current;
+
   const size = pieceSize(piece.cost as Cost);
   const half = size / 2;
   const side: Side = piece.team === myTeam ? 'ally' : 'enemy';
@@ -87,8 +103,8 @@ export default function Piece({ piece, x, y, isSelected, hasOrder, order, myTeam
         zIndex: isSelected ? 20 : 10,
         transform: `scale(${selectedScale})`,
         transformOrigin: '50% 50%',
-        // §5-1 フェーズ1 コマ移動アニメーション 0.8s
-        transition: 'left 0.8s ease-out, top 0.8s ease-out, opacity 0.2s, transform 0.16s ease-out',
+        // §5-1 フェーズ1 コマ移動アニメーション（D2: 距離連動 300〜800ms）
+        transition: `left ${moveDurMs}ms ease-out, top ${moveDurMs}ms ease-out, opacity 0.2s, transform 0.16s ease-out`,
       }}
       data-piece-id={piece.id}
     >
