@@ -128,7 +128,9 @@ describe('verifyJwt', () => {
   it('nbf が未来すぎる場合は落ちる', async () => {
     const { signToken } = await setup();
     const now = Math.floor(Date.now() / 1000);
-    await expect(verifyJwt(await signToken({ payload: { nbf: now + 61 } }), JWKS_URL, options))
+    // clockSkew(60s)+1秒 だと署名〜検証の間に秒境界を跨ぐと成立しなくなりフレーキーだったため、
+    // skew を余裕を持って超える値にする
+    await expect(verifyJwt(await signToken({ payload: { nbf: now + 120 } }), JWKS_URL, options))
       .rejects.toThrow('JWT not active yet');
   });
 
