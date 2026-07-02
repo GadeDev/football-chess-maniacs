@@ -65,7 +65,24 @@ T1（`outgame_plan_v2.md`）でチーム識別情報（`teamName`/`teamEmoji`/`o
 
 ---
 
-## Phase C: 試合中の演出強化（ボール軌跡など） — C1/C2完了（2026-07-01）、C3〜C5は未着手
+## Phase C: 試合中の演出強化（ボール軌跡など） — ✅ 全完了（C1/C2: 2026-07-01、C3〜C5: 2026-07-02）
+
+C3〜C5実装済み（`b52862a`、CK/FKカメラズームは「ミニゲームは軽く」の既決定に反するため実装しない判断で確定）。
+テスト742件全通過・型チェッククリーン。変更はクライアント+テストのみ（Workerデプロイ不要）。
+発火条件を絞る「メリハリ」設計を厳守（通常プレーは無変更、決定的瞬間のみ強調）。
+- C3 シュートの威力感: `isStrongShoot`（STRONG_SHOOT_COST_MIN=4 or ゴール距離≤3、定数化。
+  注: 現行コスト帯1〜3のためコスト条件は実質未発火＝距離条件が主）。strongのみ
+  ①カメラ微振動（HexBoard外側ラッパーにBOARD_SHAKE_MS=200ms・±3px、着弾の瞬間に発火、
+  パン/ズームtransformと独立、reduced-motion時完全スキップ）
+  ②着弾点（missedは枠外地点）にImpactBurst 'impact' ③軌跡を太線10px+グロー（shootTrailStyle）
+- C4 ドリブル突破の砂煙: BREAKTHROUGH（タックル振り切り）の瞬間のみImpactBurst 'dust'（通常ドリブルでは出さない）
+- C5a パスカットの火花: ImpactBurst新kind 'spark'（オレンジ#ff8800系）をインターセプト地点に発火。
+  reduced-motion時はバースト自動省略でアイコンのみ
+- C5b オフサイドラインの可視化: OFFSIDEイベント時、エンジンと同じgetOffsideLineをターン開始時
+  スナップショットで呼んでラインを再構成し、黄色点線をOFFSIDE_FLASH_MS=1.2秒でフェードアウト表示
+  （offsideFlashAlpha、reduced-motion時はフェードなし静的表示）。D1のrAFループを拡張、flipY対応
+- ターン進行タイミング不変（既存waitの中で完結）。テスト8件追加（734→742）
+- 検証: e2e両デバイス全PASS + COM観戦フルマッチスモーク（コンソールエラー0でFULL TIME到達）
 
 ユーザー判断で「C1+C2のみ実装」を採用（C3〜C5はブラウザ目視確認なしでの実装リスクを踏まえ保留）。
 `FlyingBall.tsx`に進行方向の光の尾（C1: シュート42px/5px・スルーパス30px/4px・パス22px/3px・
