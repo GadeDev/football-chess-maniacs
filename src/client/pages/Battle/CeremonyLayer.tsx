@@ -57,7 +57,6 @@ export default function CeremonyLayer({
         @keyframes fcms-slide-up { 0% { opacity:0; transform:translate(-50%,-40%) translateY(40px); } 20% { opacity:1; transform:translate(-50%,-50%) translateY(0); } 80% { opacity:1; } 100% { opacity:0; } }
         @keyframes fcms-scale-in { 0% { opacity:0; transform:translate(-50%,-50%) scale(0.5); } 25% { opacity:1; transform:translate(-50%,-50%) scale(1.08); } 40% { transform:translate(-50%,-50%) scale(1); } 100% { opacity:1; transform:translate(-50%,-50%) scale(1); } }
         @keyframes fcms-scale-out { 0% { opacity:1; transform:translate(-50%,-50%) scale(1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(0.8); } }
-        @keyframes fcms-turn-flash { 0% { opacity:0; transform:translate(-50%,-50%) scale(0.8); } 30% { opacity:1; transform:translate(-50%,-50%) scale(1); } 100% { opacity:0; transform:translate(-50%,-50%) scale(1); } }
         @keyframes fcms-whistle { 0%,100% { transform:translate(-50%,-50%); } 10% { transform:translate(-48%,-50%); } 20% { transform:translate(-52%,-50%); } 30% { transform:translate(-49%,-50%); } 40% { transform:translate(-51%,-50%); } 50% { transform:translate(-50%,-50%); } }
         @keyframes fcms-wipe { 0% { transform:translateX(-105%); } 38% { transform:translateX(0); } 62% { transform:translateX(0); } 100% { transform:translateX(105%); } }
         @keyframes fcms-wipe-label { 0%,28% { opacity:0; transform:translate(-50%,-50%) translateX(-30px); } 42% { opacity:1; transform:translate(-50%,-50%) translateX(0); } 60% { opacity:1; } 72% { opacity:0; } 100% { opacity:0; } }
@@ -83,7 +82,7 @@ export default function CeremonyLayer({
       )}
       <div style={{
         position: 'fixed', inset: 0,
-        background: ceremony === 'turn' ? 'rgba(0,0,0,0.35)' : ceremony === 'goalkick' ? 'transparent' : 'rgba(0,0,0,0.7)', // 'goal' は早期returnで別演出
+        background: ceremony === 'goalkick' ? 'transparent' : 'rgba(0,0,0,0.7)', // 'goal' は早期returnで別演出
         zIndex: 200,
         pointerEvents: (ceremony === 'fulltime' && showResultBtn) || ceremony === 'halftime_sub' ? 'auto' : 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -214,17 +213,6 @@ export default function CeremonyLayer({
           </div>
         )}
 
-        {/* 通常ターン切替 */}
-        {ceremony === 'turn' && (
-          <div style={{
-            position: 'absolute', left: '50%', top: '50%',
-            animation: 'fcms-turn-flash 1.2s ease-out forwards',
-          }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', letterSpacing: 1, textShadow: '0 1px 12px rgba(0,0,0,0.6)', whiteSpace: 'nowrap' }}>
-              Turn {turn}
-            </div>
-          </div>
-        )}
       </div>
     </>
   );

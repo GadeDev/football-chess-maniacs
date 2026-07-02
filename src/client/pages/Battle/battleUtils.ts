@@ -62,11 +62,29 @@ export const HALF_LINE_ROW = 16;
 // タイミング定数 (ms)
 // ============================================================
 
+// ── Phase E: 演出タイミング体系（一元管理）──
+// CeremonyLayer / CenterOverlay のタイミングは必ずここの定数を使うこと。
+// KICKOFF_CEREMONY_MS はターン進行（TURN_START→INPUTのnormalDelay）と連動しているため
+// 変更する場合は Battle.tsx 側も必ず合わせる。
+
+/** 暗転背景のフェードイン/アウト */
+export const CEREMONY_BACKDROP_FADE_MS = 250;
+/** カットイン（文字/帯）の入り */
+export const CUTIN_IN_MS = 250;
+/** イベントカットインのデフォルトホールド（showOverlayのduration未指定時） */
+export const CUTIN_HOLD_MS = 1000;
+/** カットイン（文字/帯）の抜け */
+export const CUTIN_OUT_MS = 200;
+/** KICKOFF演出全体（ターン進行と連動） */
 export const KICKOFF_CEREMONY_MS = 2500;
+/** KICKOFF文字のホールド（入り→この時間静止→抜け→背景フェードアウト） */
+export const KICKOFF_HOLD_MS = 1500;
+/** SECOND HALF表示（この後kickoff2ndへ遷移） */
+export const SECONDHALF_CEREMONY_MS = 1500;
+/** Turn表示（試合時間ラベル横の小さなフェード切替） */
+export const TURN_INDICATOR_MS = 600;
 export const HALFTIME_CEREMONY_MS = 3000;
-export const SECOND_HALF_DELAY_MS = 4500;
 export const FULLTIME_RESULT_BTN_DELAY_MS = 3000;
-export const TURN_FLASH_MS = 1200;
 export const GOAL_CEREMONY_MS = 2600;
 /** GOAL演出に渡す得点スナップショット（演出中はstateのスコア更新前のため、確定値をここで固定する） */
 export interface GoalCelebrationInfo {
@@ -145,7 +163,7 @@ export type MiniGameState =
   | { type: 'pk'; coord: HexCoord; kickerPiece: PieceData; gkPiece: PieceData; isKicker: boolean; fouledTeam: Team };
 
 /** 演出フェーズ型 */
-export type CeremonyPhase = 'kickoff' | 'kickoff2nd' | 'halftime' | 'halftime_sub' | 'secondhalf' | 'fulltime' | 'turn' | 'goal' | 'goalkick' | null;
+export type CeremonyPhase = 'kickoff' | 'kickoff2nd' | 'halftime' | 'halftime_sub' | 'secondhalf' | 'fulltime' | 'goal' | 'goalkick' | null;
 
 // ============================================================
 // 純粋関数

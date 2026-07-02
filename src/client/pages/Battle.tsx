@@ -35,13 +35,14 @@ import PKGame from '../components/minigame/PKGame';
 import hexMapData from '../data/hex_map.json';
 import { setBallHolder } from '../utils/ballManager';
 import CeremonyLayer from './Battle/CeremonyLayer';
+import TurnIndicator from './Battle/TurnIndicator';
 import { t, tn } from '../i18n';
 import {
   // Constants
   DEFAULT_MOVE_RANGE, HALF_TURNS, HALF_LINE_ROW, MAX_SUBSTITUTIONS, MAX_FIELD_COST,
   MINUTES_PER_TURN, HALFTIME_MINUTE, FULLTIME_MINUTE,
-  KICKOFF_CEREMONY_MS, HALFTIME_CEREMONY_MS, SECOND_HALF_DELAY_MS,
-  FULLTIME_RESULT_BTN_DELAY_MS, TURN_FLASH_MS, GOAL_CEREMONY_MS,
+  KICKOFF_CEREMONY_MS, HALFTIME_CEREMONY_MS, SECONDHALF_CEREMONY_MS,
+  FULLTIME_RESULT_BTN_DELAY_MS, GOAL_CEREMONY_MS, CUTIN_HOLD_MS, CUTIN_IN_MS,
   RECONNECT_BANNER_MS, SAFETY_TIMEOUT_MS, REPLAY_DURATION,
   MINIGAME_COUNTDOWN_INTERVAL_MS, MINIGAME_FK_PK_COUNTDOWN, MINIGAME_CK_COUNTDOWN,
   GOALKICK_WIPE_TOTAL_MS, GOALKICK_WIPE_COVER_MS,
@@ -386,7 +387,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       const allPieces = buildSecondHalfPieces();
       dispatch({ type: 'SET_DISPLAY_PIECES', pieces: allPieces });
       setCeremony('kickoff2nd');
-    }, 1500);
+    }, SECONDHALF_CEREMONY_MS);
     const t2 = setTimeout(() => {
       const allPieces = buildSecondHalfPieces();
       setCeremony(null);
@@ -398,7 +399,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         scoreHome: capturedScoreHome,
         scoreAway: capturedScoreAway,
       });
-    }, 1500 + KICKOFF_CEREMONY_MS);
+    }, SECONDHALF_CEREMONY_MS + KICKOFF_CEREMONY_MS);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [halftimeReady, state.status, dispatch, formationData]);
 
@@ -422,7 +423,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const showOverlay = useCallback((text: string, opts?: { subText?: string; duration?: number; color?: string; fontSize?: number; glow?: boolean }) => {
     const id = `ov_${++overlayIdCounter.current}`;
     setOverlayQueue(prev => [...prev, {
-      id, text, duration: opts?.duration ?? 1000,
+      id, text, duration: opts?.duration ?? CUTIN_HOLD_MS,
       subText: opts?.subText, color: opts?.color, fontSize: opts?.fontSize, glow: opts?.glow,
     }]);
     return id;
@@ -442,10 +443,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   useEffect(() => {
     if (state.turnPhase !== 'TURN_START' || state.status !== 'playing') return;
     clearPhaseTimeout();
-    // Turn X の演出表示（COM vs COM では蓄積防止のためスキップ）
-    if (state.turn > 0 && !isComVsCom) {
-      showOverlay(`Turn ${state.turn}`, { duration: 800, fontSize: 36 });
-    }
+    // Turn X の表示は TurnIndicator（時間ラベル横の小さなフェード）に一本化（E1）
     const normalDelay = isComVsCom ? 500 : (state.turn === 1 ? KICKOFF_CEREMONY_MS : 1000);
     phaseTimeoutRef.current = setTimeout(() => {
       dispatch({ type: 'SAVE_SNAPSHOT' });
@@ -626,16 +624,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     }
     return warns.size > 0 ? warns : undefined;
   }, [state.orders, state.board.pieces]);
-
-  // 通常ターン切替演出（上記以外）
-  const halfEnd = HALF_TURNS + state.additionalTime1;
-  useEffect(() => {
-    if (state.turn <= 1 || state.status !== 'playing') return;
-    if (state.turn === halfEnd + 1) return; // secondhalf は別演出
-    setCeremony('turn');
-    const timer = setTimeout(() => setCeremony(null), TURN_FLASH_MS);
-    return () => clearTimeout(timer);
-  }, [state.turn, state.status, halfEnd]);
 
   // ── 試合時間ラベル ──
   const turnInfo = useMemo(
@@ -2024,7 +2012,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             {state.scoreHome}<span style={{ color: '#555', margin: '0 3px' }}>-</span>{state.scoreAway}
           </span>
 
-          {/* 中央: 試合時間（大きめ）+ 残り持ち時間（小さめ） */}
+          {/* 中央: 試合時間（大きめ）+ 残り持ち時間（小さめ）+ Turn表示（E1） */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
             <span style={{
               fontSize: 18, fontWeight: 800, letterSpacing: 1,
@@ -2033,6 +2021,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             }}>
               {turnInfo.label}
             </span>
+            <TurnIndicator turn={state.turn} />
             <Timer
               turnStartedAt={state.turnStartedAt}
               onTimeout={handleTimeout}
@@ -2491,6 +2480,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         }}>
           {turnInfo.label}
         </span>
+
+        {/* Turn表示（E1: 暗転演出から格下げした控えめフェード） */}
+        <TurnIndicator turn={state.turn} />
 
         {/* 残り持ち時間 */}
         <Timer
