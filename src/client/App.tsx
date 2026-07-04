@@ -25,11 +25,13 @@ import SettingsScreen from './screens/SettingsScreen';
 import FriendMatchScreen from './screens/FriendMatchScreen';
 import PresetTeamsScreen from './screens/PresetTeamsScreen';
 import ReplayScreen from './screens/ReplayScreen';
+import LegalFooter from './components/LegalFooter';
 
 import type { PresetTeam } from '../data/presetTeams';
 import type { PieceData, GameEvent } from './types';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
+import { consumeUniversoSso } from './utils/universoSso';
 
 /** リプレイ用ターンスナップショット */
 interface TurnSnapshot {
@@ -63,7 +65,7 @@ export default function App() {
   const [formationData, setFormationData] = useState<FormationData | null>(null);
   const [comDifficulty, setComDifficulty] = useState<ComDifficulty>('regular');
   // JWT認証トークン（ログインフロー実装後にセット。localStorageフォールバック）
-  const [authToken] = useState<string>(() => localStorage.getItem('fcms_token') ?? '');
+  const [authToken] = useState<string>(() => consumeUniversoSso() ?? localStorage.getItem('fcms_token') ?? '');
 
   // 試合結果データ（Battle → Result 引継ぎ）
   const [matchEndData, setMatchEndData] = useState<MatchEndData>({
@@ -174,78 +176,81 @@ export default function App() {
         }
       `}</style>
 
-      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-        {page === 'title' && (
-          <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
-        )}
-        {page === 'modeSelect' && (
-          <ModeSelect
-            initialMode={gameMode}
-            initialDifficulty={comDifficulty}
-            onStartWithFormation={handleStartWithFormation}
-            onStartNow={handleStartNow}
-            onBack={() => navigate('title')}
-          />
-        )}
-        {page === 'formation' && (
-          <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} />
-        )}
-        {page === 'matching' && (
-          <Matching
-            onNavigate={navigate}
-            onMatchFound={handleMatchFound}
-            gameMode={gameMode}
-            authToken={authToken}
-            comDifficulty={comDifficulty}
-          />
-        )}
-        {page === 'battle' && (
-          <Battle
-            onNavigate={navigate}
-            matchId={matchId ?? undefined}
-            gameMode={gameMode}
-            authToken={comAuthToken ?? authToken}
-            myTeam={myTeam}
-            formationData={formationData}
-            onMatchEnd={handleMatchEnd}
-            comDifficulty={comDifficulty}
-          />
-        )}
-        {page === 'halfTime' && (
-          <HalfTime
-            scoreHome={matchEndData.scoreHome}
-            scoreAway={matchEndData.scoreAway}
-            onNavigate={navigate}
-            onReady={() => navigate('battle')}
-          />
-        )}
-        {page === 'result' && (
-          <ResultScreen
-            scoreHome={matchEndData.scoreHome}
-            scoreAway={matchEndData.scoreAway}
-            myTeam={matchEndData.myTeam}
-            reason={matchEndData.reason}
-            stats={matchEndData.stats}
-            mvp={matchEndData.mvp}
-            gameMode={gameMode}
-            onNavigate={navigate}
-          />
-        )}
-        {page === 'replay' && (
-          <Replay onNavigate={navigate} matchId={matchId ?? undefined} />
-        )}
-        {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken} />}
-        {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
-        {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
-        {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
-        {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
-        {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
-        {page === 'presetTeams' && (
-          <PresetTeamsScreen onNavigate={navigate} onSelectPresetTeam={handleSelectPresetTeam} />
-        )}
-        {page === 'replayViewer' && (
-          <ReplayScreen onNavigate={navigate} turns={replayTurns} myTeam={matchEndData.myTeam} />
-        )}
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {page === 'title' && (
+            <Title onNavigate={navigate} lastSetup={lastSetup} onQuickMatch={handleQuickMatch} />
+          )}
+          {page === 'modeSelect' && (
+            <ModeSelect
+              initialMode={gameMode}
+              initialDifficulty={comDifficulty}
+              onStartWithFormation={handleStartWithFormation}
+              onStartNow={handleStartNow}
+              onBack={() => navigate('title')}
+            />
+          )}
+          {page === 'formation' && (
+            <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} />
+          )}
+          {page === 'matching' && (
+            <Matching
+              onNavigate={navigate}
+              onMatchFound={handleMatchFound}
+              gameMode={gameMode}
+              authToken={authToken}
+              comDifficulty={comDifficulty}
+            />
+          )}
+          {page === 'battle' && (
+            <Battle
+              onNavigate={navigate}
+              matchId={matchId ?? undefined}
+              gameMode={gameMode}
+              authToken={comAuthToken ?? authToken}
+              myTeam={myTeam}
+              formationData={formationData}
+              onMatchEnd={handleMatchEnd}
+              comDifficulty={comDifficulty}
+            />
+          )}
+          {page === 'halfTime' && (
+            <HalfTime
+              scoreHome={matchEndData.scoreHome}
+              scoreAway={matchEndData.scoreAway}
+              onNavigate={navigate}
+              onReady={() => navigate('battle')}
+            />
+          )}
+          {page === 'result' && (
+            <ResultScreen
+              scoreHome={matchEndData.scoreHome}
+              scoreAway={matchEndData.scoreAway}
+              myTeam={matchEndData.myTeam}
+              reason={matchEndData.reason}
+              stats={matchEndData.stats}
+              mvp={matchEndData.mvp}
+              gameMode={gameMode}
+              onNavigate={navigate}
+            />
+          )}
+          {page === 'replay' && (
+            <Replay onNavigate={navigate} matchId={matchId ?? undefined} />
+          )}
+          {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken} />}
+          {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
+          {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
+          {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
+          {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
+          {page === 'friendMatch' && <FriendMatchScreen onNavigate={navigate} />}
+          {page === 'presetTeams' && (
+            <PresetTeamsScreen onNavigate={navigate} onSelectPresetTeam={handleSelectPresetTeam} />
+          )}
+          {page === 'replayViewer' && (
+            <ReplayScreen onNavigate={navigate} turns={replayTurns} myTeam={matchEndData.myTeam} />
+          )}
+        </div>
+        <LegalFooter />
       </div>
     </SettingsProvider>
   );

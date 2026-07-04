@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Page, Position, Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import { PIECE_CATALOG_LIST } from '../../data/pieceCatalog';
+import { UNIVERSO_TERMS_NOTICE } from '../legalLinks';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
@@ -224,6 +225,9 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
 
       <div style={{ fontSize: 12, color: '#7a86a8', width: '100%', maxWidth: 460 }}>
         コマはインゴット ◆ で購入できます。インゴットはプラットフォームで購入します。
+      </div>
+      <div style={{ fontSize: 11, color: '#7a86a8', width: '100%', maxWidth: 460, lineHeight: 1.5 }}>
+        {UNIVERSO_TERMS_NOTICE}
       </div>
 
       {/* ポジションフィルター */}

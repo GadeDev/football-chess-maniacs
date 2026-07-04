@@ -693,3 +693,11 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 - WS upgrade時のCORS/secureHeadersスキップ（修正 #67）
 - `timingSafeEqual` 共通化（修正 #44, #63）
 
+---
+
+## Universo Fútbol 法務リンク（2026-07-04）
+
+- すべてのゲーム画面は共通フッターで「運営: 株式会社ゲイド(Universo Fútbol)」と Terms / Privacy / 特定商取引法に基づく表記 / Contact を表示する。
+- リンク先は `https://universo-futbol.com/terms` / `privacy` / `tokushoho` / `contact` を正とし、必ず `target="_blank" rel="noopener"` を付ける。法務本文はこのリポジトリへコピーしない。
+- ログイン・登録・購入・サブスク導線には「本ゲームは Universo Fútbol の一部として提供され、Universo Fútbol の利用規約が適用されます。」の注意文を出す。
+- 実装の入口は `src/client/legalLinks.ts` と `src/client/components/LegalFooter.tsx`。表示変更時は `src/client/utils/__tests__/legalLinks.test.ts` も更新する。
