@@ -111,7 +111,14 @@ function AppShell() {
   // Phase5 T11: 未編成プレイヤーが「今すぐ対戦」でNPCチームを割り当てられた試合かどうか（リザルト画面の編成誘導バナー用）
   const [quickMatchBanner, setQuickMatchBanner] = useState(false);
 
-  const navigate = useCallback((p: Page) => setPage(p), []);
+  // 編成画面を「対戦フロー」（ModeSelect経由等）で開いたかどうか。
+  // trueの時だけ編成画面に「この編成で対戦」ボタンが出る（spec v3: 保存と対戦の分離）
+  const [formationMatchFlow, setFormationMatchFlow] = useState(false);
+
+  const navigate = useCallback((p: Page) => {
+    if (p === 'formation') setFormationMatchFlow(false);
+    setPage(p);
+  }, []);
 
   // マッチング開始の共通処理: 状態反映 + 前回設定の永続化 + 遷移
   // opponent省略時（前回設定の復元等）はCOM系モードのみ新規抽選。ModeSelectでプレビュー済みの場合はそのまま引き継ぐ
@@ -150,6 +157,7 @@ function AppShell() {
     setGameMode(mode);
     setComDifficulty(difficulty);
     setPendingOpponent(opponent ?? null);
+    setFormationMatchFlow(true);
     setPage('formation');
   }, []);
 
@@ -336,7 +344,7 @@ function AppShell() {
           />
         )}
         {page === 'formation' && (
-          <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} />
+          <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} matchFlow={formationMatchFlow} />
         )}
         {page === 'matching' && (
           <Matching
