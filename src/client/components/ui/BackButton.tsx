@@ -14,7 +14,8 @@ interface BackButtonProps {
 
 export default function BackButton({ onClick, label }: BackButtonProps) {
   return (
-    <div style={{ padding: '12px 0', textAlign: 'center' }}>
+    // safe-area-inset-bottom: iPhoneホームインジケータ等と重ならないようにする（Issue #9）
+    <div style={{ padding: '12px 0 calc(12px + env(safe-area-inset-bottom))', textAlign: 'center' }}>
       <button
         onClick={onClick}
         style={{

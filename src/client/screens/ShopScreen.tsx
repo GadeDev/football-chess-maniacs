@@ -8,6 +8,7 @@ import { apiUrl, type Page, type Position, type Cost } from '../types';
 import { costToDisplay } from '../../types/piece';
 import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
+import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 import { buildPlatformShopUrl } from '../platform/config';
 import { LEGAL_TERMS_APPLICABILITY } from '../components/LegalFooter';
@@ -213,6 +214,8 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
           <div style={{ color: '#666', fontSize: 13, padding: 32 }}>{t('shop.loading')}</div>
         )}
       </div>
+
+      <HeaderBack onClick={() => onNavigate('title')} />
 
       <BackButton onClick={() => onNavigate('title')} />
 

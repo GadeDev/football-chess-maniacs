@@ -5,7 +5,7 @@
 // PieceIcon で統一表示。PC/スマホ レスポンシブ対応。
 // ============================================================
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { Page, FormationData } from '../types';
 import type { Cost, Position } from '../components/board/PieceIcon';
 import PieceIcon, { costToRank } from '../components/board/PieceIcon';
@@ -13,6 +13,7 @@ import { useDeviceType } from '../hooks/useDeviceType';
 import { t, getLocale } from '../i18n';
 import { buildPlatformShopUrl } from '../platform/config';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import {
   fetchOwnedPieces, fetchTeams, saveTeam, deleteTeam, activateTeam,
   saveDraft, loadDraft,
@@ -261,6 +262,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
   const device = useDeviceType();
   const isMobile = device === 'mobile' || device === 'tablet';
   const { isLoggedIn, accessToken, requireLogin } = useAuth();
+  const { settings } = useSettings();
 
   // 手持ちコマ（ログイン=/api/pieces、ゲスト=Founding Eleven。spec v3）
   const [owned, setOwned] = useState<OwnedPiece[]>([]);
@@ -438,19 +440,23 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
     setCardFilter('all');
   }, [bench.length]);
 
-  /** ピッチ上の空きHEXタップ → 選択中コマをそこに移動 */
-  const handlePitchTap = useCallback((col: number, row: number) => {
-    if (selectedStarterIdx === null) return;
+  /** コマ移動の共通処理（タップ→タップ / ドラッグ&ドロップ両対応） */
+  const handleMovePiece = useCallback((idx: number, col: number, row: number) => {
     // 他のコマと重複チェック
-    const occupied = starters.some((s, i) => i !== selectedStarterIdx && s.col === col && s.row === row);
+    const occupied = starters.some((s, i) => i !== idx && s.col === col && s.row === row);
     if (occupied) return;
     setStarters(prev => {
       const updated = [...prev];
-      updated[selectedStarterIdx] = { ...updated[selectedStarterIdx], col, row };
+      updated[idx] = { ...updated[idx], col, row };
       return updated;
     });
-    // 選択状態を維持（続けて微調整可能）
-  }, [selectedStarterIdx, starters]);
+  }, [starters]);
+
+  /** ピッチ上の空きHEXタップ → 選択中コマをそこに移動（選択状態は維持=続けて微調整可能） */
+  const handlePitchTap = useCallback((col: number, row: number) => {
+    if (selectedStarterIdx === null) return;
+    handleMovePiece(selectedStarterIdx, col, row);
+  }, [selectedStarterIdx, handleMovePiece]);
 
   const handlePresetChange = useCallback((key: string) => {
     setCurrentPreset(key);
@@ -612,6 +618,8 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
             selectedIdx={selectedStarterIdx}
             onSelect={handleStarterClick}
             onPitchTap={handlePitchTap}
+            dragEnabled={settings.formationDragMove}
+            onMovePiece={handleMovePiece}
           />
         </div>
 
@@ -836,10 +844,70 @@ function percentToHex(leftPct: number, topPct: number): { col: number; row: numb
   return { col: bestCol, row: bestRow };
 }
 
-function PitchView({ starters, selectedIdx, onSelect, onPitchTap }: {
+function PitchView({ starters, selectedIdx, onSelect, onPitchTap, dragEnabled, onMovePiece }: {
   starters: StarterPiece[]; selectedIdx: number | null; onSelect: (i: number) => void;
   onPitchTap: (col: number, row: number) => void;
+  /** 設定: ドラッグ&ドロップでコマ移動（タップ→タップは常時有効） */
+  dragEnabled: boolean;
+  onMovePiece: (idx: number, col: number, row: number) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  /** ドラッグ中のコマ表示位置（%）。null = 非ドラッグ */
+  const [drag, setDrag] = useState<{ idx: number; leftPct: number; topPct: number } | null>(null);
+  const dragStateRef = useRef<{ idx: number; startX: number; startY: number; moved: boolean } | null>(null);
+  /** ドラッグ直後のclickでonSelectが発火するのを抑止 */
+  const suppressClickRef = useRef(false);
+
+  const pointToPct = useCallback((clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return null;
+    return {
+      leftPct: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      topPct: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+    };
+  }, []);
+
+  const handlePiecePointerDown = useCallback((e: React.PointerEvent, idx: number) => {
+    if (!dragEnabled) return;
+    dragStateRef.current = { idx, startX: e.clientX, startY: e.clientY, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [dragEnabled]);
+
+  const handlePiecePointerMove = useCallback((e: React.PointerEvent) => {
+    const st = dragStateRef.current;
+    if (!st) return;
+    if (!st.moved) {
+      // 6pxしきい値: 微小な指ブレはタップ（=選択）として扱う
+      const dx = e.clientX - st.startX;
+      const dy = e.clientY - st.startY;
+      if (dx * dx + dy * dy < 36) return;
+      st.moved = true;
+    }
+    const pos = pointToPct(e.clientX, e.clientY);
+    if (pos) setDrag({ idx: st.idx, ...pos });
+  }, [pointToPct]);
+
+  const handlePiecePointerUp = useCallback((e: React.PointerEvent) => {
+    const st = dragStateRef.current;
+    dragStateRef.current = null;
+    if (!st) return;
+    if (st.moved) {
+      suppressClickRef.current = true;
+      setDrag(null);
+      const pos = pointToPct(e.clientX, e.clientY);
+      if (pos) {
+        const hex = percentToHex(pos.leftPct, pos.topPct);
+        onMovePiece(st.idx, hex.col, hex.row);
+      }
+    }
+    // moved=false のタップは後続のclickイベントでonSelectが処理する
+  }, [pointToPct, onMovePiece]);
+
+  const handlePiecePointerCancel = useCallback(() => {
+    dragStateRef.current = null;
+    setDrag(null);
+  }, []);
+
   /** ピッチ背景クリック → クリック位置をHEX座標に変換して移動 */
   const handleBgClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (selectedIdx === null) return;
@@ -852,6 +920,7 @@ function PitchView({ starters, selectedIdx, onSelect, onPitchTap }: {
 
   return (
     <div
+      ref={containerRef}
       onClick={handleBgClick}
       style={{
         position: 'relative',
@@ -913,20 +982,37 @@ function PitchView({ starters, selectedIdx, onSelect, onPitchTap }: {
 
       {/* ── コマ配置 ── */}
       {starters.map((piece, i) => {
-        const pos = hexToPercent(piece.col, piece.row);
+        const isDragging = drag?.idx === i;
+        const pos = isDragging
+          ? { left: drag.leftPct, top: drag.topPct }
+          : hexToPercent(piece.col, piece.row);
         const isSelected = selectedIdx === i;
         return (
           <div
             key={piece.id + '-' + i}
-            onClick={(e) => { e.stopPropagation(); onSelect(i); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (suppressClickRef.current) {
+                suppressClickRef.current = false;
+                return;
+              }
+              onSelect(i);
+            }}
+            onPointerDown={(e) => handlePiecePointerDown(e, i)}
+            onPointerMove={handlePiecePointerMove}
+            onPointerUp={handlePiecePointerUp}
+            onPointerCancel={handlePiecePointerCancel}
             style={{
               position: 'absolute',
               left: `${pos.left}%`,
               top: `${pos.top}%`,
-              transform: 'translate(-50%, -50%)',
-              cursor: 'pointer',
-              zIndex: isSelected ? 10 : 1,
-              transition: 'left 0.3s ease, top 0.3s ease',
+              transform: isDragging ? 'translate(-50%, -50%) scale(1.3)' : 'translate(-50%, -50%)',
+              cursor: dragEnabled ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+              zIndex: isDragging ? 30 : isSelected ? 10 : 1,
+              transition: isDragging ? 'none' : 'left 0.3s ease, top 0.3s ease',
+              // ドラッグ有効時はブラウザのスクロール/パンジェスチャーに奪われないようにする
+              touchAction: dragEnabled ? 'none' : undefined,
+              filter: isDragging ? 'drop-shadow(0 6px 10px rgba(0,0,0,0.5))' : undefined,
             }}
           >
             <PieceIcon

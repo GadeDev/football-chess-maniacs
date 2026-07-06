@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { apiUrl, type Page } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import BackButton from '../components/ui/BackButton';
+import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 
 interface RankingScreenProps {
@@ -163,6 +164,8 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
           </button>
         </div>
       )}
+
+      <HeaderBack onClick={() => onNavigate('title')} />
 
       <BackButton onClick={() => onNavigate('title')} />
     </div>
