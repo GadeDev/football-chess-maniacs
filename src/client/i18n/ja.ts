@@ -290,7 +290,7 @@ const ja: Dict = {
   'settings.display': '表示設定',
   'settings.controls': '操作',
   'settings.formation_drag_move': '編成: ドラッグでコマ移動',
-  'settings.formation_drag_move_hint': 'OFFにするとタップ→移動先タップのみになります（ドラッグ中もタップ操作は併用可能）',
+  'settings.formation_drag_move_hint': '初期値は端末に応じて自動設定されます（PC=ドラッグ / タッチ端末=タップ）。ドラッグ中もタップ操作は併用可能',
   'settings.always_show_offside_line': 'オフサイドライン常時表示',
   'settings.show_zoc': 'ZOC表示',
   'settings.pass_line_warning': 'パスライン警告',

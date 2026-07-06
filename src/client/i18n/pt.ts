@@ -289,7 +289,7 @@ const pt: Dict = {
   'settings.display': 'Exibição',
   'settings.controls': 'Controles',
   'settings.formation_drag_move': 'Escalação: arrastar para mover peças',
-  'settings.formation_drag_move_hint': 'Quando desativado, apenas o toque e depois toque no destino é usado (o toque continua funcionando com o arraste ativado)',
+  'settings.formation_drag_move_hint': 'O padrão é definido automaticamente por dispositivo (PC = arrastar / toque = tocar). O toque continua funcionando com o arraste ativado',
   'settings.always_show_offside_line': 'Sempre mostrar a linha de impedimento',
   'settings.show_zoc': 'Mostrar ZOC',
   'settings.pass_line_warning': 'Aviso de linha de passe',

@@ -289,7 +289,7 @@ const en: Dict = {
   'settings.display': 'Display',
   'settings.controls': 'Controls',
   'settings.formation_drag_move': 'Formation: drag to move pieces',
-  'settings.formation_drag_move_hint': 'When off, only tap-then-tap movement is used (tap still works while drag is on)',
+  'settings.formation_drag_move_hint': 'The default is set automatically per device (PC = drag / touch = tap). Tap still works while drag is on',
   'settings.always_show_offside_line': 'Always Show Offside Line',
   'settings.show_zoc': 'Show ZOC',
   'settings.pass_line_warning': 'Pass Line Warning',

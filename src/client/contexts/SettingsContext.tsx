@@ -18,6 +18,19 @@ export interface AppSettings {
   // 切替UIは LanguageSelect / 永続化キーは 'fcms.locale'。ここでは持たない。
 }
 
+/**
+ * 編成ドラッグ移動の端末別デフォルト:
+ * 精密ポインタ（マウス等）= ドラッグON / タッチ主体（pointer: coarse）= タップ→タップ（OFF）。
+ * 指ではドラッグ中にコマが隠れて誤配置しやすいため。ユーザーが設定で切り替えれば以後はその値が優先される
+ */
+function defaultFormationDragMove(): boolean {
+  try {
+    return !window.matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return true;
+  }
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   animationSpeed: 1,
   bgmEnabled: true,
@@ -26,7 +39,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showOffsideLine: false,
   showZoc: false,
   showPassWarning: true,
-  formationDragMove: true,
+  formationDragMove: defaultFormationDragMove(),
 };
 
 const STORAGE_KEY = 'fcms_settings';
