@@ -202,6 +202,23 @@ export async function saveTeam(accessToken: string, input: SaveTeamInput): Promi
   }
 }
 
+/**
+ * スロットをアクティブ化する（teams.is_active）。
+ * オンライン対戦はサーバーが is_active チームの編成を盤面に使うため、
+ * 「セーブ/ロード = その戦術を装備」を成立させるのに必須。
+ */
+export async function activateTeam(accessToken: string, teamId: string): Promise<boolean> {
+  try {
+    const res = await fetch(apiUrl(`/api/teams/${teamId}/activate`), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** スロットを削除する */
 export async function deleteTeam(accessToken: string, teamId: string): Promise<boolean> {
   try {

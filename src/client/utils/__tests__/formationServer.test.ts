@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  fetchOwnedPieces, saveTeam,
+  fetchOwnedPieces, saveTeam, activateTeam,
   saveDraft, loadDraft, clearDraft,
   FOUNDING_ELEVEN_FALLBACK,
 } from '../formationServer';
@@ -107,6 +107,22 @@ describe('formationServer', () => {
       expect(result).toEqual({ ok: true, teamId: 'team_1' });
       expect(requests[0].method).toBe('PUT');
       expect(requests[0].url).toContain('/api/teams/team_1');
+    });
+  });
+
+  describe('activateTeam', () => {
+    it('PUT /api/teams/:id/activate を叩き、成功でtrue', async () => {
+      const requests: Array<{ url: string; method?: string }> = [];
+      vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({ url: String(input), method: init?.method });
+        return new Response(JSON.stringify({ active_team_id: 'team_1' }), { status: 200 });
+      }));
+      expect(await activateTeam('token', 'team_1')).toBe(true);
+      expect(requests[0].method).toBe('PUT');
+      expect(requests[0].url).toContain('/api/teams/team_1/activate');
+
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+      expect(await activateTeam('token', 'team_1')).toBe(false);
     });
   });
 
