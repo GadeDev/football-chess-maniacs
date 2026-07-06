@@ -193,7 +193,16 @@ export function isValidBench(bench: unknown): bench is BenchFieldPiece[] {
   );
 }
 
-/** 1チーム分のコマを生成（away は row をミラー）。ID接頭辞 h/a はエンジンのチーム判定に必須 */
+/** キックオフ配置制約（fcms_spec §5）: 各チーム自陣のみ。ハーフライン = row 16 */
+const HALF_LINE_ROW = 16;
+
+/** 編成座標を自陣にクランプする（クライアント battleUtils.clampToOwnHalf と同一ルール） */
+function clampRowToOwnHalf(row: number, team: Team): number {
+  if (team === 'home') return Math.min(row, HALF_LINE_ROW);
+  return Math.max(row, HALF_LINE_ROW + 1);
+}
+
+/** 1チーム分のコマを生成（away は row をミラー後、自陣クランプ）。ID接頭辞 h/a はエンジンのチーム判定に必須 */
 function placeTeam(field: FormationFieldPiece[], team: Team): Piece[] {
   const prefix = team === 'home' ? 'h' : 'a';
   return field.map((f, i) => ({
@@ -201,7 +210,7 @@ function placeTeam(field: FormationFieldPiece[], team: Team): Piece[] {
     team,
     position: f.position,
     cost: f.cost,
-    coord: { col: f.col, row: team === 'home' ? f.row : 33 - f.row },
+    coord: { col: f.col, row: clampRowToOwnHalf(team === 'home' ? f.row : 33 - f.row, team) },
     hasBall: false,
   }));
 }
