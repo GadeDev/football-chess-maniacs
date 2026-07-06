@@ -14,7 +14,7 @@ import { t, getLocale } from '../i18n';
 import { buildPlatformShopUrl } from '../platform/config';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  fetchOwnedPieces, fetchTeams, saveTeam, deleteTeam,
+  fetchOwnedPieces, fetchTeams, saveTeam, deleteTeam, activateTeam,
   saveDraft, loadDraft,
   type ServerOwnedPiece, type ServerTeamSlot,
 } from '../utils/formationServer';
@@ -66,8 +66,27 @@ interface FormationProps {
   onNavigate: (page: Page) => void;
   /** 編成確定時のコールバック（スタメン・ベンチをApp.tsxへ引き渡す） */
   onFormationConfirm?: (data: FormationData) => void;
+  /**
+   * スロットのセーブ/ロード時のコールバック（=「この戦術を装備」）。
+   * App.tsxがlastSetupを更新し、以後のCOM対戦・クイック対戦に反映する
+   */
+  onFormationSaved?: (data: FormationData) => void;
   /** 対戦フロー（ModeSelect等）から来た場合true。「この編成で対戦」ボタンを表示する */
   matchFlow?: boolean;
+}
+
+/** 編成状態 → FormationData（対戦引継ぎ・装備更新の共通形） */
+function buildFormationData(starters: StarterPiece[], bench: OwnedPiece[], teamName: string): FormationData {
+  return {
+    starters: starters.map(s => ({
+      id: s.id, position: s.position, cost: s.cost, col: s.col, row: s.row,
+    })),
+    bench: bench.map(b => ({
+      id: b.id, position: b.position, cost: b.cost, col: 0, row: 0,
+    })),
+    teamName: teamName.trim() || undefined,
+    origin: 'custom',
+  };
 }
 
 // ── 定数 ─────────────────────────────────────────────────
@@ -238,7 +257,7 @@ function applyPreset(presetKey: string, owned: OwnedPiece[]): StarterPiece[] {
 
 // ── メインコンポーネント ──────────────────────────────────
 
-export default function Formation({ onNavigate, onFormationConfirm, matchFlow = false }: FormationProps) {
+export default function Formation({ onNavigate, onFormationConfirm, onFormationSaved, matchFlow = false }: FormationProps) {
   const device = useDeviceType();
   const isMobile = device === 'mobile' || device === 'tablet';
   const { isLoggedIn, accessToken, requireLogin } = useAuth();
@@ -499,9 +518,13 @@ export default function Formation({ onNavigate, onFormationConfirm, matchFlow = 
       return updated;
     });
     setActiveSlotIdx(idx);
+    // 「セーブ = この戦術を装備」: サーバーis_active（オンライン対戦の盤面ソース）と
+    // lastSetup（COM対戦・クイック対戦のソース）の両方を更新する
+    void activateTeam(accessToken, result.teamId);
+    onFormationSaved?.(buildFormationData(starters, bench, teamName));
     flashSaveFeedback('saved');
     return true;
-  }, [accessToken, requireLogin, availableSlots, slots, teamName, currentPreset, starters, bench, totalCost, flashPremiumMessage, flashSaveFeedback]);
+  }, [accessToken, requireLogin, availableSlots, slots, teamName, currentPreset, starters, bench, totalCost, flashPremiumMessage, flashSaveFeedback, onFormationSaved]);
 
   const handleSaveSlot = useCallback((idx: number) => {
     void persistSlot(idx);
@@ -513,10 +536,14 @@ export default function Formation({ onNavigate, onFormationConfirm, matchFlow = 
     setStarters(slot.starters);
     setBench(slot.bench);
     setCurrentPreset(slot.systemBase);
+    setTeamName(slot.name ?? '');
     setActiveSlotIdx(idx);
     setSelectedStarterIdx(null);
     setShowCardGrid(false);
-  }, [slots]);
+    // 「ロード = この戦術を装備」: 以後のCOM対戦・クイック対戦・オンライン対戦がこのスロットを使う
+    if (slot.teamId && accessToken) void activateTeam(accessToken, slot.teamId);
+    onFormationSaved?.(buildFormationData(slot.starters, slot.bench, slot.name ?? ''));
+  }, [slots, accessToken, onFormationSaved]);
 
   const handleDeleteSlot = useCallback((idx: number) => {
     void (async () => {
@@ -640,16 +667,7 @@ export default function Formation({ onNavigate, onFormationConfirm, matchFlow = 
           <button
             onClick={() => {
               if (onFormationConfirm) {
-                onFormationConfirm({
-                  starters: starters.map(s => ({
-                    id: s.id, position: s.position, cost: s.cost, col: s.col, row: s.row,
-                  })),
-                  bench: bench.map(b => ({
-                    id: b.id, position: b.position, cost: b.cost, col: 0, row: 0,
-                  })),
-                  teamName: teamName.trim() || undefined,
-                  origin: 'custom',
-                });
+                onFormationConfirm(buildFormationData(starters, bench, teamName));
               } else {
                 onNavigate('matching');
               }

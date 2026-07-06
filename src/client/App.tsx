@@ -177,6 +177,25 @@ function AppShell() {
     [startMatch, gameMode, comDifficulty, pendingOpponent],
   );
 
+  // 編成画面のスロットセーブ/ロード（=「この戦術を装備」）: 対戦を開始しなくても
+  // lastSetupへ反映し、マイページのクイックCOM対戦・自チームカードが最新の編成を使うようにする
+  const handleFormationSaved = useCallback(
+    (data: FormationData) => {
+      setFormationData(data);
+      const setup: LastSetup = {
+        gameMode: lastSetup?.gameMode ?? 'com',
+        comDifficulty: lastSetup?.comDifficulty ?? comDifficulty,
+        formationData: data,
+        teamName: data.teamName,
+        teamEmoji: data.teamEmoji,
+        origin: data.origin ?? 'custom',
+      };
+      saveLastSetup(setup);
+      setLastSetup(setup);
+    },
+    [lastSetup, comDifficulty],
+  );
+
   // T11/T12: マイページの「COM対戦」ワンクリックボタン。編成済みなら前回の編成でそのまま対戦、
   // 未編成なら顔のあるNPCチームを毎回ランダムに1つ自チームとして割り当てて対戦へ直行する。
   // T12でのバグ修正: モードは常に'com'固定（lastSetup.gameModeがオンライン系だと、
@@ -344,7 +363,7 @@ function AppShell() {
           />
         )}
         {page === 'formation' && (
-          <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} matchFlow={formationMatchFlow} />
+          <Formation onNavigate={navigate} onFormationConfirm={handleFormationConfirm} onFormationSaved={handleFormationSaved} matchFlow={formationMatchFlow} />
         )}
         {page === 'matching' && (
           <Matching
