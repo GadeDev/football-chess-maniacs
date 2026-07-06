@@ -116,7 +116,8 @@ src/
     │   └── useDeviceType.ts   # スマホ/PC判定
     ├── utils/
     │   ├── pieceAssetPath.ts  # コマPNG画像パス導出（getPieceAssetPath: position/cost/side → /assets/pieces/*.png）
-    │   └── resolveActiveTeamId.ts # マッチング/フレンド対戦に渡す編成teamId解決（is_active優先→先頭→'default'）
+    │   ├── resolveActiveTeamId.ts # マッチング/フレンド対戦に渡す編成teamId解決（is_active優先→先頭→'default'）
+    │   └── formationServer.ts # 編成画面のサーバー接続層（/api/pieces所持コマ・/api/teamsセーブCRUD・ゲストFounding Eleven・ドラフトlocalStorage）
     ├── i18n/                  # 多言語化基盤（ShootOutDiceプレイブック移植・7言語対応）
     │   ├── index.ts           # i18n器本体（t / tn / setLocale / detectInitialLocale / lookupPlural / SUPPORTED_LOCALES / LOCALE_NATIVE_NAMES / 永続化）
     │   ├── ja.ts              # 日本語辞書（正本・401キー）
@@ -264,6 +265,7 @@ public/
 | オンライン/フレンド対戦E2E検証（2026-07-02, server: `e680aa0` / client: `d2d6807` / e2e: `31c70f0`, 正本 `docs/football_chess_outgame_plan_v2.md` §7） | 検証負債「2クライアント実接続のE2Eは一度も未実施」を解消。ローカル検証基盤（`e2e/online/authkit.mjs`=テスト用RSA鍵+ローカルJWKS配信+RS256署名、`src/.dev.vars`でJWKS/issuer/audience/CORS上書き、wrangler dev --local+D1ローカルmigrations、本番認証情報は不使用）+Playwright2コンテキストでS1〜S5を自動テスト化し全PASS（`e2e/online_s1_sync.mjs`〜`s5_fullmatch.mjs`）。**検証前はオンライン対戦は実質進行不能**: 修正8件=①useWebSocketのconnect不安定依存で切断→再接続無限ループ（429ストーム）②APPLY_TURN_RESULTがturnPhase未リセットで2ターン目以降INPUT復帰不能③MATCH_FOUNDにteamなしで両者home扱い④Bot補完マッチがcomSessionToken認証要求で常に403⑤nonce同一ms衝突+sequence厳密+1でデッドロック→衝突不能化+expectedSequence自己回復⑥ハーフタイム/終了のローカル乱数AT判定→サーバー権威化（HALFTIMEに後半盤面同梱）⑦最終TURN_RESULTがMATCH_END後にfinishedを巻き戻す⑧JWKS未知kid再フェッチなし（鍵ローテーション後最大5分401）。Battle.tsxにDEV限定E2Eフック（__fcmsBoard/__fcmsAddOrder）追加。要決定5件（リロード復帰導線/オンラインHT交代/casualのレート対象/AT表示乖離/サイレント切断検知）は§7参照。ユニット743件・failsafe両デバイスgreen | ✅ |
 | オンライン残課題2件対応（2026-07-02, server: `c6814a6` / client: `56ea725` / e2e: `67ecae1`, 正本 `docs/football_chess_outgame_plan_v2.md` §7） | 要決定リストの2件を解決（残3件=HT交代/AT表示乖離/サイレント切断検知は保留継続）。①リロード復帰導線: `utils/activeMatch.ts`（sessionStorage=タブ単位で二重参加防止、COMセッション除外）に進行中マッチを保存、起動時に`GET /match/:id`で生存確認→マイページ最上部に「復帰する/棄権する」バナー。復帰=既存RECONNECTフロー（リロードで0に戻るsequenceはINPUT_REJECTED+expectedSequenceで自動再同期し1ターン1回だけ自動再送）、棄権=新設`POST /match/:matchId/leave`→DO `/leave`で即時不戦敗（30秒猶予は不変）。②カジュアルのレート除外: JOIN_QUEUEにmode追加+マッチングプールをモード別分離（ranked×casualは互いにマッチしない）、casualは`casual_`プレフィックスmatchIdでisRatedMatchが除外（friend_と同方式・スキーマ変更不要）。マイページ「ランダム対戦」=casual。Bot補完は両モード有効（Bot戦はcom_aiでもともとELO対象外=現仕様維持）。i18n3キー×7言語。テスト: ユニット749件（rating casual除外+activeMatch 5件）、e2e S6新設（プール分離/casual_プレフィックス/リロード→復帰→盤面一致→継続/casual終了でELO不変動）、S5をranked経由に変更しELO変動を検証、S4はリロード節を復帰バナー検証に更新。S1〜S6+failsafe両デバイス全PASS | ✅ |
 | サービスイン作業（2026-07-07） | **本番認証チェーンの致命ブロッカーを発見・解消**。①Platform（fc-platform-api）の実アクセストークンは `iss: "football-century"` で **`aud`クレームを含まない**（`~/fc-platform/apps/api/src/utils/jwt.ts` `generateTokenPair`で確認）が、FCMSの`verifyJwt`はaud必須検証だったため、正しいSecretsを設定しても全実トークンが「Invalid JWT audience」で拒否される状態だった → `jwt_verify.ts`をaud存在時のみ厳格検証（欠落は許容、iss検証は必須のまま）に修正、テスト+2件（754→756）。②本番WorkerにJWT検証用Secrets（`PLATFORM_JWKS_URL`/`PLATFORM_JWT_ISSUER`/`PLATFORM_JWT_AUDIENCE`）が未設定（未使用の`PLATFORM_JWT_PUBLIC_KEY_PEM`のみ存在=旧設計の残骸、コード中に参照なし）→ 3 Secretsを設定（JWKS_URL=`https://fc-platform-api.yanagiho.workers.dev/.well-known/jwks.json`、ISSUER=`football-century`、AUDIENCE=`football_chess_maniacs`）。③7/1以降未反映だったWorker（`c6814a6`カジュアルレート除外/棄権API + `a921b5e`shop/team/webhooks/save-slot SKU vars）をデプロイ、クライアントもPagesへデプロイ（footballchess.io/pages.dev両方で最新バンドル配信確認）。④本番実地スモーク: Platform `/v1/auth/register`（`Idempotency-Key`ヘッダー必須）でテストユーザー`fcms-smoke-test-20260707@example.com`を登録→実JWTで `GET /api/shop/wallet`=200 `{ingots:0}` / `GET /api/teams`=200（save_slot/subscription判定含む）/ 不正トークン=401 を確認。**ログイン必須機能（チーム保存/ウォレット/オンライン対戦REST/WS認証）が本番で初めて機能する状態になった**。あわせて`output/`をgitignore追加、`data_audit_football_chess_maniacs.md`（データ実態調査）とPK/FKスプライト9枚（`public/assets/characters/`、未配線）をgit追跡化 | ✅ |
+| 編成画面v3（2026-07-07, Issue #16/#18/#19対応, 正本 `docs/formation-spec.md` v3 + 決定記録 `docs/formation_review_20260707.md`） | 編成画面が「サーバーと切断された島」だった問題を解消。①所持コマ: ハードコード11枚→サーバー実データ（`utils/formationServer.ts` 新設、sync→/api/pieces、実キャラ名+era表示、ゲスト=Founding Elevenをカタログ解決+ローカルfallback）。②セーブ/ロード: メモリのみ→`/api/teams` CRUD接続（スロット名=チーム名入力流用、entitlement枠数の🔒表示、403/失敗トースト）。ゲストのセーブは`requireLogin`誘導、`isPremium` prop廃止。③ドラフト自動保存（`fcms_formation_draft`）でリロード復元。④保存と対戦の分離: 「保存して戻る」常設+「この編成で対戦」は対戦フロー時のみ（App.tsx `formationMatchFlow`）。⑤サーバー堅牢化: `/api/teams`のposition/costを`piece_master`から解決（**コスト偽装でレート戦に持ち込める穴を封鎖**）、col/row正式対応（DOの`createBoardFromFormation`が既読）。⑥初期所持の仕様をFounding Eleven実装（GK1/DF2/SB2/VO1/MF2/WG1/FW2、OMのみ未所持）に正規化。i18n8キー×7言語。テスト+13（team正規化3+formationServer 8+既存修正、756→767）。e2e failsafe両デバイス全PASS。**ブラウザ目視は未実施** | ✅ |
 
 ---
 
@@ -519,15 +521,18 @@ public/
 - 全ポジション共通でコスト5段階（1/1.5/2/2.5/3）。8ポジション×5コスト＝40種類/時代、7時代×40＝全280枚
 - **スタメン11枚**（GK1+FP10）、コスト上限16、ベンチ9枚（コスト制限なし）、合計20枚
 - **選手交代**: 3回の機会（1回に複数人OK）、合計5人まで。交代後もコスト16以内
-- **初期チーム**: コスト1のみ11枚（GK×1, DF×4, MF×4, FW×2）。ベンチなし。SB/VO/OM/WGは未所持
+- **初期チーム（Founding Eleven）**: 実在キャラ11人・全コスト1（piece_id 8=GK/9,55=DF/37,70=SB/35=VO/10,82=MF/23=WG/36,104=FW）。ベンチなし。**OMのみ未所持**（サーバー`FOUNDING_ELEVEN_IDS`が正。旧「GK1/DF4/MF4/FW2」は廃止）
 
-### 編成画面（Formation.tsx v2）
-- 手持ちコマから選んでスタメン・サブに配置する方式
+### 編成画面（Formation.tsx v3 — 2026-07-07改訂、正本 `docs/formation-spec.md` v3 / 決定記録 `docs/formation_review_20260707.md`）
+- **手持ちコマはサーバー実データ**: ログイン時 `POST /api/pieces/sync`→`GET /api/pieces`（200キャラ実名+era表示、ロケール別 name_ja/name_en）。ゲストはFounding Eleven 11キャラを公開カタログから解決（失敗時ローカルfallback `FOUNDING_ELEVEN_FALLBACK`）
+- **セーブ/ロードはサーバー保存**: `/api/teams` CRUD（スロット1〜10、枠数はentitlement判定=無料1/買い切り10/サブスク4。ロック中スロットは🔒表示）。ゲストのセーブ操作は `requireLogin` でログイン誘導。`isPremium` propは廃止
+- **ドラフト自動保存**: 編成の作業状態を `fcms_formation_draft`（localStorage）に自動保存、リロードで復元（ゲスト/ログイン共通）
+- **保存と対戦の分離**: 「保存して戻る」常設。「この編成で対戦」は対戦フロー（ModeSelect等、App.tsx `formationMatchFlow`）から来た時のみ表示。`navigate('formation')` でフラグは自動リセット
 - フォーメーションプリセット6種: 4-4-2 / 3-5-2 / 3-6-1 / 4-3-3 / 4-2-3-1 / 3-4-3
-- カードグリッド: ポジション8種フィルター、使用中=半透明、コスト超過=グレーアウト
-- セーブスロット: 1〜10番号固定、`isPremium` フラグで課金切替（デフォルトtrue）
+- カードグリッド: ポジション8種フィルター、使用中=半透明、コスト超過=グレーアウト、実キャラ名+Era表示
 - ミニピッチ上にコマを視覚配置、タップでHEXスナップ移動（`percentToHex` 逆変換）
-- 「マッチング開始」で `onFormationConfirm` 経由でApp.tsxへデータ引継ぎ
+- セーブ枠ショップ導線は別タブ（`window.open` noopener）+「セーブ枠を購入 ↗」ラベル
+- **サーバー側の偽装防止**: `/api/teams` はfield/benchの `position`/`cost` を `piece_master` から解決（クライアント申告値を信用しない）。`col`/`row`（HEX座標）を正式サポートしDOの `createBoardFromFormation` が読む
 
 ### オンライン対戦（クライアント側実装済、E2Eテスト未実施）
 - **Matching.tsx**: ranked/casual時に `/match/ws` へWebSocket接続、`JOIN_QUEUE` 送信、`MATCH_FOUND` で遷移

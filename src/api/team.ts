@@ -33,6 +33,9 @@ interface FieldPiece {
   piece_id: number;
   position: string;
   cost: number;
+  /** HEXグリッド座標（col 0-21 / row 0-33）。ベンチは省略可 */
+  col?: number;
+  row?: number;
 }
 
 /** フィールドコマのバリデーション（POST/PUT共通） */
@@ -46,6 +49,45 @@ function validateFieldPieces(fieldPieces: FieldPiece[]): string | null {
   const pieceIds = fieldPieces.map(p => p.piece_id);
   if (new Set(pieceIds).size !== pieceIds.length) return 'Duplicate piece_id in field';
   return null;
+}
+
+/**
+ * position/cost を piece_master の正規値で上書きし、col/row を検証して不明フィールドを落とす。
+ * クライアント申告の cost/position は信用しない（コスト偽装でレート戦に持ち込ませない）。
+ * 未知の piece_id が含まれる場合はエラー文字列を返す。
+ */
+async function normalizePiecesWithMaster(
+  db: D1Database,
+  pieces: FieldPiece[],
+): Promise<{ normalized: FieldPiece[] } | { error: string }> {
+  if (pieces.length === 0) return { normalized: [] };
+  const ids = [...new Set(pieces.map(p => p.piece_id))];
+  const placeholders = ids.map(() => '?').join(', ');
+  const result = await db
+    .prepare(`SELECT piece_id, position, cost FROM piece_master WHERE piece_id IN (${placeholders})`)
+    .bind(...ids)
+    .all<{ piece_id: number; position: string; cost: number }>();
+  const master = new Map(result.results.map(r => [r.piece_id, r]));
+
+  const normalized: FieldPiece[] = [];
+  for (const p of pieces) {
+    const m = master.get(p.piece_id);
+    if (!m) return { error: `Unknown piece_id: ${p.piece_id}` };
+    const entry: FieldPiece = { piece_id: m.piece_id, position: m.position, cost: m.cost };
+    if (p.col !== undefined || p.row !== undefined) {
+      if (
+        !Number.isInteger(p.col) || !Number.isInteger(p.row) ||
+        (p.col as number) < 0 || (p.col as number) > 21 ||
+        (p.row as number) < 0 || (p.row as number) > 33
+      ) {
+        return { error: `Invalid coordinates for piece ${p.piece_id}` };
+      }
+      entry.col = p.col;
+      entry.row = p.row;
+    }
+    normalized.push(entry);
+  }
+  return { normalized };
 }
 
 /** ローカル D1 での所持コマ確認（Platform API不要） */
@@ -221,7 +263,20 @@ team.post('/', async (c) => {
   if (!body.fieldPieces) {
     return c.json({ error: 'Field must have exactly 11 pieces' }, 400);
   }
-  const fieldError = validateFieldPieces(body.fieldPieces);
+
+  // position/cost を piece_master の正規値に置換（クライアント申告値を信用しない）
+  const fieldNorm = await normalizePiecesWithMaster(c.env.DB, body.fieldPieces);
+  if ('error' in fieldNorm) {
+    return c.json({ error: fieldNorm.error }, 400);
+  }
+  const benchNorm = await normalizePiecesWithMaster(c.env.DB, body.benchPieces ?? []);
+  if ('error' in benchNorm) {
+    return c.json({ error: benchNorm.error }, 400);
+  }
+  const fieldPieces = fieldNorm.normalized;
+  const benchPieces = benchNorm.normalized;
+
+  const fieldError = validateFieldPieces(fieldPieces);
   if (fieldError) {
     return c.json({ error: fieldError }, 400);
   }
@@ -254,7 +309,7 @@ team.post('/', async (c) => {
 
   // 所持コマ検証（ローカルD1）
   const ownedIds = await getLocalOwnedPieceIds(c.env.DB, userId);
-  const allPieceIds = [...body.fieldPieces, ...(body.benchPieces ?? [])].map((p) => p.piece_id);
+  const allPieceIds = [...fieldPieces, ...benchPieces].map((p) => p.piece_id);
   for (const pid of allPieceIds) {
     if (!ownedIds.has(pid)) {
       return c.json({ error: 'PIECE_NOT_OWNED', message: `Piece ${pid} not owned` }, 400);
@@ -274,8 +329,8 @@ team.post('/', async (c) => {
     .bind(
       teamId, userId, body.name, slotNumber,
       body.formation_preset ?? '4-4-2',
-      JSON.stringify(body.fieldPieces),
-      JSON.stringify(body.benchPieces ?? []),
+      JSON.stringify(fieldPieces),
+      JSON.stringify(benchPieces),
       now, now,
     )
     .run();
@@ -316,19 +371,34 @@ team.put('/:teamId', async (c) => {
     }, 403);
   }
 
+  // position/cost を piece_master の正規値に置換（クライアント申告値を信用しない）
+  let fieldPieces: FieldPiece[] | undefined;
+  let benchPieces: FieldPiece[] | undefined;
   if (body.fieldPieces) {
-    const fieldError = validateFieldPieces(body.fieldPieces);
+    const fieldNorm = await normalizePiecesWithMaster(c.env.DB, body.fieldPieces);
+    if ('error' in fieldNorm) {
+      return c.json({ error: fieldNorm.error }, 400);
+    }
+    fieldPieces = fieldNorm.normalized;
+    const fieldError = validateFieldPieces(fieldPieces);
     if (fieldError) {
       return c.json({ error: fieldError }, 400);
     }
   }
+  if (body.benchPieces) {
+    const benchNorm = await normalizePiecesWithMaster(c.env.DB, body.benchPieces);
+    if ('error' in benchNorm) {
+      return c.json({ error: benchNorm.error }, 400);
+    }
+    benchPieces = benchNorm.normalized;
+  }
 
   // 所持コマ検証（ローカルD1）
-  if (body.fieldPieces || body.benchPieces) {
+  if (fieldPieces || benchPieces) {
     const ownedIds = await getLocalOwnedPieceIds(c.env.DB, userId);
     const allPieceIds = [
-      ...(body.fieldPieces ?? []),
-      ...(body.benchPieces ?? []),
+      ...(fieldPieces ?? []),
+      ...(benchPieces ?? []),
     ].map(p => p.piece_id);
     for (const pid of allPieceIds) {
       if (!ownedIds.has(pid)) {
@@ -352,13 +422,13 @@ team.put('/:teamId', async (c) => {
     setClauses.push('formation_preset = ?');
     values.push(body.formation_preset);
   }
-  if (body.fieldPieces) {
+  if (fieldPieces) {
     setClauses.push('field_pieces = ?');
-    values.push(JSON.stringify(body.fieldPieces));
+    values.push(JSON.stringify(fieldPieces));
   }
-  if (body.benchPieces) {
+  if (benchPieces) {
     setClauses.push('bench_pieces = ?');
-    values.push(JSON.stringify(body.benchPieces));
+    values.push(JSON.stringify(benchPieces));
   }
   setClauses.push('updated_at = ?');
   values.push(now);

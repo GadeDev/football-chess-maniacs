@@ -5,13 +5,19 @@
 // PieceIcon で統一表示。PC/スマホ レスポンシブ対応。
 // ============================================================
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Page, FormationData } from '../types';
 import type { Cost, Position } from '../components/board/PieceIcon';
 import PieceIcon, { costToRank } from '../components/board/PieceIcon';
 import { useDeviceType } from '../hooks/useDeviceType';
-import { t } from '../i18n';
+import { t, getLocale } from '../i18n';
 import { buildPlatformShopUrl } from '../platform/config';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  fetchOwnedPieces, fetchTeams, saveTeam, deleteTeam,
+  saveDraft, loadDraft,
+  type ServerOwnedPiece, type ServerTeamSlot,
+} from '../utils/formationServer';
 
 /** コスト値 → 役割名キーのサフィックス（1→'1', 1.5→'1p', 2→'2', 2.5→'2p', 3→'3'） */
 const COST_KEY: Record<number, string> = { 1: '1', 1.5: '1p', 2: '2', 2.5: '2p', 3: '3' };
@@ -27,9 +33,13 @@ function roleLabel(position: Position, cost: number): string {
 
 interface OwnedPiece {
   id: string;
+  /** piece_master の piece_id（サーバー保存・所持照合に使用） */
+  pieceId: number;
   position: Position;
   cost: Cost;
   name: string;
+  /** 時代（Era 1〜7棚ではなく era 1-13。0 = 不明） */
+  era: number;
 }
 
 interface StarterPiece extends OwnedPiece {
@@ -39,6 +49,10 @@ interface StarterPiece extends OwnedPiece {
 }
 
 interface SaveSlot {
+  /** サーバー保存済みの場合のteams.id */
+  teamId?: string;
+  /** スロット名（teams.name） */
+  name?: string;
   systemBase: string;
   totalCost: number;
   starters: StarterPiece[];
@@ -52,8 +66,8 @@ interface FormationProps {
   onNavigate: (page: Page) => void;
   /** 編成確定時のコールバック（スタメン・ベンチをApp.tsxへ引き渡す） */
   onFormationConfirm?: (data: FormationData) => void;
-  /** 課金済みフラグ（セーブ機能の利用可否）。デフォルト true（テスト用） */
-  isPremium?: boolean;
+  /** 対戦フロー（ModeSelect等）から来た場合true。「この編成で対戦」ボタンを表示する */
+  matchFlow?: boolean;
 }
 
 // ── 定数 ─────────────────────────────────────────────────
@@ -144,22 +158,61 @@ const PRESETS: Record<string, { label: string; entries: PresetEntry[] }> = {
   },
 };
 
-// ── 初期コマ（新規ユーザー）──────────────────────────────
+// ── 所持コマ変換（サーバー/ゲスト共通） ──────────────────
 
-function createInitialOwned(): OwnedPiece[] {
-  return [
-    { id: 'own-gk-1', position: 'GK', cost: 1, name: 'GK' },
-    { id: 'own-df-1', position: 'DF', cost: 1, name: 'CB 1' },
-    { id: 'own-df-2', position: 'DF', cost: 1, name: 'CB 2' },
-    { id: 'own-df-3', position: 'DF', cost: 1, name: t('formation.name_sb_left') },
-    { id: 'own-df-4', position: 'DF', cost: 1, name: t('formation.name_sb_right') },
-    { id: 'own-mf-1', position: 'MF', cost: 1, name: 'MF 1' },
-    { id: 'own-mf-2', position: 'MF', cost: 1, name: 'MF 2' },
-    { id: 'own-mf-3', position: 'MF', cost: 1, name: 'MF 3' },
-    { id: 'own-mf-4', position: 'MF', cost: 1, name: 'MF 4' },
-    { id: 'own-fw-1', position: 'FW', cost: 1, name: 'FW 1' },
-    { id: 'own-fw-2', position: 'FW', cost: 1, name: 'FW 2' },
-  ];
+/** サーバー正規形 → 編成画面のOwnedPiece（名前はロケールで出し分け） */
+function toOwnedPiece(p: ServerOwnedPiece): OwnedPiece {
+  return {
+    id: `p${p.pieceId}`,
+    pieceId: p.pieceId,
+    position: p.position as Position,
+    cost: p.cost as Cost,
+    name: getLocale() === 'ja' ? p.nameJa : p.nameEn,
+    era: p.era,
+  };
+}
+
+/** サーバー保存済みチーム → SlotArray（所持コマ照合で名前・eraを補完） */
+function buildSlotArray(serverSlots: ServerTeamSlot[], owned: OwnedPiece[]): SlotArray {
+  const byPieceId = new Map(owned.map(o => [o.pieceId, o]));
+  const arr: SlotArray = Array(MAX_SLOTS).fill(null);
+  for (const s of serverSlots) {
+    const idx = s.slotNumber - 1;
+    if (idx < 0 || idx >= MAX_SLOTS) continue;
+    const presetEntries = PRESETS[s.formationPreset]?.entries ?? PRESETS['4-4-2'].entries;
+    const starters: StarterPiece[] = s.fieldPieces.map((fp, i) => {
+      const o = byPieceId.get(fp.piece_id);
+      // 旧データ（col/rowなし）はプリセット座標で補完
+      const fallbackCoord = presetEntries[Math.min(i, presetEntries.length - 1)];
+      return {
+        id: `p${fp.piece_id}`,
+        pieceId: fp.piece_id,
+        position: (o?.position ?? fp.position) as Position,
+        cost: (o?.cost ?? fp.cost) as Cost,
+        name: o?.name ?? fp.position,
+        era: o?.era ?? 0,
+        col: fp.col ?? fallbackCoord.col,
+        row: fp.row ?? fallbackCoord.row,
+      };
+    });
+    const bench: OwnedPiece[] = s.benchPieces.map(bp => {
+      const o = byPieceId.get(bp.piece_id);
+      return o ?? {
+        id: `p${bp.piece_id}`, pieceId: bp.piece_id,
+        position: bp.position as Position, cost: bp.cost as Cost,
+        name: bp.position, era: 0,
+      };
+    });
+    arr[idx] = {
+      teamId: s.teamId,
+      name: s.name,
+      systemBase: s.formationPreset,
+      totalCost: starters.reduce((sum, p) => sum + p.cost, 0),
+      starters,
+      bench,
+    };
+  }
+  return arr;
 }
 
 /** プリセットに基づいてスタメンを自動配置。手持ちコマからポジション一致→コスト低い順で割り当て */
@@ -185,18 +238,20 @@ function applyPreset(presetKey: string, owned: OwnedPiece[]): StarterPiece[] {
 
 // ── メインコンポーネント ──────────────────────────────────
 
-export default function Formation({ onNavigate, onFormationConfirm, isPremium = true }: FormationProps) {
+export default function Formation({ onNavigate, onFormationConfirm, matchFlow = false }: FormationProps) {
   const device = useDeviceType();
   const isMobile = device === 'mobile' || device === 'tablet';
+  const { isLoggedIn, accessToken, requireLogin } = useAuth();
 
-  // 手持ちコマ（本来はサーバーから取得）
-  const [owned] = useState<OwnedPiece[]>(createInitialOwned);
+  // 手持ちコマ（ログイン=/api/pieces、ゲスト=Founding Eleven。spec v3）
+  const [owned, setOwned] = useState<OwnedPiece[]>([]);
+  const [loadingPieces, setLoadingPieces] = useState(true);
 
   // チーム名（Phase B1: 未入力/空白のみは既定で t('team.default_name') にフォールバック）
   const [teamName, setTeamName] = useState('');
 
   // スタメン・サブ
-  const [starters, setStarters] = useState<StarterPiece[]>(() => applyPreset('4-4-2', createInitialOwned()));
+  const [starters, setStarters] = useState<StarterPiece[]>([]);
   const [bench, setBench] = useState<OwnedPiece[]>([]);
 
   // UI state
@@ -206,11 +261,72 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
   const [cardFilter, setCardFilter] = useState<Position | 'all'>('all');
   const [currentPreset, setCurrentPreset] = useState('4-4-2');
 
-  // セーブスロット（1〜10 番号固定）
+  // セーブスロット（1〜10 番号固定、ログイン時は/api/teamsと同期）
   const [slots, setSlots] = useState<SlotArray>(() => Array(MAX_SLOTS).fill(null));
   const [activeSlotIdx, setActiveSlotIdx] = useState<number | null>(null);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [premiumMessage, setPremiumMessage] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState(1);
+  const [saveFeedback, setSaveFeedback] = useState<'saved' | 'failed' | null>(null);
+
+  // ── 所持コマロード + ドラフト復元 ──
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPieces(true);
+    fetchOwnedPieces(accessToken).then(list => {
+      if (cancelled) return;
+      const ownedList = list.map(toOwnedPiece);
+      setOwned(ownedList);
+
+      // ドラフト復元（リロード耐性）。所持と不整合ならプリセットにフォールバック
+      const byPieceId = new Map(ownedList.map(o => [o.pieceId, o]));
+      const draft = loadDraft();
+      let restored = false;
+      if (draft) {
+        const restoredStarters: StarterPiece[] = [];
+        for (const d of draft.starters) {
+          const o = byPieceId.get(d.pieceId);
+          if (o) restoredStarters.push({ ...o, col: d.col, row: d.row });
+        }
+        const restoredBench = draft.bench
+          .map(d => byPieceId.get(d.pieceId))
+          .filter((x): x is OwnedPiece => !!x);
+        if (restoredStarters.length === MAX_STARTERS && restoredStarters.some(p => p.position === 'GK')) {
+          setStarters(restoredStarters);
+          setBench(restoredBench.slice(0, MAX_BENCH));
+          setCurrentPreset(draft.presetKey in PRESETS ? draft.presetKey : '4-4-2');
+          setTeamName(draft.teamName ?? '');
+          restored = true;
+        }
+      }
+      if (!restored) setStarters(applyPreset('4-4-2', ownedList));
+      setLoadingPieces(false);
+    });
+    return () => { cancelled = true; };
+  }, [accessToken]);
+
+  // ── ドラフト自動保存（ゲスト/ログイン共通のリロード耐性） ──
+  useEffect(() => {
+    if (loadingPieces || starters.length === 0) return;
+    saveDraft({
+      teamName,
+      presetKey: currentPreset,
+      starters: starters.map(s => ({ pieceId: s.pieceId, col: s.col, row: s.row })),
+      bench: bench.map(b => ({ pieceId: b.pieceId })),
+    });
+  }, [loadingPieces, teamName, currentPreset, starters, bench]);
+
+  // ── サーバー保存済みスロットの取得（ログイン時のみ） ──
+  useEffect(() => {
+    if (!accessToken || loadingPieces) return;
+    let cancelled = false;
+    fetchTeams(accessToken).then(resp => {
+      if (cancelled || !resp) return;
+      setAvailableSlots(resp.availableSlots);
+      setSlots(buildSlotArray(resp.slots, owned));
+    });
+    return () => { cancelled = true; };
+  }, [accessToken, loadingPieces, owned]);
 
   // ── 計算値 ──
 
@@ -328,22 +444,53 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
   // ── セーブスロット ──
 
   const handleOpenSlots = useCallback(() => {
-    if (!isPremium) {
-      setPremiumMessage(true);
-      setTimeout(() => setPremiumMessage(false), 2500);
-      return;
-    }
     setShowSlotModal(true);
-  }, [isPremium]);
-
-  const handleOpenSaveSlotShop = useCallback(() => {
-    window.location.href = buildPlatformShopUrl(SAVE_SLOT_ITEM_ID);
   }, []);
 
-  const handleSaveSlot = useCallback((idx: number) => {
+  const handleOpenSaveSlotShop = useCallback(() => {
+    // 外部（Universo Futbol）ショップ。編成状態を失わないよう別タブで開く
+    window.open(buildPlatformShopUrl(SAVE_SLOT_ITEM_ID), '_blank', 'noopener');
+  }, []);
+
+  const flashPremiumMessage = useCallback(() => {
+    setPremiumMessage(true);
+    setTimeout(() => setPremiumMessage(false), 2500);
+  }, []);
+
+  const flashSaveFeedback = useCallback((kind: 'saved' | 'failed') => {
+    setSaveFeedback(kind);
+    setTimeout(() => setSaveFeedback(null), 2500);
+  }, []);
+
+  /** スロットへサーバー保存する。成功時true（spec v3: ゲストはログイン誘導） */
+  const persistSlot = useCallback(async (idx: number): Promise<boolean> => {
+    if (!accessToken) {
+      requireLogin(t('formation.login_to_save'));
+      return false;
+    }
+    if (idx + 1 > availableSlots) {
+      flashPremiumMessage();
+      return false;
+    }
+    const existing = slots[idx];
+    const result = await saveTeam(accessToken, {
+      teamId: existing?.teamId,
+      slotNumber: idx + 1,
+      name: teamName.trim() || t('formation.slot_n', { n: idx + 1 }),
+      formationPreset: currentPreset,
+      fieldPieces: starters.map(s => ({ piece_id: s.pieceId, position: s.position, cost: s.cost, col: s.col, row: s.row })),
+      benchPieces: bench.map(b => ({ piece_id: b.pieceId, position: b.position, cost: b.cost })),
+    });
+    if (!result.ok) {
+      if (result.error === 'PREMIUM_REQUIRED') flashPremiumMessage();
+      flashSaveFeedback('failed');
+      return false;
+    }
     setSlots(prev => {
       const updated = [...prev];
       updated[idx] = {
+        teamId: result.teamId,
+        name: teamName.trim() || undefined,
         systemBase: currentPreset,
         totalCost,
         starters: [...starters],
@@ -352,7 +499,13 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
       return updated;
     });
     setActiveSlotIdx(idx);
-  }, [currentPreset, totalCost, starters, bench]);
+    flashSaveFeedback('saved');
+    return true;
+  }, [accessToken, requireLogin, availableSlots, slots, teamName, currentPreset, starters, bench, totalCost, flashPremiumMessage, flashSaveFeedback]);
+
+  const handleSaveSlot = useCallback((idx: number) => {
+    void persistSlot(idx);
+  }, [persistSlot]);
 
   const handleLoadSlot = useCallback((idx: number) => {
     const slot = slots[idx];
@@ -366,13 +519,37 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
   }, [slots]);
 
   const handleDeleteSlot = useCallback((idx: number) => {
-    setSlots(prev => {
-      const updated = [...prev];
-      updated[idx] = null;
-      return updated;
-    });
-    if (activeSlotIdx === idx) setActiveSlotIdx(null);
-  }, [activeSlotIdx]);
+    void (async () => {
+      const slot = slots[idx];
+      if (slot?.teamId && accessToken) {
+        const ok = await deleteTeam(accessToken, slot.teamId);
+        if (!ok) {
+          flashSaveFeedback('failed');
+          return;
+        }
+      }
+      setSlots(prev => {
+        const updated = [...prev];
+        updated[idx] = null;
+        return updated;
+      });
+      if (activeSlotIdx === idx) setActiveSlotIdx(null);
+    })();
+  }, [slots, accessToken, activeSlotIdx, flashSaveFeedback]);
+
+  /** 「保存して戻る」: アクティブスロット（なければ既存の先頭 or スロット1）へ保存してマイページへ */
+  const handleSaveAndBack = useCallback(() => {
+    void (async () => {
+      if (!isLoggedIn) {
+        requireLogin(t('formation.login_to_save'));
+        return;
+      }
+      const firstExisting = slots.findIndex(s => s !== null);
+      const target = activeSlotIdx ?? (firstExisting >= 0 ? firstExisting : 0);
+      const ok = await persistSlot(target);
+      if (ok) onNavigate('title');
+    })();
+  }, [isLoggedIn, requireLogin, slots, activeSlotIdx, persistSlot, onNavigate]);
 
   // ── レンダリング ──
 
@@ -388,11 +565,16 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
         onPresetChange={handlePresetChange}
         onShowSlots={handleOpenSlots}
         onOpenSaveSlotShop={handleOpenSaveSlotShop}
-        isPremium={isPremium}
         premiumMessage={premiumMessage}
         teamName={teamName}
         onTeamNameChange={setTeamName}
       />
+
+      {loadingPieces && (
+        <div style={{ padding: '6px 16px', fontSize: 12, color: '#94a3b8' }}>
+          {t('formation.loading_pieces')}
+        </div>
+      )}
 
       {/* ═══ メインエリア ═══ */}
       <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
@@ -443,39 +625,62 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
         </div>
       </div>
 
-      {/* ═══ フッター ═══ */}
-      <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', justifyContent: 'center' }}>
+      {/* ═══ フッター（spec v3: 保存と対戦を分離） ═══ */}
+      <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', justifyContent: 'center', flexWrap: 'wrap' }}>
         <button onClick={() => onNavigate('title')} style={btnStyle('#334155')}>{t('common.back')}</button>
         <button onClick={() => onNavigate('presetTeams')} style={btnStyle('#334155')}>{t('title.preset_teams')}</button>
         <button
-          onClick={() => {
-            if (onFormationConfirm) {
-              onFormationConfirm({
-                starters: starters.map(s => ({
-                  id: s.id, position: s.position, cost: s.cost, col: s.col, row: s.row,
-                })),
-                bench: bench.map(b => ({
-                  id: b.id, position: b.position, cost: b.cost, col: 0, row: 0,
-                })),
-                teamName: teamName.trim() || undefined,
-                origin: 'custom',
-              });
-            } else {
-              onNavigate('matching');
-            }
-          }}
+          onClick={handleSaveAndBack}
           disabled={!isValid}
-          style={btnStyle(isValid ? '#16a34a' : '#334155', !isValid ? 0.5 : 1)}
+          style={btnStyle(isValid ? (matchFlow ? '#334155' : '#16a34a') : '#334155', !isValid ? 0.5 : 1)}
         >
-          {t('formation.start_matching')}
+          {t('formation.save_and_back')}
         </button>
+        {matchFlow && (
+          <button
+            onClick={() => {
+              if (onFormationConfirm) {
+                onFormationConfirm({
+                  starters: starters.map(s => ({
+                    id: s.id, position: s.position, cost: s.cost, col: s.col, row: s.row,
+                  })),
+                  bench: bench.map(b => ({
+                    id: b.id, position: b.position, cost: b.cost, col: 0, row: 0,
+                  })),
+                  teamName: teamName.trim() || undefined,
+                  origin: 'custom',
+                });
+              } else {
+                onNavigate('matching');
+              }
+            }}
+            disabled={!isValid}
+            style={btnStyle(isValid ? '#16a34a' : '#334155', !isValid ? 0.5 : 1)}
+          >
+            {t('formation.play_with_this')}
+          </button>
+        )}
       </div>
+
+      {/* 保存結果トースト */}
+      {saveFeedback && (
+        <div style={{
+          position: 'fixed', bottom: 76, left: '50%', transform: 'translateX(-50%)',
+          background: saveFeedback === 'saved' ? '#166534' : '#7f1d1d',
+          color: '#fff', fontSize: 13, fontWeight: 600,
+          padding: '8px 20px', borderRadius: 8, zIndex: 120,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+        }}>
+          {saveFeedback === 'saved' ? t('formation.saved') : t('formation.save_failed')}
+        </div>
+      )}
 
       {/* ═══ セーブスロットモーダル ═══ */}
       {showSlotModal && (
         <SlotModal
           slots={slots}
           activeSlotIdx={activeSlotIdx}
+          availableSlots={isLoggedIn ? availableSlots : MAX_SLOTS}
           onSave={handleSaveSlot}
           onLoad={handleLoadSlot}
           onDelete={handleDeleteSlot}
@@ -492,10 +697,10 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
 
 // ── ヘッダー ──
 
-function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onOpenSaveSlotShop, isPremium, premiumMessage, teamName, onTeamNameChange }: {
+function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onOpenSaveSlotShop, premiumMessage, teamName, onTeamNameChange }: {
   totalCost: number; starterCount: number; benchCount: number; hasGK: boolean;
   currentPreset: string; onPresetChange: (k: string) => void; onShowSlots: () => void; onOpenSaveSlotShop: () => void;
-  isPremium: boolean; premiumMessage: boolean;
+  premiumMessage: boolean;
   teamName: string; onTeamNameChange: (name: string) => void;
 }) {
   const costOver = totalCost > MAX_FIELD_COST;
@@ -538,19 +743,14 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
         ))}
       </select>
 
-      {/* セーブスロット + Premium バッジ */}
+      {/* セーブスロット + セーブ枠ショップ導線 */}
       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <button onClick={onShowSlots} style={{ ...btnStyle('#334155'), padding: '4px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span role="img" aria-label="premium">{isPremium ? '\u{1F451}' : '\u{1F512}'}</span>
+          <span role="img" aria-label="save">{'\u{1F4BE}'}</span>
           {t('formation.save_load')}
         </button>
-        {!isPremium && (
-          <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.15)', padding: '1px 6px', borderRadius: 4 }}>
-            Premium
-          </span>
-        )}
         <button onClick={onOpenSaveSlotShop} style={{ ...btnStyle('#2563eb'), padding: '4px 10px', fontSize: 12 }}>
-          {t('title.shop')}
+          {t('formation.buy_save_slots')}
         </button>
         {premiumMessage && (
           <div style={{
@@ -756,6 +956,7 @@ function DetailPanel({ piece, onSwap, onDeselect }: {
         </div>
         <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
           {roleLabel(piece.position, piece.cost)}
+          {piece.era > 0 && <span style={{ marginLeft: 6, color: '#94a3b8' }}>{t('collection.era_label', { era: piece.era })}</span>}
         </div>
       </div>
 
@@ -884,7 +1085,10 @@ function CardGrid({ pieces, usedIds, totalCost, selectedStarterCost, cardFilter,
                 <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                   {piece.name}
                 </div>
-                <div style={{ fontSize: 10, color: '#64748b' }}>{piece.position} {costToRank(piece.cost)}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>
+                  {piece.position} {costToRank(piece.cost)}
+                  {piece.era > 0 && <span style={{ marginLeft: 4, color: '#94a3b8' }}>{t('collection.era_label', { era: piece.era })}</span>}
+                </div>
               </div>
 
               {isUsed && <span style={{ fontSize: 10, color: '#94a3b8' }}>{t('formation.in_use')}</span>}
@@ -923,8 +1127,8 @@ function FilterBtn({ label, active, onClick }: { label: string; active: boolean;
 
 // ── セーブスロットモーダル ──
 
-function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: {
-  slots: SlotArray; activeSlotIdx: number | null;
+function SlotModal({ slots, activeSlotIdx, availableSlots, onSave, onLoad, onDelete, onClose }: {
+  slots: SlotArray; activeSlotIdx: number | null; availableSlots: number;
   onSave: (idx: number) => void; onLoad: (idx: number) => void;
   onDelete: (idx: number) => void; onClose: () => void;
 }) {
@@ -962,10 +1166,15 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
                 {/* スロット情報 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {isEmpty ? (
-                    <span style={{ fontSize: 13, color: '#475569' }}>{t('formation.slot_empty')}</span>
+                    <span style={{ fontSize: 13, color: '#475569' }}>
+                      {idx + 1 > availableSlots ? `\u{1F512} ${t('formation.slot_locked')}` : t('formation.slot_empty')}
+                    </span>
                   ) : (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t('formation.slot_n', { n: idx + 1 })}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {slot.name || t('formation.slot_n', { n: idx + 1 })}
+                        {idx + 1 > availableSlots && <span style={{ marginLeft: 6, fontSize: 11 }}>{'\u{1F512}'}</span>}
+                      </div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>
                         {t('formation.slot_info', { system: slot.systemBase, cost: slot.totalCost, max: MAX_FIELD_COST })}
                       </div>
@@ -973,10 +1182,10 @@ function SlotModal({ slots, activeSlotIdx, onSave, onLoad, onDelete, onClose }: 
                   )}
                 </div>
 
-                {/* アクションボタン */}
+                {/* アクションボタン（ロック中スロットの保存はサーバー/クライアント双方で拒否される） */}
                 <button
                   onClick={() => onSave(idx)}
-                  style={{ ...btnStyle('#16a34a'), padding: '3px 8px', fontSize: 11 }}
+                  style={{ ...btnStyle('#16a34a'), padding: '3px 8px', fontSize: 11, opacity: idx + 1 > availableSlots ? 0.5 : 1 }}
                 >
                   {t('formation.save')}
                 </button>

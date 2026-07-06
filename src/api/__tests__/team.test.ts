@@ -46,6 +46,17 @@ function makeDb(state: FakeState) {
           if (sql.includes('FROM user_pieces_v2')) {
             return { results: [...state.owned].map((piece_id) => ({ piece_id })) as T[] };
           }
+          if (sql.includes('FROM piece_master')) {
+            // マスタ正規値: piece_id 1 = GK / それ以外 = DF、全コスト1（makeFieldPiecesと対応）
+            const ids = this.args.map(Number).filter((id) => id >= 1 && id <= 200);
+            return {
+              results: ids.map((piece_id) => ({
+                piece_id,
+                position: piece_id === 1 ? 'GK' : 'DF',
+                cost: 1,
+              })) as T[],
+            };
+          }
           return { results: [] };
         },
         async first<T>(): Promise<T | null> {
@@ -213,5 +224,76 @@ describe('team save slot entitlements', () => {
     }, env(db));
     expect(update.status).toBe(403);
     await expect(update.json()).resolves.toMatchObject({ error: 'PREMIUM_REQUIRED', available_slots: 1 });
+  });
+});
+
+describe('team piece normalization (piece_master authoritative)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function setup() {
+    const state: FakeState = {
+      teams: [],
+      owned: new Set(Array.from({ length: 20 }, (_, i) => i + 1)),
+    };
+    const db = makeDb(state);
+    const app = makeApp(db);
+    stubEntitlementCheck(new Set(['fcms_save_slots_9']));
+    return { state, db, app };
+  }
+
+  it('クライアント申告のcost/positionを無視してpiece_masterの正規値で保存する（コスト偽装防止）', async () => {
+    const { state, db, app } = setup();
+    // 全コマをcost 3 / FWと偽装（マスタ正規値は cost 1 / GK+DF）
+    const forged = makeFieldPieces().map((p) => ({ ...p, cost: 3, position: p.piece_id === 1 ? 'GK' : 'FW' }));
+
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Forged', slot_number: 1, fieldPieces: forged, benchPieces: [] }),
+    }, env(db));
+    expect(res.status).toBe(201);
+
+    const stored = JSON.parse(state.teams[0].field_pieces) as Array<{ piece_id: number; position: string; cost: number }>;
+    expect(stored.every((p) => p.cost === 1)).toBe(true);
+    expect(stored.find((p) => p.piece_id === 1)?.position).toBe('GK');
+    expect(stored.filter((p) => p.position === 'DF')).toHaveLength(10);
+  });
+
+  it('col/row を保存し、範囲外は400で拒否する', async () => {
+    const { state, db, app } = setup();
+    const withCoords = makeFieldPieces().map((p, i) => ({ ...p, col: i, row: i + 1 }));
+
+    const ok = await app.request('/', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Coords', slot_number: 1, fieldPieces: withCoords, benchPieces: [] }),
+    }, env(db));
+    expect(ok.status).toBe(201);
+    const stored = JSON.parse(state.teams[0].field_pieces) as Array<{ col?: number; row?: number }>;
+    expect(stored[3]).toMatchObject({ col: 3, row: 4 });
+
+    const bad = makeFieldPieces().map((p) => ({ ...p, col: 0, row: 99 }));
+    const rejected = await app.request('/', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Bad', slot_number: 2, fieldPieces: bad, benchPieces: [] }),
+    }, env(db));
+    expect(rejected.status).toBe(400);
+  });
+
+  it('piece_masterに存在しないpiece_idは400で拒否する', async () => {
+    const { db, app } = setup();
+    const unknown = makeFieldPieces();
+    unknown[10] = { ...unknown[10], piece_id: 999 };
+
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Unknown', slot_number: 1, fieldPieces: unknown, benchPieces: [] }),
+    }, env(db));
+    expect(res.status).toBe(400);
   });
 });
