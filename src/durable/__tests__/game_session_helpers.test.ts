@@ -81,6 +81,20 @@ describe('createBoardFromFormation', () => {
     expect(a01.coord).toEqual({ col: 10, row: 32 }); // 33 - 1
   });
 
+  it('自陣外の編成座標はハーフラインにクランプされる（キックオフ配置制約 §5）', () => {
+    const board = createBoardFromFormation(makeField(), makeField(), 'home');
+    // home FW は編成 row 19（敵陣）→ ハーフライン row 16 にクランプ
+    const h10 = board.pieces.find(p => p.id === 'h10')!;
+    expect(h10.position).toBe('FW');
+    expect(h10.coord.row).toBe(16);
+    // away FW はミラー後 33-19=14（away視点では敵陣）→ row 17 にクランプ
+    const a10 = board.pieces.find(p => p.id === 'a10')!;
+    expect(a10.coord.row).toBe(17);
+    // 全コマが自陣内
+    expect(board.pieces.filter(p => p.team === 'home').every(p => p.coord.row <= 16)).toBe(true);
+    expect(board.pieces.filter(p => p.team === 'away').every(p => p.coord.row >= 17)).toBe(true);
+  });
+
   it('キックオフ側のFWにのみボールが付与される', () => {
     const board = createBoardFromFormation(makeField(), makeField(), 'away');
     const withBall = board.pieces.filter(p => p.hasBall);
