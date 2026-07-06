@@ -21,7 +21,7 @@ export interface JwtPayload {
   exp: number;    // 有効期限 (unix seconds)
   iat: number;    // 発行時刻
   iss: string;    // 発行者
-  aud: string | string[];
+  aud?: string | string[];  // Platformアクセストークンには含まれない（存在時のみ検証）
   nbf?: number;
   [key: string]: unknown;
 }
@@ -142,11 +142,13 @@ export async function verifyJwt(
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     throw new Error('Invalid JWT subject');
   }
+  // Platform（fc-platform-api）のアクセストークンはaudクレームを含まない
+  // （iss=football-centuryのプラットフォーム共通トークン）。audが存在する場合のみ厳格検証する
   if (typeof payload.aud === 'string') {
     if (payload.aud !== options.audience) throw new Error('Invalid JWT audience');
   } else if (Array.isArray(payload.aud)) {
     if (!payload.aud.includes(options.audience)) throw new Error('Invalid JWT audience');
-  } else {
+  } else if (payload.aud !== undefined) {
     throw new Error('Invalid JWT audience');
   }
 
