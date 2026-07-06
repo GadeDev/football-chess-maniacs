@@ -289,7 +289,7 @@ const de: Dict = {
   'settings.display': 'Anzeige',
   'settings.controls': 'Steuerung',
   'settings.formation_drag_move': 'Aufstellung: Figuren per Drag bewegen',
-  'settings.formation_drag_move_hint': 'Wenn deaktiviert, nur Tippen und dann Ziel antippen (Tippen funktioniert auch bei aktiviertem Drag)',
+  'settings.formation_drag_move_hint': 'Der Standard wird je Gerät automatisch gesetzt (PC = Drag / Touch = Tippen). Tippen funktioniert auch bei aktiviertem Drag',
   'settings.always_show_offside_line': 'Abseitslinie immer anzeigen',
   'settings.show_zoc': 'ZOC anzeigen',
   'settings.pass_line_warning': 'Passlinien-Warnung',

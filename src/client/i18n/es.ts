@@ -289,7 +289,7 @@ const es: Dict = {
   'settings.display': 'Pantalla',
   'settings.controls': 'Controles',
   'settings.formation_drag_move': 'Alineación: arrastrar para mover piezas',
-  'settings.formation_drag_move_hint': 'Si está desactivado, solo se usa tocar y luego tocar el destino (el toque sigue funcionando con el arrastre activado)',
+  'settings.formation_drag_move_hint': 'El valor predeterminado se establece automáticamente según el dispositivo (PC = arrastrar / táctil = tocar). El toque sigue funcionando con el arrastre activado',
   'settings.always_show_offside_line': 'Mostrar siempre la línea de fuera de juego',
   'settings.show_zoc': 'Mostrar ZOC',
   'settings.pass_line_warning': 'Aviso de línea de pase',

@@ -534,7 +534,7 @@ public/
 - カードグリッド: ポジション8種フィルター、使用中=半透明、コスト超過=グレーアウト、実キャラ名+Era表示
 - ミニピッチ上にコマを視覚配置、タップでHEXスナップ移動（`percentToHex` 逆変換）
 - セーブ枠ショップ導線は別タブ（`window.open` noopener）+「セーブ枠を購入 ↗」ラベル
-- **コマ移動はドラッグ&ドロップ+タップ→タップの両対応**（2026-07-08）: `settings.formationDragMove`（デフォルトON、設定画面「操作」セクションで切替）。ドラッグはPointer Events+ポインタキャプチャ（6pxしきい値でタップと区別、`touchAction:'none'`でスクロール競合回避、ドラッグ中1.3倍拡大+影、ドロップでHEXスナップ）。OFF時は従来のタップ→移動先タップのみ
+- **コマ移動はドラッグ&ドロップ+タップ→タップの両対応**（2026-07-08）: `settings.formationDragMove`（**デフォルトは端末別自動**: 精密ポインタ=ドラッグON / `pointer: coarse`（タッチ主体）=OFF。設定画面「操作」セクションで切替、切替後はユーザー選択が優先）。ドラッグはPointer Events+ポインタキャプチャ（6pxしきい値でタップと区別、`touchAction:'none'`でスクロール競合回避、ドラッグ中1.3倍拡大+影、ドロップでHEXスナップ）。OFF時は従来のタップ→移動先タップのみ
 - **サーバー側の偽装防止**: `/api/teams` はfield/benchの `position`/`cost` を `piece_master` から解決（クライアント申告値を信用しない）。`col`/`row`（HEX座標）を正式サポートしDOの `createBoardFromFormation` が読む
 
 ### オンライン対戦（クライアント側実装済、E2Eテスト未実施）
