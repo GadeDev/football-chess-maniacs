@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import type { Page } from '../types';
 import BackButton from '../components/ui/BackButton';
+import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 
 interface ProfileScreenProps {
@@ -147,6 +148,8 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
           ))}
         </div>
       </div>
+
+      <HeaderBack onClick={() => onNavigate('title')} />
 
       <BackButton onClick={() => onNavigate('title')} />
     </div>

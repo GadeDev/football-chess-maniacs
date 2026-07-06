@@ -6,6 +6,7 @@ import React from 'react';
 import type { Page } from '../types';
 import { useSettings, type AppSettings } from '../contexts/SettingsContext';
 import BackButton from '../components/ui/BackButton';
+import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 import LanguageSelect from '../i18n/LanguageSelect';
 
@@ -74,6 +75,12 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
             <ToggleRow label={t('settings.pass_line_warning')} checked={settings.showPassWarning} onChange={v => update({ showPassWarning: v })} />
           </Section>
 
+          {/* 操作 */}
+          <Section title={t('settings.controls')}>
+            <ToggleRow label={t('settings.formation_drag_move')} checked={settings.formationDragMove} onChange={v => update({ formationDragMove: v })} />
+            <div style={{ fontSize: 11, color: '#555', marginTop: 4 }}>{t('settings.formation_drag_move_hint')}</div>
+          </Section>
+
           {/* その他 */}
           <Section title={t('settings.other')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -91,6 +98,8 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
           </Section>
         </div>
       </div>
+
+      <HeaderBack onClick={() => onNavigate('title')} />
 
       <BackButton onClick={() => onNavigate('title')} />
     </div>

@@ -8,6 +8,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { apiUrl, type Page, type Position, type Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
+import HeaderBack from '../components/ui/HeaderBack';
 import { NPC_TEAMS } from '../../data/npc_teams';
 import { t, tn } from '../i18n';
 
@@ -276,6 +277,8 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
           </div>
         </div>
       )}
+
+      <HeaderBack onClick={() => onNavigate('title')} />
 
       <BackButton onClick={() => onNavigate('title')} />
     </div>
