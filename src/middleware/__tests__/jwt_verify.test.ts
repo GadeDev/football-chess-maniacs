@@ -108,6 +108,23 @@ describe('verifyJwt', () => {
       .rejects.toThrow('Invalid JWT audience');
   });
 
+  it('aud 欠落は通る（Platform実トークンはaudを含まない）', async () => {
+    const { signToken } = await setup();
+    const payload = await verifyJwt(
+      await signToken({ payload: { aud: undefined } }),
+      JWKS_URL,
+      options,
+    );
+    expect(payload.sub).toBe('user-1');
+    expect(payload.aud).toBeUndefined();
+  });
+
+  it('aud が不正な型（数値等）なら落ちる', async () => {
+    const { signToken } = await setup();
+    await expect(verifyJwt(await signToken({ payload: { aud: 123 } }), JWKS_URL, options))
+      .rejects.toThrow('Invalid JWT audience');
+  });
+
   it('aud 配列に期待値が含まれる場合は通る', async () => {
     const { signToken } = await setup();
     const payload = await verifyJwt(

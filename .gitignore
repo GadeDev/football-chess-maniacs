@@ -9,3 +9,4 @@ src/.wrangler/
 .DS_Store
 e2e/shots/
 e2e/online/.authkit-key.json
+output/
