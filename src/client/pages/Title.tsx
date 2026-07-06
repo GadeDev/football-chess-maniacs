@@ -118,10 +118,6 @@ export default function Title({ onNavigate, lastSetup, onQuickMatch, onQuickOnli
         <SubButton label={t('title.settings')} onClick={() => onNavigate('settings')} />
       </div>
 
-      {/* フッター */}
-      <div style={{ position: 'absolute', bottom: 16, fontSize: 11, color: '#555' }}>
-        GADE Inc.
-      </div>
     </div>
   );
 }

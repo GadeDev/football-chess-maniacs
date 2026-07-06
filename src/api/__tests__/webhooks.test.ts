@@ -92,7 +92,7 @@ class MockD1Database {
   deliveries = new Map<string, Delivery>();
   wallets = new Map<string, number>();
   userPieces = new Set<string>();
-  pieceMaster = new Set<number>([1]);
+  pieceMaster = new Set<number>([1, 42]);
 
   prepare(sql: string) {
     return new MockStatement(this, sql);
@@ -231,6 +231,22 @@ describe('webhook purchase idempotency', () => {
     await signedRequest(payload, 'piece-1', bindings);
 
     expect(db.userPieces.has('u1:1')).toBe(true);
+    expect(db.userPieces.size).toBe(1);
+  });
+
+  it('tier方式の item_id でuser_pieces_v2へ同期する', async () => {
+    const db = new MockD1Database();
+    const bindings = env(db);
+    const payload = {
+      event_type: 'entitlement.created',
+      game_id: 'football_chess_maniacs',
+      data: { user_id: 'u1', item_id: 'piece_042', entitlement_id: 'ent-tier-42' },
+    };
+
+    const res = await signedRequest(payload, 'item-id-42', bindings);
+
+    expect(res.status).toBe(200);
+    expect(db.userPieces.has('u1:42')).toBe(true);
     expect(db.userPieces.size).toBe(1);
   });
 

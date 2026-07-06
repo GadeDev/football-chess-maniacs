@@ -68,6 +68,9 @@ CORS_ORIGIN = "https://footballchess.io,https://www.footballchess.io,https://foo
 GAME_CLIENT_URL = "https://footballchess.io"
 PLATFORM_API_BASE = "https://fc-platform-api.yanagiho.workers.dev"
 PLATFORM_GAME_ID = "football_chess_maniacs"
+PLATFORM_SAVE_SLOT_SKU = "fcms_save_slots_9"
+PLATFORM_SUBSCRIPTION_SKU = "uf_subscription_monthly_premium"
+SUBSCRIPTION_SAVE_SLOT_BONUS = "3"
 AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
 
 # ── Secrets (set via `wrangler secret put`) ──

@@ -38,6 +38,7 @@ import { saveActiveMatch, loadActiveMatch, clearActiveMatch, type ActiveMatchInf
 import { apiUrl } from './types';
 import { useLocale } from './i18n/useLocale';
 import { t } from './i18n';
+import LegalFooter from './components/LegalFooter';
 
 /** PresetTeam（NPC_TEAMS由来）をFormationDataへ変換する（自チーム割当・プリセット選択の両方で使用） */
 function presetTeamToFormationData(team: PresetTeam): FormationData {
@@ -400,6 +401,7 @@ function AppShell() {
         )}
         </Suspense>
       </div>
+      <LegalFooter />
     </SettingsProvider>
   );
 }

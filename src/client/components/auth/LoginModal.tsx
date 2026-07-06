@@ -4,9 +4,11 @@
 // メール+パスワードでPlatform APIに直接ログイン/登録し、ゲスト続行もできる。
 // ============================================================
 
-import React, { useState, useCallback } from 'react';
-import { login, register } from '../../platform/authClient';
-import { t } from '../../i18n';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { login, loginWithGoogle, register } from '../../platform/authClient';
+import { getGoogleClientId } from '../../platform/config';
+import { getLocale, t, type Locale } from '../../i18n';
+import { LEGAL_TERMS_APPLICABILITY } from '../LegalFooter';
 
 interface LoginModalProps {
   /** requireLogin(reason) で渡された理由（未ログインで踏んだ機能名など） */
@@ -16,6 +18,116 @@ interface LoginModalProps {
 }
 
 type Mode = 'login' | 'register';
+
+const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+
+const PLATFORM_LOCALE: Record<Locale, string> = {
+  ja: 'ja-JP',
+  en: 'en-US',
+  ko: 'ko-KR',
+  es: 'es-ES',
+  pt: 'pt-BR',
+  de: 'de-DE',
+  'zh-CN': 'zh-CN',
+};
+
+type GoogleCredentialResponse = { credential?: string };
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (options: {
+            client_id: string;
+            callback: (response: GoogleCredentialResponse) => void;
+            ux_mode?: 'popup' | 'redirect';
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme?: 'outline' | 'filled_blue' | 'filled_black';
+              size?: 'large' | 'medium' | 'small';
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+              width?: number;
+            },
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
+let googleScriptPromise: Promise<void> | null = null;
+
+function loadGoogleScript(): Promise<void> {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (googleScriptPromise) return googleScriptPromise;
+  googleScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GOOGLE_SCRIPT_SRC}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('google_script_error')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = GOOGLE_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('google_script_error'));
+    document.head.appendChild(script);
+  });
+  return googleScriptPromise;
+}
+
+function GoogleSignInButton({
+  disabled,
+  onCredential,
+  onUnavailable,
+}: {
+  disabled: boolean;
+  onCredential: (credential: string) => void;
+  onUnavailable: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const render = async () => {
+      try {
+        await loadGoogleScript();
+        if (cancelled || !containerRef.current || !window.google?.accounts?.id) return;
+        containerRef.current.textContent = '';
+        window.google.accounts.id.initialize({
+          client_id: getGoogleClientId(),
+          callback: (response) => {
+            if (response.credential) onCredential(response.credential);
+            else onUnavailable();
+          },
+          ux_mode: 'popup',
+        });
+        window.google.accounts.id.renderButton(containerRef.current, {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          width: Math.min(300, containerRef.current.clientWidth || 300),
+        });
+      } catch {
+        if (!cancelled) onUnavailable();
+      }
+    };
+    void render();
+    return () => {
+      cancelled = true;
+      if (containerRef.current) containerRef.current.textContent = '';
+    };
+  }, [onCredential, onUnavailable]);
+
+  return <div ref={containerRef} style={{ ...googleSlotStyle, pointerEvents: disabled ? 'none' : undefined, opacity: disabled ? 0.55 : 1 }} />;
+}
 
 export default function LoginModal({ reason, onClose, onSuccess }: LoginModalProps) {
   const [mode, setMode] = useState<Mode>('login');
@@ -53,6 +165,20 @@ export default function LoginModal({ reason, onClose, onSuccess }: LoginModalPro
       setError(result.error || t(mode === 'register' ? 'auth.register_failed' : 'auth.login_failed'));
     }
   }, [email, password, passwordConfirm, mode, onSuccess]);
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    if (submitting) return;
+    setError('');
+    setSubmitting(true);
+    const result = await loginWithGoogle(credential, PLATFORM_LOCALE[getLocale()]);
+    setSubmitting(false);
+
+    if (result.ok) {
+      onSuccess();
+    } else {
+      setError(result.error || t('auth.google_failed'));
+    }
+  }, [submitting, onSuccess]);
 
   return (
     <div
@@ -113,6 +239,14 @@ export default function LoginModal({ reason, onClose, onSuccess }: LoginModalPro
 
         {error && <div style={{ color: '#ff6b6b', fontSize: 12, textAlign: 'center' }}>{error}</div>}
 
+        <div style={termsNoticeStyle}>{LEGAL_TERMS_APPLICABILITY}</div>
+
+        <GoogleSignInButton
+          disabled={submitting}
+          onCredential={(credential) => { void handleGoogleCredential(credential); }}
+          onUnavailable={() => setError(t('auth.google_unavailable'))}
+        />
+
         <button
           onClick={handleSubmit}
           disabled={submitting}
@@ -148,4 +282,18 @@ const inputStyle: React.CSSProperties = {
   padding: '12px 14px', fontSize: 14, borderRadius: 8,
   border: '1px solid rgba(255,255,255,0.15)', background: '#0a0a1e',
   color: '#fff', outline: 'none',
+};
+
+const termsNoticeStyle: React.CSSProperties = {
+  color: 'rgba(255,255,255,0.58)',
+  fontSize: 10,
+  lineHeight: 1.5,
+  textAlign: 'center',
+};
+
+const googleSlotStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  width: '100%',
+  minHeight: 44,
 };

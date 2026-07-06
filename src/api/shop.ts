@@ -10,7 +10,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../worker';
 import { callPlatformApi, getBearerToken, getPlatformGameId, PlatformApiError } from './auth';
-import { costToDisplay, skuToPieceId, SHELF_NAMES } from '../types/piece';
+import { costToDisplay, itemIdToPieceId, pieceIdToItemId, skuToPieceId, SHELF_NAMES } from '../types/piece';
 import type { PieceMaster, ShopCatalogItem } from '../types/piece';
 
 const shop = new Hono<{
@@ -310,6 +310,7 @@ shop.get('/catalog', async (c) => {
     const product = pieceProducts.get(p.sku) ?? null;
     return {
       piece_id: p.piece_id,
+      item_id: pieceIdToItemId(p.piece_id),
       sku: p.sku,
       name_ja: p.name_ja,
       name_en: p.name_en,
@@ -472,7 +473,7 @@ shop.post('/purchase', async (c) => {
   const now = new Date().toISOString();
   const grantedPieceIds: number[] = [];
   for (const item of result.granted_items ?? []) {
-    const pid = skuToPieceId(item.item_ref_id);
+    const pid = itemIdToPieceId(item.item_ref_id) ?? skuToPieceId(item.item_ref_id);
     if (pid === null) continue;
     try {
       await c.env.DB.prepare(

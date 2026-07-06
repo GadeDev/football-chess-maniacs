@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "export:catalog": "tsx scripts/export_catalog_candidates.ts",
     "bootstrap": "npx tsx src/ai/bootstrap/run.ts",
     "bootstrap:small": "npx tsx src/ai/bootstrap/run.ts --matches 10 --parallel 2"
   },

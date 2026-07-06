@@ -7,13 +7,19 @@ import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { callPlatformApi, getBearerToken, getPlatformGameId } from './auth';
 import { grantFoundingEleven } from '../lib/founding_eleven';
-import { skuToPieceId } from '../types/piece';
+import { itemIdToPieceId, skuToPieceId } from '../types/piece';
 import type { OwnedPieceDetail } from '../types/piece';
 
 const pieces = new Hono<{
   Bindings: Env['Bindings'];
   Variables: { userId: string };
 }>();
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
 
 /**
  * GET /api/pieces — 所持コマ一覧（piece_master JOIN）
@@ -78,9 +84,11 @@ pieces.post('/sync', async (c) => {
     });
     const entitlements = await callPlatformApi<{
       items: Array<{
-        sku: string;
+        sku?: string;
+        item_id?: string;
         entitlement_id: string;
         state: string;
+        metadata?: Record<string, unknown> | null;
       }>;
     }>(c.env, `/v1/entitlements?${params.toString()}`, {
       authMode: 'user',
@@ -91,7 +99,10 @@ pieces.post('/sync', async (c) => {
     const activeEntitlements = entitlements.items.filter((e) => e.state === 'active');
 
     for (const ent of activeEntitlements) {
-      const pieceId = skuToPieceId(ent.sku);
+      const metadata = metadataRecord(ent.metadata);
+      const itemId = ent.item_id ?? (metadata.item_id as string | number | null | undefined);
+      const pieceId = itemIdToPieceId(itemId)
+        ?? (typeof ent.sku === 'string' ? skuToPieceId(ent.sku) : null);
       if (pieceId === null) continue;
 
       // 存在確認 + INSERT OR IGNORE

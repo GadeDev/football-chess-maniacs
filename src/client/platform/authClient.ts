@@ -77,6 +77,21 @@ export async function register(email: string, password: string): Promise<AuthRes
   return { ok: true, data };
 }
 
+/** Google Identity Services の ID token でログイン */
+export async function loginWithGoogle(idToken: string, locale?: string): Promise<AuthResult> {
+  const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
+    body: JSON.stringify(locale ? { id_token: idToken, locale } : { id_token: idToken }),
+  });
+  const data = await res.json().catch(() => null) as TokenResponse | null;
+  if (!res.ok || !data) return { ok: false, error: getApiError(data, res.status) };
+
+  saveTokens(data.access_token, data.refresh_token);
+  notifyAuthChange(true);
+  return { ok: true, data };
+}
+
 // リフレッシュの同時実行を1本化（複数箇所で同時401→複数refreshを防ぐ）
 let refreshPromise: Promise<boolean> | null = null;
 

@@ -9,6 +9,12 @@ import { callPlatformApi, getBearerToken } from './auth';
 
 const team = new Hono<{ Bindings: Env['Bindings']; Variables: { userId: string } }>();
 
+const BASE_SAVE_SLOTS = 1;
+const MAX_SAVE_SLOTS = 10;
+const DEFAULT_SAVE_SLOT_SKU = 'fcms_save_slots_9';
+const DEFAULT_SUBSCRIPTION_SKU = 'uf_subscription_monthly_premium';
+const DEFAULT_SUBSCRIPTION_BONUS_SLOTS = 3;
+
 /** チーム編成レコード（v2: slot_number/is_active/formation_preset追加） */
 interface TeamComposition {
   id: string;
@@ -54,9 +60,26 @@ async function getLocalOwnedPieceIds(
   return new Set(result.results.map((r) => r.piece_id));
 }
 
-/** プレミアム判定（slots 2-10 にはエンタイトルメントが必要） */
-async function checkPremiumSlots(env: Env['Bindings'], userToken: string | null): Promise<boolean> {
-  if (!userToken) return false;
+function positiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : fallback;
+}
+
+function saveSlotSku(env: Env['Bindings']): string {
+  return env.PLATFORM_SAVE_SLOT_SKU || DEFAULT_SAVE_SLOT_SKU;
+}
+
+function subscriptionSku(env: Env['Bindings']): string {
+  return env.PLATFORM_SUBSCRIPTION_SKU || DEFAULT_SUBSCRIPTION_SKU;
+}
+
+function subscriptionBonusSlots(env: Env['Bindings']): number {
+  return positiveInt(env.SUBSCRIPTION_SAVE_SLOT_BONUS, DEFAULT_SUBSCRIPTION_BONUS_SLOTS);
+}
+
+/** Platform Entitlement check。障害時はfalseに倒し、保存枠の新規書き込みを保守的に止める。 */
+async function checkEntitlementSku(env: Env['Bindings'], userToken: string | null, sku: string): Promise<boolean> {
+  if (!userToken || !sku) return false;
   try {
     const result = await callPlatformApi<{ allowed: boolean }>(
       env,
@@ -66,14 +89,42 @@ async function checkPremiumSlots(env: Env['Bindings'], userToken: string | null)
         authMode: 'user',
         userToken,
         idempotencyKey: crypto.randomUUID(),
-        body: JSON.stringify({ sku: 'fcms_save_slots_9' }),
+        body: JSON.stringify({ sku }),
       },
     );
     return result.allowed;
   } catch {
-    // Platform障害時はスロット1のみ許可
     return false;
   }
+}
+
+interface SaveSlotAccess {
+  maxSlots: number;
+  availableSlots: number;
+  isPremium: boolean;
+  saveSlotEntitlementActive: boolean;
+  subscriptionActive: boolean;
+  subscriptionExtraSlots: number;
+}
+
+async function getSaveSlotAccess(env: Env['Bindings'], userToken: string | null): Promise<SaveSlotAccess> {
+  const [saveSlotEntitlementActive, subscriptionActive] = await Promise.all([
+    checkEntitlementSku(env, userToken, saveSlotSku(env)),
+    checkEntitlementSku(env, userToken, subscriptionSku(env)),
+  ]);
+  const subscriptionExtraSlots = subscriptionActive ? subscriptionBonusSlots(env) : 0;
+  const availableSlots = saveSlotEntitlementActive
+    ? MAX_SAVE_SLOTS
+    : Math.min(MAX_SAVE_SLOTS, BASE_SAVE_SLOTS + subscriptionExtraSlots);
+
+  return {
+    maxSlots: MAX_SAVE_SLOTS,
+    availableSlots,
+    isPremium: availableSlots > BASE_SAVE_SLOTS,
+    saveSlotEntitlementActive,
+    subscriptionActive,
+    subscriptionExtraSlots,
+  };
 }
 
 // ── チーム一覧取得 ──
@@ -87,7 +138,7 @@ team.get('/', async (c) => {
     .bind(userId)
     .all<TeamComposition>();
 
-  const isPremium = await checkPremiumSlots(c.env, userToken);
+  const access = await getSaveSlotAccess(c.env, userToken);
 
   return c.json({
     teams: result.results.map((t) => {
@@ -110,9 +161,12 @@ team.get('/', async (c) => {
         };
       }
     }),
-    max_slots: 10,
-    available_slots: isPremium ? 10 : 1,
-    is_premium: isPremium,
+    max_slots: access.maxSlots,
+    available_slots: access.availableSlots,
+    is_premium: access.isPremium,
+    save_slot_entitlement_active: access.saveSlotEntitlementActive,
+    subscription_active: access.subscriptionActive,
+    subscription_extra_slots: access.subscriptionExtraSlots,
   });
 });
 
@@ -174,16 +228,17 @@ team.post('/', async (c) => {
 
   // スロット番号の検証
   const slotNumber = body.slot_number ?? 1;
-  if (slotNumber < 1 || slotNumber > 10 || !Number.isInteger(slotNumber)) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'slot_number must be 1-10' }, 400);
+  if (slotNumber < 1 || slotNumber > MAX_SAVE_SLOTS || !Number.isInteger(slotNumber)) {
+    return c.json({ error: 'VALIDATION_ERROR', message: `slot_number must be 1-${MAX_SAVE_SLOTS}` }, 400);
   }
 
-  // スロット2-10 はプレミアム必要
-  if (slotNumber >= 2) {
-    const isPremium = await checkPremiumSlots(c.env, userToken);
-    if (!isPremium) {
-      return c.json({ error: 'PREMIUM_REQUIRED', message: 'Slots 2-10 require premium' }, 403);
-    }
+  const access = await getSaveSlotAccess(c.env, userToken);
+  if (slotNumber > access.availableSlots) {
+    return c.json({
+      error: 'PREMIUM_REQUIRED',
+      message: `Slot ${slotNumber} is not available for new saves`,
+      available_slots: access.availableSlots,
+    }, 403);
   }
 
   // スロット重複チェック
@@ -232,6 +287,7 @@ team.post('/', async (c) => {
 team.put('/:teamId', async (c) => {
   const userId = c.get('userId');
   const teamId = c.req.param('teamId');
+  const userToken = getBearerToken(c.req.header('Authorization'));
   const body = await c.req.json<{
     name?: string;
     formation_preset?: string;
@@ -241,13 +297,23 @@ team.put('/:teamId', async (c) => {
 
   // 所有権チェック
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM teams WHERE id = ? AND user_id = ?',
+    'SELECT id, slot_number FROM teams WHERE id = ? AND user_id = ?',
   )
     .bind(teamId, userId)
-    .first();
+    .first<{ id: string; slot_number: number | null }>();
 
   if (!existing) {
     return c.json({ error: 'Team not found' }, 404);
+  }
+
+  const slotNumber = existing.slot_number ?? 1;
+  const access = await getSaveSlotAccess(c.env, userToken);
+  if (slotNumber > access.availableSlots) {
+    return c.json({
+      error: 'PREMIUM_REQUIRED',
+      message: `Slot ${slotNumber} is read-only until the entitlement is active`,
+      available_slots: access.availableSlots,
+    }, 403);
   }
 
   if (body.fieldPieces) {

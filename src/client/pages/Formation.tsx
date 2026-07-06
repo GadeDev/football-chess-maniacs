@@ -11,6 +11,7 @@ import type { Cost, Position } from '../components/board/PieceIcon';
 import PieceIcon, { costToRank } from '../components/board/PieceIcon';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { t } from '../i18n';
+import { buildPlatformShopUrl } from '../platform/config';
 
 /** コスト値 → 役割名キーのサフィックス（1→'1', 1.5→'1p', 2→'2', 2.5→'2p', 3→'3'） */
 const COST_KEY: Record<number, string> = { 1: '1', 1.5: '1p', 2: '2', 2.5: '2p', 3: '3' };
@@ -61,6 +62,7 @@ const MAX_FIELD_COST = 16;
 const MAX_STARTERS = 11;
 const MAX_BENCH = 9;
 const MAX_SLOTS = 10;
+const SAVE_SLOT_ITEM_ID = 'formation_save_slot';
 const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW'];
 const ALL_COSTS: Cost[] = [1, 1.5, 2, 2.5, 3];
 
@@ -334,6 +336,10 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
     setShowSlotModal(true);
   }, [isPremium]);
 
+  const handleOpenSaveSlotShop = useCallback(() => {
+    window.location.href = buildPlatformShopUrl(SAVE_SLOT_ITEM_ID);
+  }, []);
+
   const handleSaveSlot = useCallback((idx: number) => {
     setSlots(prev => {
       const updated = [...prev];
@@ -381,6 +387,7 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
         currentPreset={currentPreset}
         onPresetChange={handlePresetChange}
         onShowSlots={handleOpenSlots}
+        onOpenSaveSlotShop={handleOpenSaveSlotShop}
         isPremium={isPremium}
         premiumMessage={premiumMessage}
         teamName={teamName}
@@ -485,9 +492,9 @@ export default function Formation({ onNavigate, onFormationConfirm, isPremium = 
 
 // ── ヘッダー ──
 
-function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, isPremium, premiumMessage, teamName, onTeamNameChange }: {
+function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onOpenSaveSlotShop, isPremium, premiumMessage, teamName, onTeamNameChange }: {
   totalCost: number; starterCount: number; benchCount: number; hasGK: boolean;
-  currentPreset: string; onPresetChange: (k: string) => void; onShowSlots: () => void;
+  currentPreset: string; onPresetChange: (k: string) => void; onShowSlots: () => void; onOpenSaveSlotShop: () => void;
   isPremium: boolean; premiumMessage: boolean;
   teamName: string; onTeamNameChange: (name: string) => void;
 }) {
@@ -542,6 +549,9 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
             Premium
           </span>
         )}
+        <button onClick={onOpenSaveSlotShop} style={{ ...btnStyle('#2563eb'), padding: '4px 10px', fontSize: 12 }}>
+          {t('title.shop')}
+        </button>
         {premiumMessage && (
           <div style={{
             position: 'absolute', top: '100%', right: 0, marginTop: 4,

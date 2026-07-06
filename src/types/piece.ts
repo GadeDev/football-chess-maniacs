@@ -58,6 +58,7 @@ export interface OwnedPieceDetail {
 /** GET /api/shop/catalog 用 */
 export interface ShopCatalogItem {
   piece_id: number;
+  item_id: string;
   sku: string;
   name_ja: string;
   name_en: string;
@@ -102,6 +103,7 @@ export interface WebhookPurchasePayload {
     balance_after?: number;
     ledger_id?: string;
     item_id?: string;
+    metadata?: Record<string, unknown> | null;
     inventory_item_id?: string;
     product_id?: string;
     purchase_id?: string;
@@ -154,6 +156,23 @@ export function skuToPieceId(sku: string): number | null {
 /** piece_id → SKU */
 export function pieceIdToSku(pieceId: number): string {
   return `fcms_piece_${String(pieceId).padStart(3, '0')}`;
+}
+
+/** Platform tier metadata 用 item_id → piece_id 抽出 */
+export function itemIdToPieceId(itemId: string | number | null | undefined): number | null {
+  if (typeof itemId === 'number') {
+    return Number.isInteger(itemId) && itemId >= 1 && itemId <= 200 ? itemId : null;
+  }
+  if (typeof itemId !== 'string') return null;
+  const normalized = itemId.trim();
+  const m = normalized.match(/^(?:piece|fcms_piece)_(\d{3})$/);
+  const id = m ? parseInt(m[1], 10) : (/^\d{1,3}$/.test(normalized) ? parseInt(normalized, 10) : NaN);
+  return Number.isInteger(id) && id >= 1 && id <= 200 ? id : null;
+}
+
+/** piece_id → Platform tier metadata 用 item_id */
+export function pieceIdToItemId(pieceId: number): string {
+  return `piece_${String(pieceId).padStart(3, '0')}`;
 }
 
 // ── インゴット（ゲーム内通貨）──

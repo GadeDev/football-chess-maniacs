@@ -6,13 +6,27 @@
 import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { verifyHmacSignature } from './auth';
-import { skuToPieceId, INGOT_SKU_AMOUNTS } from '../types/piece';
+import { itemIdToPieceId, skuToPieceId, INGOT_SKU_AMOUNTS } from '../types/piece';
 import type { WebhookPurchasePayload } from '../types/piece';
 
 const webhooks = new Hono<{
   Bindings: Env['Bindings'];
   Variables: { userId: string };
 }>();
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function resolvePieceId(data: WebhookPurchasePayload['data']): number | null {
+  const metadata = metadataRecord(data.metadata);
+  const itemId = data.item_id ?? (metadata.item_id as string | number | null | undefined);
+  const fromItemId = itemIdToPieceId(itemId);
+  if (fromItemId !== null) return fromItemId;
+  return typeof data.sku === 'string' ? skuToPieceId(data.sku) : null;
+}
 
 /**
  * POST /webhook/purchase
@@ -144,13 +158,8 @@ webhooks.post('/purchase', async (c) => {
     return c.json({ ok: true });
   }
 
-  if (typeof data.sku !== 'string' || data.sku.length === 0) {
-    await markProcessed('missing sku');
-    return c.json({ error: 'VALIDATION_ERROR', message: 'Missing sku' }, 400);
-  }
-
   // 4-C. 旧INGOT SKU互換 → ウォレットに加算（entitlement.created のみ）
-  const ingotAmount = INGOT_SKU_AMOUNTS[data.sku];
+  const ingotAmount = typeof data.sku === 'string' ? INGOT_SKU_AMOUNTS[data.sku] : undefined;
   if (ingotAmount !== undefined) {
     let result = 'ok';
     try {
@@ -173,11 +182,29 @@ webhooks.post('/purchase', async (c) => {
     return c.json({ ok: true });
   }
 
-  // 4-D. SKU → piece_id 変換
-  const pieceId = skuToPieceId(data.sku);
+  // 4-D. tier方式 metadata.item_id → piece_id 変換（旧skuは互換フォールバック）
+  const pieceId = resolvePieceId(data);
   if (pieceId === null) {
-    await markProcessed('invalid sku');
-    return c.json({ error: 'INVALID_SKU', message: `Unknown SKU: ${data.sku}` }, 400);
+    if (event_type === 'entitlement.revoked' && typeof data.entitlement_id === 'string' && data.entitlement_id.length > 0) {
+      try {
+        await c.env.DB.prepare(
+          "DELETE FROM user_pieces_v2 WHERE user_id = ? AND entitlement_id = ? AND source = 'purchase'",
+        )
+          .bind(data.user_id, data.entitlement_id)
+          .run();
+        await markProcessed('revoked by entitlement_id');
+        await c.env.KV.delete(`owned_pieces:${data.user_id}`);
+        return c.json({ ok: true });
+      } catch (e) {
+        const result = `error: ${e instanceof Error ? e.message : String(e)}`;
+        console.error('[webhook/purchase] Revoke by entitlement_id error:', e);
+        await markProcessed(result);
+        return c.json({ ok: true });
+      }
+    }
+
+    await markProcessed('invalid item_id');
+    return c.json({ error: 'INVALID_ITEM_ID', message: 'Missing or unknown item_id' }, 400);
   }
 
   // 5. piece_master 存在確認
@@ -200,7 +227,7 @@ webhooks.post('/purchase', async (c) => {
       await c.env.DB.prepare(
         'INSERT OR IGNORE INTO user_pieces_v2 (user_id, piece_id, source, entitlement_id, acquired_at) VALUES (?, ?, ?, ?, ?)',
       )
-        .bind(data.user_id, pieceId, 'purchase', data.entitlement_id ?? null, now)
+        .bind(data.user_id, pieceId, 'purchase', data.entitlement_id ?? data.inventory_item_id ?? null, now)
         .run();
     } else if (event_type === 'entitlement.revoked') {
       // founding / gift は revoke しない（purchase のみ）

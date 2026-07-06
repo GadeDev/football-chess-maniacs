@@ -778,3 +778,9 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 
 ### 構造的リスク
 - `docs/fcms_spec_v3.md` は §7(判定式)/§8(数値) を「v9.2と同一のため省略」→ 判定式の実数値を検証できる権威ドキュメントが無く、**コードが唯一の真実源**。Unity移植の閾値/補正値も出典欠如の暫定値（`docs/unity_football_chess_rules.md` 自身が実値不明と明記）。spec未確定の値（foul forceFoul閾値等）は勝手に確定しない。
+
+## Googleログイン（2026-07-06）
+
+- `src/client/components/auth/LoginModal.tsx` にGoogle Identity Services公式ボタンを追加。
+- 取得したGoogle ID tokenはPlatform `POST /v1/auth/google` に直接送信し、返ったPlatform tokenを既存 `tokenStore` に保存する。
+- 既定OAuth Client IDは `110426439608-t1elbabub2aueos9v29c7cgaiehio58b.apps.googleusercontent.com`。必要時は `VITE_GOOGLE_CLIENT_ID` で上書き。

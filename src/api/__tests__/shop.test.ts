@@ -174,6 +174,22 @@ describe('POST /api/shop/purchase（Platform items/purchase 経由）', () => {
     await expect(res.json()).resolves.toMatchObject({ piece_id: 10, balance: 3, granted_pieces: [10] });
   });
 
+  it('granted_items.item_ref_id が tier方式 item_id でも即時同期する', async () => {
+    const state = emptyState();
+    const { app, env } = makeApp('u1', makeFakeDb(state));
+    stubPlatform({
+      purchase: {
+        status: 200,
+        body: { purchase_id: 'pur-item-id', status: 'completed', granted_items: [{ item_ref_id: 'piece_042', inventory_item_id: 'ent-42' }] },
+      },
+    });
+
+    const res = await purchase(app, env, { product_id: 'prod-direct' });
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ piece_id: 42, granted_pieces: [42] });
+    expect(state.owned.has('u1:42')).toBe(true);
+  });
+
   it('INSUFFICIENT_BALANCE → 402 INSUFFICIENT_INGOTS', async () => {
     const state = emptyState({ pieceMaster: { 5: { is_purchasable: 1 } } });
     const { app, env } = makeApp('u1', makeFakeDb(state));

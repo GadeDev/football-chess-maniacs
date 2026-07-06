@@ -47,6 +47,9 @@ export interface Env {
     PLATFORM_GAME_ID: string;
     GAME_CLIENT_URL?: string;
     PLATFORM_CHECKOUT_RETURN_URL?: string;
+    PLATFORM_SAVE_SLOT_SKU?: string;
+    PLATFORM_SUBSCRIPTION_SKU?: string;
+    SUBSCRIPTION_SAVE_SLOT_BONUS?: string;
     AI_MODEL_ID: string;
     // Secrets
     PLATFORM_JWKS_URL: string;
