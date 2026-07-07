@@ -16,6 +16,9 @@ interface SoundDef {
   gain?: number;
 }
 
+/** 環境音BGMの基準ゲイン（volume設定と乗算） */
+const AMBIENCE_GAIN = 0.055;
+
 const SOUND_DEFS: Record<SoundId, SoundDef> = {
   whistle_start:  { type: 'sine', freq: 2200, duration: 0.3, gain: 0.3 },
   whistle_end:    { type: 'sine', freq: 2200, duration: 0.8, gain: 0.3 },
@@ -36,6 +39,8 @@ class SoundManager {
   private ctx: AudioContext | null = null;
   private enabled = true;
   private volume = 0.8;
+  private bgmEnabled = true;
+  private ambience: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
 
   private getCtx(): AudioContext {
     if (!this.ctx) this.ctx = new AudioContext();
@@ -44,7 +49,65 @@ class SoundManager {
   }
 
   setEnabled(enabled: boolean) { this.enabled = enabled; }
-  setVolume(vol: number) { this.volume = Math.max(0, Math.min(1, vol / 100)); }
+  setVolume(vol: number) {
+    this.volume = Math.max(0, Math.min(1, vol / 100));
+    // 再生中の環境音にも即時反映
+    if (this.ambience && this.ctx) {
+      this.ambience.gain.gain.setTargetAtTime(AMBIENCE_GAIN * this.volume, this.ctx.currentTime, 0.1);
+    }
+  }
+
+  setBgmEnabled(enabled: boolean) {
+    this.bgmEnabled = enabled;
+    if (!enabled) this.stopAmbience();
+  }
+
+  /**
+   * BGM: スタジアム環境音（群衆のざわめき）のループ再生。試合中のみ流す。
+   * 外部音源ファイル不要（バンドパスノイズ+ゆったりした音量ゆらぎを合成）
+   */
+  startAmbience() {
+    if (!this.bgmEnabled || this.ambience) return;
+    try {
+      const ctx = this.getCtx();
+      const dur = 6; // 6秒ループ（ゆらぎ周期と一致させて継ぎ目を目立たせない）
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        // ざわめき: ノイズ × ループ周期のゆらぎ（sin^2で端点=0にしてループの継ぎ目を消す）
+        const sway = 0.6 + 0.4 * Math.sin((Math.PI * i) / data.length) ** 2;
+        data[i] = (Math.random() * 2 - 1) * sway;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass'; band.frequency.value = 550; band.Q.value = 0.4;
+      const low = ctx.createBiquadFilter();
+      low.type = 'lowpass'; low.frequency.value = 1600;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.001, AMBIENCE_GAIN * this.volume), ctx.currentTime + 1.2);
+      src.connect(band).connect(low).connect(gain).connect(ctx.destination);
+      src.start();
+      this.ambience = { src, gain };
+    } catch {
+      // Audio not available
+    }
+  }
+
+  stopAmbience() {
+    if (!this.ambience || !this.ctx) return;
+    const { src, gain } = this.ambience;
+    this.ambience = null;
+    try {
+      const t = this.ctx.currentTime;
+      gain.gain.setTargetAtTime(0.001, t, 0.25);
+      src.stop(t + 1);
+    } catch {
+      // 既に停止済み等は無視
+    }
+  }
 
   /** ゴール演出用の歓声スウェル（バンドパスノイズのフェードイン→アウト）
    *  delaySec: GoalCeremonyのタメ(TAME_MS=320ms)と同期し、着弾の瞬間に歓声が爆発する */

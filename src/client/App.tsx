@@ -17,7 +17,6 @@ import ModeSelect from './pages/ModeSelect';
 const Formation = lazy(() => import('./pages/Formation'));
 const Matching = lazy(() => import('./pages/Matching'));
 const Battle = lazy(() => import('./pages/Battle'));
-const HalfTime = lazy(() => import('./pages/HalfTime'));
 const Replay = lazy(() => import('./pages/Replay'));
 
 const ResultScreen = lazy(() => import('./screens/ResultScreen'));
@@ -386,14 +385,6 @@ function AppShell() {
             onMatchEnd={handleMatchEnd}
             comDifficulty={comDifficulty}
             opponent={comOpponent}
-          />
-        )}
-        {page === 'halfTime' && (
-          <HalfTime
-            scoreHome={matchEndData.scoreHome}
-            scoreAway={matchEndData.scoreAway}
-            onNavigate={navigate}
-            onReady={() => navigate('battle')}
           />
         )}
         {page === 'result' && (

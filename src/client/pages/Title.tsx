@@ -118,6 +118,18 @@ export default function Title({ onNavigate, lastSetup, onQuickMatch, onQuickOnli
         <SubButton label={t('title.settings')} onClick={() => onNavigate('settings')} />
       </div>
 
+      {/* プラットフォームポータルへの導線（Issue #15）。ブランド名のため原語固定 */}
+      <button
+        onClick={() => window.open('https://universo-futbol.com', '_blank', 'noopener')}
+        style={{
+          width: '100%', maxWidth: 340, padding: '8px 0',
+          background: 'transparent', border: '1px solid rgba(255,215,0,0.25)',
+          borderRadius: 8, color: '#c9a227', fontSize: 13, cursor: 'pointer',
+        }}
+      >
+        Universo Fútbol {'↗'}
+      </button>
+
     </div>
   );
 }

@@ -270,6 +270,7 @@ public/
 | 編成フッターv3.1+LegalFooter被り修正（2026-07-08） | 「編成画面からどう遷移していいかわからない」への対応。**根本原因を発見**: `LegalFooter`（`a921b5e`のサービスイン準備で追加、fixed+zIndex5000）が全ページ描画で画面下部の操作ボタンを視覚的に覆い隠していた（編成のフッターボタン・各画面のBackButton等。pointer-events:noneで押せるが見えない）→ **マイページ（title）のみ表示に変更**、法的リンクの常時到達性は設定画面「その他」の実リンク化（`LEGAL_LINKS` export）で担保。あわせてフッターを主行動1つの3ボタン構成に再設計: ガイド文1行（「保存するとこの編成が以後のすべての対戦で使われます」）+「← マイページ」（控えめ）+「💾 保存」（青・その場保存、旧「保存して戻る」の複合動作を廃止）+**主ボタン（緑・大・常設）**=対戦フロー時「この編成で対戦 ▶」/ 通常時「対戦へ進む ▶」（装備してModeSelectへ）。主ボタンはログイン中押下時にスロット自動保存（オンラインのis_activeチームとの新旧乖離防止、失敗でもフロー継続）。「プリセットチーム」はヘッダーへ移動。i18n3キー×7言語。**Playwrightスクリーンショットでdesktop/mobile両方の描画を目視確認済み**。769テストgreen | ✅ |
 | Phase 1-3 Platform戦績接続（2026-07-08, 正本 `docs/phase1_3_report.md`） | データ実態調査で「コード一切なし」だったMatch Result連携を実装。`src/server/match_stats.ts`（turnLog→参加者別カウント集計の純粋関数 `computeMatchCounts`）+ `src/server/platform_match_report.ts`（`MatchFinishRequest`組み立て`buildMatchFinishPayload`+送信`sendMatchFinishReport`）。worker.tsのQueue Consumer末尾（D1/R2永続化+ack**完了後**）に独立try/catchで送信、失敗は全て握りつぶしログのみ（D1/R2/Elo/Commerceを巻き込まない）。mode判定は`isRatedMatch`のprefix規約流用（ranked/casual/friend/COM）、COM戦は人間側1名のみparticipants送信（`com_player_*`→guest_session_id）。思考時間は前ターン解決時刻からの近似。**制約: クライアントサイドCOM対戦（`com_`、大半のCOM戦）はQueueに到達しないため送信されない**（構造的、別タスク）。テスト+28件（17+11、769→797）。**未実施**: signal manifest（`docs/signal_manifest_football_chess_maniacs.json`）のPlatform Admin登録 / gfpトークンローテーション | ✅ |
 | Phase 1-3 本番デプロイ+実地検証+WSブロッカー修正（2026-07-08） | ①Worker本番デプロイ。②検証準備中に**サービスインブロッカーを発見**: WS認証の「残存2時間以上」要求（旧§7-2-b）はPlatform実トークン（900秒失効）では充足不可能で、**本番のオンライン対戦WSが全て401**だった（ローカルE2Eは長寿命の自己署名JWTのため未検出）→ 接続時有効性のみ要求（最低残存60秒）に緩和、テスト+2件（809）、`3e5858d`。③**本番実地検証成功**: スモークユーザーの実JWTでマッチメイキングWS接続→casual JOIN_QUEUE→Bot補完（30秒、com_ai）→ゲームセッションWSで34ターン完走（0-0）→Queue Consumer→Platform `POST /v1/game/matches/finish` 送信→**Platform `GET /v1/portal/users/:id/stats` で matches_played:1/draws:1 を確認**（オンライン対戦の本番導通とPhase 1-3送信の両方をエンドツーエンドで実証） | ✅ |
+| 完成に向けた残Issue消化バッチ（2026-07-08） | ①**#12 Google認証の原因2段特定**: CSP `script-src 'self'` がGISスクリプトをブロック+`connect-src`にfc-platform-apiが無く**footballchess.ioでは全ログインが不可能**だった→CSP修正（GIS script/frame/connect/style + Platform API + CF Insights許可、`4d279d6`）、**メール/パスワードログインの本番ブラウザ動作を確認済み**。残エラー`origin is not allowed for the given client ID`=Google Cloud Consoleのオリジン登録（#12にユーザー向け手順記載、人間の作業）。②**#15**: マイページにUniverso Fútbolポータルリンク追加（別タブ、ブランド名につき原語固定）。③**#10**: BGMを実装（`SoundManager`に合成スタジアム環境音ループ`startAmbience`/`stopAmbience`追加、外部音源不要。6秒ループ+sin²ゆらぎで継ぎ目なし、AMBIENCE_GAIN 0.055×volume）。あわせて**未結線だったサウンド設定を全結線**（Battle.tsxで`sfxEnabled`/`volume`/`bgmEnabled`をsoundManagerへ同期、環境音は試合中のみ・アンマウントでフェード停止）。④デッドコード削除: `pages/HalfTime.tsx`（到達不能）、`api/auth.ts`の未マウント`/purchase`+Honoアプリ。⑤セキュリティメモの🟠2件は既に対応済みと確認しメモ訂正。809テストgreen | ✅ |
 
 ---
 
@@ -753,8 +754,8 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 
 | 優先 | 項目 | 場所 |
 |---|---|---|
-| 🟠 | `callPlatformApi` に `AbortController` タイムアウト追加（Platformハング時のWorker詰まり防止） | `api/auth.ts:44-76` |
-| 🟠 | `/match/com` POSTは非認証 + レート制限のみ → 匿名でのDO大量生成リスク。IP単位のDO生成キャップ強化 | `worker.ts:109-111` |
+| ✅ | ~~`callPlatformApi` にタイムアウト追加~~ — 対応済み（`AbortController` + `DEFAULT_PLATFORM_API_TIMEOUT_MS` 15秒、外部signal合成対応。2026-07-08確認） | `api/auth.ts` |
+| ✅ | ~~`/match/com` のDO大量生成リスク~~ — 対応済み（IP単位の二重レート制限: 3req/分 + 20req/時。2026-07-08確認） | `worker.ts` / `rate_limit.ts` |
 | 🟡 | Webhookにタイムスタンプ署名がある場合は5分窓のリプレイ防止を追加（現状 `delivery_id` 永続テーブル依存） | `api/webhooks.ts` |
 | 🟡 | クライアントの `authToken` 取得・保管経路をドキュメント化（postMessage受領か localStorage 保管か未確認） | `App.tsx` / `ShopScreen.tsx` |
 | 🟡 | インゴットは `entitlement.revoked` 無視（consumable仕様）→ 返金/チャージバック時に残高回収不可。運用許容か確認 | `api/webhooks.ts:82-95` |
@@ -785,7 +786,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | ✅ | リプレイ視聴: COM対戦のクライアント録画→再生を配線済(`66076cb`)。残: オンライン対戦の録画(サーバーR2 `/replays/:id` 経由のビューア接続)、`/replays/:id/turn/:turn`(誰も書かず実質stub) | `api/replay.ts` |
 | ✅ | 選手交代: エンジン(applySubstitutions)+クライアントCOM(`d4becd7`)+DO/PvP・サーバーCOM(`a03b243`)で実装済み。残: COM AIへのbench供給(現状AIは交代提案せず) / 得点後リスタートでDOは交代がリセット(クライアントは保持)の挙動差 / オンラインE2E未検証 | `game_session.ts` |
 | ✅ | FriendMatch: `POST /match/friend/create`・`GET /match/friend/status/:roomId`・`POST /match/friend/join`で実装済み(outgame整理v2 T6, `f909eac`)。招待コード/URL方式、matchIdは`friend_`prefixでレーティング対象外。残: E2E未検証。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*`, `api/match.ts` |
-| 🟡 | デッドコード整理: `pages/Result.tsx`・`pages/HalfTime.tsx`（到達不能）、`api/auth.ts` の `/purchase`（未マウント） | — |
+| ✅ | ~~デッドコード整理~~ — 対応済み（2026-07-08）: `pages/HalfTime.tsx`（到達不能）+ App/typesの参照、`api/auth.ts` の未マウント`/purchase`ハンドラ+Honoアプリを削除。`pages/Result.tsx`は既に存在せず | — |
 | 🟡 | `public/assets/characters/`（PK/FKスプライト9枚）がgit未追跡・未参照。配線時に追加 | — |
 
 ### 構造的リスク

@@ -86,6 +86,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const { settings } = useSettings();
   const animSpeed = settings.animationSpeed || 1;
   const isMobile = device === 'mobile' || device === 'tablet';
+
+  // サウンド設定の結線（SFX/BGM/音量）。BGM=スタジアム環境音は試合中のみループ再生
+  useEffect(() => {
+    soundManager.setEnabled(settings.sfxEnabled);
+    soundManager.setVolume(settings.volume);
+    soundManager.setBgmEnabled(settings.bgmEnabled);
+    if (settings.bgmEnabled) soundManager.startAmbience();
+  }, [settings.sfxEnabled, settings.volume, settings.bgmEnabled]);
+
+  useEffect(() => {
+    return () => soundManager.stopAmbience();
+  }, []);
   const {
     state,
     dispatch,
