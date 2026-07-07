@@ -2,10 +2,8 @@
 // auth.ts — プラットフォーム認証検証API（§2-2, §7-5）
 // ============================================================
 
-import { Hono } from 'hono';
 import type { Env } from '../worker';
 
-const auth = new Hono<{ Bindings: Env['Bindings']; Variables: { userId: string } }>();
 const DEFAULT_PLATFORM_API_TIMEOUT_MS = 15_000;
 const DEFAULT_PLATFORM_GAME_ID = 'football_chess_maniacs';
 
@@ -221,35 +219,5 @@ export async function getOwnedPieces(
   }
 }
 
-// ── Webhookエンドポイント（キャッシュ即時無効化）──
-auth.post('/purchase', async (c) => {
-  const signature = c.req.header('X-HMAC-Signature');
-  if (!signature) {
-    return c.json({ error: 'Missing signature' }, 401);
-  }
-
-  const body = await c.req.text();
-  const valid = await verifyHmacSignature(body, signature, c.env.PLATFORM_HMAC_SECRET);
-  if (!valid) {
-    return c.json({ error: 'Invalid signature' }, 401);
-  }
-
-  let data: { user_id: string; event: string };
-  try {
-    data = JSON.parse(body) as { user_id: string; event: string };
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-
-  if (!data.user_id || typeof data.user_id !== 'string') {
-    return c.json({ error: 'Missing user_id' }, 400);
-  }
-
-  if (data.event === 'purchase_complete') {
-    await c.env.KV.delete(`owned_pieces:${data.user_id}`);
-  }
-
-  return c.json({ ok: true });
-});
-
-export default auth;
+// 旧 /purchase Webhookハンドラ（X-HMAC-Signature方式）はどこにもマウントされていない
+// デッドコードだったため削除済み（現行のWebhook受信は api/webhooks.ts の /webhook/purchase）

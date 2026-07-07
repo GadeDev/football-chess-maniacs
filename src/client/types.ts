@@ -148,7 +148,6 @@ export type Page =
   | 'formation'
   | 'matching'
   | 'battle'
-  | 'halfTime'
   | 'result'
   | 'replay'
   | 'shop'
