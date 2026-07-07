@@ -1,0 +1,48 @@
+{
+  "manifest_version": 1,
+  "game_id": "football_chess_maniacs",
+  "match_unit": "1対戦（ランク/カジュアル/フレンド/COM）",
+  "note": "登録はPlatform Admin経由で人間が行う。このファイルは成果物であり自動登録はしない。",
+  "signals": [
+    {
+      "signal": "deliberation",
+      "numerator": "counts.turn_time_total_sec",
+      "denominator": "counts.turns_played",
+      "direction": "positive",
+      "weight": 1.0,
+      "note": "1ターンあたりの思考時間。本ゲームの看板シグナル"
+    },
+    {
+      "signal": "risk_taking",
+      "numerator": "counts.shots",
+      "denominator": "counts.turns_played",
+      "direction": "positive",
+      "weight": 0.8,
+      "note": "シュート選択の頻度"
+    },
+    {
+      "signal": "altruism",
+      "numerator": "counts.passes_delivered",
+      "denominator": "counts.shots",
+      "direction": "positive",
+      "weight": 0.6,
+      "note": "撃つよりつなぐ傾向（分母0はPlatform側で処理）"
+    },
+    {
+      "signal": "discipline",
+      "numerator": "counts.fouls",
+      "denominator": "counts.turns_played",
+      "direction": "negative",
+      "weight": 0.8,
+      "note": "ファウルの少なさ"
+    },
+    {
+      "signal": "discipline",
+      "numerator": "counts.turn_timeouts",
+      "denominator": "counts.turns_played",
+      "direction": "negative",
+      "weight": 0.7,
+      "note": "時間切れ空入力の少なさ"
+    }
+  ]
+}

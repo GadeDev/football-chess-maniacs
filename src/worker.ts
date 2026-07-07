@@ -18,6 +18,8 @@ import webhookRoutes from './api/webhooks';
 import { jwtMiddleware, verifyJwt } from './middleware/jwt_verify';
 import { rateLimitMiddleware, RATE_LIMITS } from './middleware/rate_limit';
 import { persistRatings, isRatedMatch } from './server/rating';
+import { sendMatchFinishReport } from './server/platform_match_report';
+import type { TurnLogEntry } from './server/match_stats';
 
 // ── Durable Objects 再エクスポート ──
 export { GameSession } from './durable/game_session';
@@ -307,6 +309,32 @@ export default {
         });
 
         msg.ack();
+
+        // Platformへの試合結果送信（UF Game Data Contract v1）。
+        // ここで例外が起きても上のD1/R2永続化・ackは既に完了済みのため一切ロールバックしない。
+        try {
+          const matchRow = await env.DB.prepare('SELECT created_at FROM matches WHERE id = ?')
+            .bind(data.matchId)
+            .first<{ created_at: string }>();
+          if (matchRow?.created_at) {
+            await sendMatchFinishReport(env, {
+              matchId: data.matchId,
+              homeUserId: data.homeUserId,
+              awayUserId: data.awayUserId,
+              scoreHome: data.scoreHome,
+              scoreAway: data.scoreAway,
+              reason: data.reason,
+              disconnectLoser: data.disconnectLoser as 'home' | 'away' | undefined,
+              turnLog: data.turnLog as TurnLogEntry[],
+              matchCreatedAtIso: matchRow.created_at,
+              finishedAtIso: data.finishedAt,
+            });
+          } else {
+            console.error(`[platform_match_report] matches row not found for ${data.matchId}, skipping finish report`);
+          }
+        } catch (e) {
+          console.error(`[platform_match_report] unexpected error building finish report for ${data.matchId}:`, e);
+        }
       } catch (e) {
         console.error(`Failed to persist match ${data.matchId}:`, e);
         msg.retry();
