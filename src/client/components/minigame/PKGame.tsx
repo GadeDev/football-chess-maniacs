@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import type { PieceData } from '../../types';
 import { POSITION_COLORS } from '../../types';
 import { t, tn } from '../../i18n';
+import { GkSprite, KickerSprite } from './KickScene';
 
 interface PKGameProps {
   isKicker: boolean;
@@ -105,6 +106,9 @@ export default function PKGame({
         <span>{t('pk.gk_info', { position: gkInfo.position, cost: gkInfo.cost })}</span>
       </div>
 
+      {/* 対峙シーン: ゴールマウスのGK */}
+      <GkSprite submitted={submitted} height={isMobile ? 56 : 68} />
+
       {/* ゴール6ゾーン */}
       <div
         style={{
@@ -140,6 +144,9 @@ export default function PKGame({
           </button>
         ))}
       </div>
+
+      {/* 対峙シーン: 助走位置のキッカー（後ろ姿） */}
+      <KickerSprite submitted={submitted} height={isMobile ? 72 : 88} />
 
       <button
         onClick={handleSubmit}

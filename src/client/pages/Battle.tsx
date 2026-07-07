@@ -211,8 +211,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const handleOnlineMessage = useCallback((msg: unknown) => {
     const data = msg as WsMessage;
     switch (data.type) {
-      case 'TURN_RESULT':
+      case 'TURN_RESULT': {
         seqRetryRef.current = false; // ターンが進んだらsequence再送ガードをリセット
+        // リプレイ録画: サーバーのturnは次ターンに進んだ値なので、解決済みターン = turn - 1。
+        // リロード再接続時はそれ以前のターンが欠落する（既知の制限）
+        const resolvedPieces = ((data.board?.pieces ?? []) as PieceData[]).filter(p => !p.isBench);
+        replayTurnsRef.current.push({
+          turn: Math.max(1, data.turn - 1),
+          pieces: resolvedPieces,
+          events: (data.events ?? []) as GameEvent[],
+          scoreHome: data.scoreHome,
+          scoreAway: data.scoreAway,
+        });
         // リプレイアニメーション（ローカル命令適用）→ 2.5秒後にサーバー状態を反映
         dispatch({ type: 'RESOLVE_TURN' });
         setTimeout(() => {
@@ -228,6 +238,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           }
         }, REPLAY_DURATION);
         break;
+      }
 
       case 'INPUT_ACCEPTED':
         dispatch({ type: 'SET_STATUS', status: 'waiting_opponent' });

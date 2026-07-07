@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { t, tn } from '../../i18n';
+import { GkSprite, KickerSprite } from './KickScene';
 
 interface FKGameProps {
   isAttacker: boolean;
@@ -96,6 +97,9 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
           : t('fk.gk_info', { position: gkInfo.position, cost: gkInfo.cost })}
       </div>
 
+      {/* 対峙シーン: ゴールマウスのGK */}
+      <GkSprite submitted={submitted} height={isMobile ? 52 : 62} />
+
       {/* ゴール6ゾーン */}
       <div
         style={{
@@ -127,6 +131,9 @@ export default function FKGame({ isAttacker, onSubmit, isMobile, countdown, kick
           </button>
         ))}
       </div>
+
+      {/* 対峙シーン: 助走位置のキッカー（後ろ姿） */}
+      <KickerSprite submitted={submitted} height={isMobile ? 64 : 78} />
 
       {/* 攻撃: 直接/ロブ切替 / 守備: 壁の高さ */}
       {isAttacker ? (
