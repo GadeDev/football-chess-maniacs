@@ -9,6 +9,7 @@ import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 import LanguageSelect from '../i18n/LanguageSelect';
+import { LEGAL_LINKS } from '../components/LegalFooter';
 
 interface SettingsScreenProps {
   onNavigate: (page: Page) => void;
@@ -90,10 +91,14 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
                 borderRadius: 4, padding: '4px 8px', fontSize: 13,
               }} />
             </div>
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#555' }}>
-              <span>{t('settings.terms')}</span>
-              <span>{t('settings.privacy_policy')}</span>
-              <span>Version 0.9.0 (Phase B)</span>
+            {/* 法的リンク（LegalFooterはマイページのみ表示のため、ここから常時到達できるようにする） */}
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+              {LEGAL_LINKS.map(link => (
+                <a key={link.href} href={link.href} target="_blank" rel="noopener" style={{ color: '#7a8db0', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                  {link.label}
+                </a>
+              ))}
+              <span style={{ color: '#555' }}>Version 0.9.0 (Phase B)</span>
             </div>
           </Section>
         </div>

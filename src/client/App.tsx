@@ -428,7 +428,9 @@ function AppShell() {
         )}
         </Suspense>
       </div>
-      <LegalFooter />
+      {/* 法的表記はマイページのみ（fixed+高zIndexのため他画面では下部の操作ボタンを覆い隠してしまう。
+          常時到達性は設定画面「その他」の実リンクで担保） */}
+      {page === 'title' && <LegalFooter />}
     </SettingsProvider>
   );
 }
