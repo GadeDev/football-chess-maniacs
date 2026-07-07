@@ -3,7 +3,7 @@ import React from 'react';
 export const LEGAL_TERMS_APPLICABILITY =
   '本ゲームは Universo Fútbol の一部として提供され、Universo Fútbol の利用規約が適用されます。';
 
-const LEGAL_LINKS = [
+export const LEGAL_LINKS = [
   { label: '利用規約', href: 'https://universo-futbol.com/terms' },
   { label: 'プライバシーポリシー', href: 'https://universo-futbol.com/privacy' },
   { label: '特定商取引法に基づく表記', href: 'https://universo-futbol.com/tokushoho' },

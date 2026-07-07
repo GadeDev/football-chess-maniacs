@@ -570,19 +570,40 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
     })();
   }, [slots, accessToken, activeSlotIdx, flashSaveFeedback]);
 
-  /** 「保存して戻る」: アクティブスロット（なければ既存の先頭 or スロット1）へ保存してマイページへ */
-  const handleSaveAndBack = useCallback(() => {
+  /** 保存先スロット: アクティブスロット → 既存の先頭 → スロット1 */
+  const resolveSaveTarget = useCallback((): number => {
+    const firstExisting = slots.findIndex(s => s !== null);
+    return activeSlotIdx ?? (firstExisting >= 0 ? firstExisting : 0);
+  }, [slots, activeSlotIdx]);
+
+  /** 「保存」: その場でスロット保存（画面に留まる）。ゲストはログイン誘導 */
+  const handleSaveOnly = useCallback(() => {
+    if (!isLoggedIn) {
+      requireLogin(t('formation.login_to_save'));
+      return;
+    }
+    void persistSlot(resolveSaveTarget());
+  }, [isLoggedIn, requireLogin, persistSlot, resolveSaveTarget]);
+
+  /**
+   * 主ボタン: 対戦へ。
+   * - 対戦フロー（matchFlow）: この編成でマッチングへ直行
+   * - 通常フロー: 編成を装備して対戦タイプ選択（ModeSelect）へ
+   * どちらもログイン中なら先にスロット自動保存（オンライン対戦はサーバーのis_activeチームを使うため）。
+   * 保存失敗（枠ロック等）でもフローは止めない（COM対戦はクライアントデータで動作する）
+   */
+  const handleGoBattle = useCallback(() => {
     void (async () => {
-      if (!isLoggedIn) {
-        requireLogin(t('formation.login_to_save'));
-        return;
+      if (isLoggedIn) await persistSlot(resolveSaveTarget());
+      const data = buildFormationData(starters, bench, teamName);
+      if (matchFlow && onFormationConfirm) {
+        onFormationConfirm(data);
+      } else {
+        onFormationSaved?.(data);
+        onNavigate('modeSelect');
       }
-      const firstExisting = slots.findIndex(s => s !== null);
-      const target = activeSlotIdx ?? (firstExisting >= 0 ? firstExisting : 0);
-      const ok = await persistSlot(target);
-      if (ok) onNavigate('title');
     })();
-  }, [isLoggedIn, requireLogin, slots, activeSlotIdx, persistSlot, onNavigate]);
+  }, [isLoggedIn, persistSlot, resolveSaveTarget, starters, bench, teamName, matchFlow, onFormationConfirm, onFormationSaved, onNavigate]);
 
   // ── レンダリング ──
 
@@ -598,6 +619,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
         onPresetChange={handlePresetChange}
         onShowSlots={handleOpenSlots}
         onOpenSaveSlotShop={handleOpenSaveSlotShop}
+        onOpenPresetTeams={() => onNavigate('presetTeams')}
         premiumMessage={premiumMessage}
         teamName={teamName}
         onTeamNameChange={setTeamName}
@@ -660,32 +682,32 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
         </div>
       </div>
 
-      {/* ═══ フッター（spec v3: 保存と対戦を分離） ═══ */}
-      <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <button onClick={() => onNavigate('title')} style={btnStyle('#334155')}>{t('common.back')}</button>
-        <button onClick={() => onNavigate('presetTeams')} style={btnStyle('#334155')}>{t('title.preset_teams')}</button>
-        <button
-          onClick={handleSaveAndBack}
-          disabled={!isValid}
-          style={btnStyle(isValid ? (matchFlow ? '#334155' : '#16a34a') : '#334155', !isValid ? 0.5 : 1)}
-        >
-          {t('formation.save_and_back')}
+      {/* ═══ フッター（v3.1: 主行動を1つに絞った3ボタン構成） ═══ */}
+      <div style={{ padding: '8px 16px 0', borderTop: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
+        <span style={{ fontSize: 11, color: '#64748b' }}>{t('formation.footer_hint')}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 12, padding: '8px 16px 12px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={() => onNavigate('title')} style={{ ...btnStyle('#334155'), fontSize: 13 }}>
+          {'←'} {t('formation.back_to_mypage')}
         </button>
-        {matchFlow && (
-          <button
-            onClick={() => {
-              if (onFormationConfirm) {
-                onFormationConfirm(buildFormationData(starters, bench, teamName));
-              } else {
-                onNavigate('matching');
-              }
-            }}
-            disabled={!isValid}
-            style={btnStyle(isValid ? '#16a34a' : '#334155', !isValid ? 0.5 : 1)}
-          >
-            {t('formation.play_with_this')}
-          </button>
-        )}
+        <button
+          onClick={handleSaveOnly}
+          disabled={!isValid}
+          style={{ ...btnStyle(isValid ? '#2563eb' : '#334155', !isValid ? 0.5 : 1), fontSize: 13 }}
+        >
+          {'\u{1F4BE}'} {t('formation.save')}
+        </button>
+        <button
+          onClick={handleGoBattle}
+          disabled={!isValid}
+          style={{
+            ...btnStyle(isValid ? '#16a34a' : '#334155', !isValid ? 0.5 : 1),
+            fontSize: 15, fontWeight: 700, padding: '10px 28px',
+            boxShadow: isValid ? '0 2px 10px rgba(22,163,74,0.4)' : undefined,
+          }}
+        >
+          {matchFlow ? t('formation.play_with_this') : t('formation.go_battle')} {'▶'}
+        </button>
       </div>
 
       {/* 保存結果トースト */}
@@ -723,9 +745,10 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
 
 // ── ヘッダー ──
 
-function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onOpenSaveSlotShop, premiumMessage, teamName, onTeamNameChange }: {
+function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onPresetChange, onShowSlots, onOpenSaveSlotShop, onOpenPresetTeams, premiumMessage, teamName, onTeamNameChange }: {
   totalCost: number; starterCount: number; benchCount: number; hasGK: boolean;
   currentPreset: string; onPresetChange: (k: string) => void; onShowSlots: () => void; onOpenSaveSlotShop: () => void;
+  onOpenPresetTeams: () => void;
   premiumMessage: boolean;
   teamName: string; onTeamNameChange: (name: string) => void;
 }) {
@@ -768,6 +791,11 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
           <option key={k} value={k}>{v.label}</option>
         ))}
       </select>
+
+      {/* プリセットチーム（完成済みチームの雛形から選ぶ。旧フッターから移動） */}
+      <button onClick={onOpenPresetTeams} style={{ ...btnStyle('#334155'), padding: '4px 12px', fontSize: 12 }}>
+        {t('title.preset_teams')}
+      </button>
 
       {/* セーブスロット + セーブ枠ショップ導線 */}
       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
