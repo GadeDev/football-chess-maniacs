@@ -201,12 +201,15 @@ export async function verifyWebSocketToken(
 ): Promise<{ userId: string; payload: JwtPayload }> {
   const payload = await verifyJwt(token, jwksUrl, verifyOptions);
 
-  // 最低2時間の残存期間チェック（§7-2-b）
+  // 最低残存期間チェック（§7-2-b改）: Platformの実アクセストークンは900秒(15分)で失効するため、
+  // 旧仕様の「2時間以上」は実トークンでは充足不可能（本番のオンラインWSが全て401になる）。
+  // 接続時に有効でありさえすればよい（セッション中の失効は確立済みWSに影響せず、
+  // 再接続時はクライアントが自動refreshした新トークンで再認証される）ため60秒に緩和
   const now = Math.floor(Date.now() / 1000);
   const remainingSeconds = payload.exp - now;
-  const TWO_HOURS = 2 * 60 * 60;
-  if (remainingSeconds < TWO_HOURS) {
-    throw new Error('Token must have at least 2 hours remaining');
+  const MIN_REMAINING_SECONDS = 60;
+  if (remainingSeconds < MIN_REMAINING_SECONDS) {
+    throw new Error('Token must have at least 60 seconds remaining');
   }
 
   // マッチプレイヤーID一致確認（§7-2-c）

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetJwksCacheForTests, verifyJwt } from '../jwt_verify';
+import { resetJwksCacheForTests, verifyJwt, verifyWebSocketToken } from '../jwt_verify';
 
 const JWKS_URL = 'https://platform.example.test/.well-known/jwks.json';
 const ISSUER = 'https://platform.example.test';
@@ -183,5 +183,21 @@ describe('verifyJwt', () => {
     const { signToken } = await setup();
     await expect(verifyJwt(await signToken({ payload: { sub: undefined } }), JWKS_URL, options))
       .rejects.toThrow('Invalid JWT subject');
+  });
+
+  it('WS: Platform実トークン相当（残存900秒）で接続できる（旧2時間要求の回帰防止）', async () => {
+    const { signToken } = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signToken({ payload: { exp: now + 900 } });
+    await expect(verifyWebSocketToken(token, JWKS_URL, options))
+      .resolves.toMatchObject({ userId: 'user-1' });
+  });
+
+  it('WS: 残存60秒未満のトークンは拒否する', async () => {
+    const { signToken } = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signToken({ payload: { exp: now + 30 } });
+    await expect(verifyWebSocketToken(token, JWKS_URL, options))
+      .rejects.toThrow('60 seconds remaining');
   });
 });
