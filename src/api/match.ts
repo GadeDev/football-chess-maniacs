@@ -6,6 +6,8 @@ import { Hono } from 'hono';
 import type { Env } from '../worker';
 
 import { MATCH_ID_PATTERN } from '../middleware/crypto_utils';
+import { sendMatchFinishReport } from '../server/platform_match_report';
+import type { TurnLogEntry } from '../server/match_stats';
 
 const match = new Hono<{ Bindings: Env['Bindings']; Variables: { userId: string } }>();
 
@@ -319,6 +321,94 @@ match.get('/:matchId/ws', async (c) => {
 
   // DOにリクエスト転送（JWT検証はDO内で実行）
   return stub.fetch(c.req.raw);
+});
+
+// ── クライアントサイドCOM対戦の戦績報告（Phase 1-3補完） ──
+// デフォルトのCOM対戦（matchId `com_`）はブラウザ内で完結しQueueに到達しないため、
+// クライアントが試合終了時に自己申告でturnLogを送る。COM戦は対人レートに影響せず、
+// Platform側も(game_id, external_match_id)ユニーク制約で冪等のため、自己申告を許容する。
+const COM_REPORT_MAX_BODY_BYTES = 512 * 1024;
+const COM_REPORT_MAX_TURNS = 60;
+const COM_REPORT_MAX_EVENTS_PER_TURN = 150;
+const COM_REPORT_MATCH_ID = /^com_\d{10,17}$/;
+
+interface ComReportBody {
+  matchId: string;
+  scoreHome: number;
+  scoreAway: number;
+  startedAt: string;
+  finishedAt: string;
+  turnLog: Array<{
+    turn: number;
+    inputs: Record<string, unknown>;
+    events: unknown[];
+    goalScoredBy: 'home' | 'away' | null;
+    timestamp: number;
+  }>;
+}
+
+function isValidIso(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 40 && !Number.isNaN(Date.parse(value));
+}
+
+match.post('/com-report', async (c) => {
+  const userId = c.get('userId');
+  const raw = await c.req.text();
+  if (raw.length > COM_REPORT_MAX_BODY_BYTES) {
+    return c.json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
+  }
+
+  let body: ComReportBody;
+  try {
+    body = JSON.parse(raw) as ComReportBody;
+  } catch {
+    return c.json({ error: 'INVALID_JSON' }, 400);
+  }
+
+  if (typeof body.matchId !== 'string' || !COM_REPORT_MATCH_ID.test(body.matchId)) {
+    return c.json({ error: 'INVALID_MATCH_ID' }, 400);
+  }
+  const validScore = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 99;
+  if (!validScore(body.scoreHome) || !validScore(body.scoreAway)) {
+    return c.json({ error: 'INVALID_SCORE' }, 400);
+  }
+  if (!isValidIso(body.startedAt) || !isValidIso(body.finishedAt)) {
+    return c.json({ error: 'INVALID_TIMESTAMPS' }, 400);
+  }
+  const durationMs = Date.parse(body.finishedAt) - Date.parse(body.startedAt);
+  if (durationMs < 0 || durationMs > 3 * 60 * 60 * 1000) {
+    return c.json({ error: 'INVALID_DURATION' }, 400);
+  }
+  if (
+    !Array.isArray(body.turnLog) ||
+    body.turnLog.length === 0 ||
+    body.turnLog.length > COM_REPORT_MAX_TURNS ||
+    body.turnLog.some(e =>
+      !e || typeof e !== 'object' ||
+      !Number.isInteger(e.turn) ||
+      !Array.isArray(e.events) || e.events.length > COM_REPORT_MAX_EVENTS_PER_TURN ||
+      typeof e.inputs !== 'object' || e.inputs === null || Object.keys(e.inputs).length > 2 ||
+      (e.goalScoredBy !== null && e.goalScoredBy !== 'home' && e.goalScoredBy !== 'away') ||
+      typeof e.timestamp !== 'number',
+    )
+  ) {
+    return c.json({ error: 'INVALID_TURN_LOG' }, 400);
+  }
+
+  // クライアントCOM対戦はプレイヤーが常にhome（createInitialPieces/battleUtilsの規約）
+  await sendMatchFinishReport(c.env, {
+    matchId: body.matchId,
+    homeUserId: userId,
+    awayUserId: 'com_ai',
+    scoreHome: body.scoreHome,
+    scoreAway: body.scoreAway,
+    reason: 'completed',
+    turnLog: body.turnLog as unknown as TurnLogEntry[],
+    matchCreatedAtIso: new Date(Date.parse(body.startedAt)).toISOString(),
+    finishedAtIso: new Date(Date.parse(body.finishedAt)).toISOString(),
+  });
+
+  return c.json({ ok: true }, 202);
 });
 
 export default match;
