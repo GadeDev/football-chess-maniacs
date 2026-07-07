@@ -141,7 +141,9 @@ app.use('*', async (c, next) => {
     strictTransportSecurity: 'max-age=31536000; includeSubDomains',
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      // accounts.google.com/gsi/client = Google Identity Services（Googleログインボタン）。
+      // static.cloudflareinsights.com = Pagesが自動注入するWeb Analyticsビーコン
+      scriptSrc: ["'self'", 'https://accounts.google.com/gsi/client', 'https://static.cloudflareinsights.com'],
       connectSrc: [
         "'self'",
         'https://footballchess.io',
@@ -149,9 +151,16 @@ app.use('*', async (c, next) => {
         'https://football-chess-maniacs.pages.dev',
         'https://football-chess-maniacs.yanagiho.workers.dev',
         'wss://football-chess-maniacs.yanagiho.workers.dev',
+        // クライアントはPlatform API（認証/ショップ）をブラウザから直接呼ぶ（GRFパターン）
+        'https://fc-platform-api.yanagiho.workers.dev',
+        // GIS内部通信
+        'https://accounts.google.com/gsi/',
       ],
-      // Reactインラインスタイル + index.html/App.tsxのインライン<style>があるため'unsafe-inline'必須
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      // GISボタンはiframeで描画される
+      frameSrc: ["'self'", 'https://accounts.google.com/gsi/'],
+      // Reactインラインスタイル + index.html/App.tsxのインライン<style>があるため'unsafe-inline'必須。
+      // GISはgsi/styleを注入する
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com/gsi/style'],
       imgSrc: ["'self'", 'data:'],
     },
     xFrameOptions: 'DENY',
