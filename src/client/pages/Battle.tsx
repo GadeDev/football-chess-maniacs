@@ -9,6 +9,7 @@ import type { Page, GameEvent, HexCoord, ActionMode, PieceData, GameMode, Team, 
 import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
 import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
@@ -118,6 +119,18 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const cumulativeEventsRef = useRef<GameEvent[]>([]);
   /** リプレイ録画: 各ターン解決後のスナップショット */
   const replayTurnsRef = useRef<TurnSnapshot[]>([]);
+
+  // クライアントCOM対戦の戦績報告用（Phase 1-3補完）。ログイン時のみ試合終了後に送信
+  const { userId: platformUserId, accessToken } = useAuth();
+  const comTurnLogRef = useRef<Array<{
+    turn: number;
+    inputs: Record<string, { player_id: string; nonce: string; timestamp: number; orders: unknown[] }>;
+    events: unknown[];
+    goalScoredBy: 'home' | 'away' | null;
+    timestamp: number;
+  }>>([]);
+  const matchStartedAtRef = useRef<string>(new Date().toISOString());
+  const comReportSentRef = useRef(false);
 
   // サーバーサイドCOM: matchIdが gemma_com_ で始まる場合はDO経由（WebSocket接続）
   // クライアントサイドCOM: matchIdが com_ で始まる場合は従来のローカル処理
@@ -370,6 +383,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const pieces = createInitialPieces(formationData, kickoffTeam, opponent);
     console.log(`[Battle] COM init: 1st half kickoff = ${kickoffTeam}, opponent = ${opponent?.name ?? '(default)'}`);
     replayTurnsRef.current = []; // リプレイ録画リセット（再戦時に前試合分が混ざらないように）
+    comTurnLogRef.current = [];
+    matchStartedAtRef.current = new Date().toISOString();
+    comReportSentRef.current = false;
     dispatch({
       type: 'INIT_MATCH',
       matchId: matchId ?? `com_${Date.now()}`,
@@ -492,6 +508,29 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     const t = setTimeout(() => setShowResultBtn(true), FULLTIME_RESULT_BTN_DELAY_MS);
     return () => clearTimeout(t);
   }, [state.status]);
+
+  // クライアントCOM対戦の戦績報告（Phase 1-3補完）。ログイン時のみfire-and-forget。
+  // オンライン/サーバーCOM（gemma_com_）はDO→Queue経由で送信済みのため対象外
+  useEffect(() => {
+    if (state.status !== 'finished' || comReportSentRef.current) return;
+    if (!isCom || isComVsCom || !state.matchId?.startsWith('com_')) return;
+    if (!accessToken || !platformUserId || comTurnLogRef.current.length === 0) return;
+    comReportSentRef.current = true;
+    fetch(apiUrl('/match/com-report'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        matchId: state.matchId,
+        scoreHome: state.scoreHome,
+        scoreAway: state.scoreAway,
+        startedAt: matchStartedAtRef.current,
+        finishedAt: new Date().toISOString(),
+        turnLog: comTurnLogRef.current,
+      }),
+    }).catch(() => {
+      // 送信失敗はゲーム進行に影響させない（戦績はPlatform側の複製データ）
+    });
+  }, [state.status, state.matchId, state.scoreHome, state.scoreAway, isCom, isComVsCom, accessToken, platformUserId]);
 
   // リプレイ中 or 相手待ちフラグ（操作不可）
   const isResolving = state.status === 'resolving';
@@ -1183,6 +1222,25 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           scoreAway: newScoreAway,
         });
 
+        // 戦績報告用turnLog（サーバーDOのTurnLogEntry互換）。processTurnは同期処理のため
+        // ここでのDate.now()は確定時刻とほぼ同一（思考時間の近似はサーバーCOM経路と同じ意味論）
+        if (platformUserId && !isComVsCom) {
+          comTurnLogRef.current.push({
+            turn: state.turn,
+            inputs: {
+              [platformUserId]: {
+                player_id: platformUserId,
+                nonce: `client_${state.turn}`,
+                timestamp: Date.now(),
+                orders: homeOrders as unknown[],
+              },
+            },
+            events: turnResult.events as unknown[],
+            goalScoredBy: goalScored ? scorerTeam : null,
+            timestamp: Date.now(),
+          });
+        }
+
         // 7. イベントログ保存
         setEvents(turnResult.events as unknown as GameEvent[]);
         cumulativeEventsRef.current = [...cumulativeEventsRef.current, ...(turnResult.events as unknown as GameEvent[])];
@@ -1739,7 +1797,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (isMobile && navigator.vibrate) {
       navigator.vibrate([50, 30, 50]);
     }
-  }, [isCom, isComVsCom, matchId, state, dispatch, isMobile, wsSend, boardContext, formationData, clearReplayTimers, fetchGemmaOrders, comDifficulty, performGoalKickRestart]);
+  }, [isCom, isComVsCom, matchId, state, dispatch, isMobile, wsSend, boardContext, formationData, clearReplayTimers, fetchGemmaOrders, comDifficulty, performGoalKickRestart, platformUserId]);
 
   // COM観戦用: handleConfirmの最新参照を保持
   handleConfirmRef.current = handleConfirm;

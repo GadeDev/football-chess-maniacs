@@ -199,6 +199,12 @@ app.use('/match/*', async (c, next) => {
       await rateLimitMiddleware(RATE_LIMITS.matching)(c, next);
     });
   }
+  // クライアントCOM対戦の戦績報告: 認証必須 + レート制限（Platform送信の乱発防止）
+  if (c.req.path === '/match/com-report' && c.req.method === 'POST') {
+    return jwtMiddleware()(c, async () => {
+      await rateLimitMiddleware(RATE_LIMITS.matching)(c, next);
+    });
+  }
   // REST APIパスにはJWT認証を適用
   return jwtMiddleware()(c, next);
 });
