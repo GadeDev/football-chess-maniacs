@@ -10,6 +10,8 @@ import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
+import { refresh as refreshAuthToken } from '../platform/authClient';
+import { getAccessToken } from '../platform/tokenStore';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
 import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
@@ -510,26 +512,43 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   }, [state.status]);
 
   // クライアントCOM対戦の戦績報告（Phase 1-3補完）。ログイン時のみfire-and-forget。
-  // オンライン/サーバーCOM（gemma_com_）はDO→Queue経由で送信済みのため対象外
+  // オンライン/サーバーCOM（gemma_com_）はDO→Queue経由で送信済みのため対象外。
+  // アクセストークン（900秒失効）は1試合（15分超）の間にほぼ確実に切れるため、
+  // 送信前にrefreshを試行し、それでも401なら1回だけrefresh→再送する（リトライは1回まで）
   useEffect(() => {
     if (state.status !== 'finished' || comReportSentRef.current) return;
     if (!isCom || isComVsCom || !state.matchId?.startsWith('com_')) return;
     if (!accessToken || !platformUserId || comTurnLogRef.current.length === 0) return;
     comReportSentRef.current = true;
-    fetch(apiUrl('/match/com-report'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({
-        matchId: state.matchId,
-        scoreHome: state.scoreHome,
-        scoreAway: state.scoreAway,
-        startedAt: matchStartedAtRef.current,
-        finishedAt: new Date().toISOString(),
-        turnLog: comTurnLogRef.current,
-      }),
-    }).catch(() => {
-      // 送信失敗はゲーム進行に影響させない（戦績はPlatform側の複製データ）
+    const body = JSON.stringify({
+      matchId: state.matchId,
+      scoreHome: state.scoreHome,
+      scoreAway: state.scoreAway,
+      startedAt: matchStartedAtRef.current,
+      finishedAt: new Date().toISOString(),
+      turnLog: comTurnLogRef.current,
     });
+    const send = (token: string) => fetch(apiUrl('/match/com-report'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body,
+    });
+    void (async () => {
+      try {
+        // refresh失敗時（オフライン等）は手持ちのトークンでそのまま試す
+        await refreshAuthToken();
+        let res = await send(getAccessToken() ?? accessToken);
+        if (res.status === 401 && (await refreshAuthToken())) {
+          res = await send(getAccessToken() ?? accessToken);
+        }
+        if (!res.ok) {
+          console.warn(`[Battle] com-report rejected: HTTP ${res.status}`);
+        }
+      } catch (e) {
+        // 送信失敗はゲーム進行に影響させない（戦績はPlatform側の複製データ）
+        console.warn('[Battle] com-report failed:', e);
+      }
+    })();
   }, [state.status, state.matchId, state.scoreHome, state.scoreAway, isCom, isComVsCom, accessToken, platformUserId]);
 
   // リプレイ中 or 相手待ちフラグ（操作不可）
