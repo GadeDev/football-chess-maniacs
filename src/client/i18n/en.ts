@@ -220,6 +220,8 @@ const en: Dict = {
   'battle.confirm_resolving': 'Executing...',
   'battle.confirm_waiting': '⏳ Waiting for opponent',
   'battle.confirm_turn': '✓ Confirm turn',
+  'battle.delay_rule_sub': 'Penalty for holding the ball in your own half for {turns} turns in a row\nThe ball is awarded to the opposing GK',
+  'battle.delay_warning_sub': 'Ball held in own half for {turns} turns\nOne more turn and the ball goes to the opposing GK',
 
   // ----- collection (collection.*) -----
   'collection.title': 'Collection',
