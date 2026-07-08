@@ -4,6 +4,10 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+# ── Observability（Workers Logs: tail以外で過去ログを参照可能にする） ──
+[observability]
+enabled = true
+
 # ── Durable Objects ──
 [durable_objects]
 bindings = [
