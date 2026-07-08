@@ -221,6 +221,8 @@ const ja: Dict = {
   'battle.confirm_resolving': '実行中...',
   'battle.confirm_waiting': '⏳ 相手の入力待ち',
   'battle.confirm_turn': '✓ ターン確定',
+  'battle.delay_rule_sub': '自陣で{turns}ターン連続ボール保持のペナルティ\nボールは相手GKへ渡されます',
+  'battle.delay_warning_sub': '自陣でのボール保持が{turns}ターン続いています\nあと1ターンで相手GKにボールが渡ります',
 
   // ----- コレクション画面(collection.*) -----
   'collection.title': 'コレクション',

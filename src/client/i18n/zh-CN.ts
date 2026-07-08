@@ -221,6 +221,8 @@ const zhCN: Dict = {
   'battle.confirm_resolving': '执行中...',
   'battle.confirm_waiting': '⏳ 等待对手输入',
   'battle.confirm_turn': '✓ 确定回合',
+  'battle.delay_rule_sub': '因连续{turns}回合在本方半场持球而被判罚\n球将交给对方门将',
+  'battle.delay_warning_sub': '已连续{turns}回合在本方半场持球\n再持球一回合，球将交给对方门将',
 
   // ----- コレクション画面(collection.*) -----
   'collection.title': '收藏',

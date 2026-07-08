@@ -22,7 +22,7 @@ import Timer from '../components/ui/Timer';
 import ActionBar from '../components/ui/ActionBar';
 import { LeftPanel, RightPanel } from '../components/ui/SidePanel';
 import { generateRuleBasedOrders } from '../../ai/rule_based';
-import { processTurn, createBoardContext, hasGoal, getFoulEvent } from '../../engine/turn_processor';
+import { processTurn, createBoardContext, hasGoal, getFoulEvent, BATTLE_DELAY_THRESHOLD } from '../../engine/turn_processor';
 import { hexKey, hexDistance, buildZocMap, buildZoc2Map } from '../../engine/movement';
 import { previewShootChainProbability } from '../../engine/ball';
 import { getOffsideLine } from '../../engine/offside';
@@ -1497,8 +1497,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           // 遅延行為 / 消極的戦術
           for (const ev of evts) {
             if (ev.type === 'BATTLE_DELAY') {
-              showOverlay('DELAY!', { duration: 1200, color: '#FACC15', fontSize: 44 });
-              await wait(500);
+              // ルール説明付きで表示（「DELAY!」だけでは何が起きたか伝わらないため）
+              showOverlay('DELAY!', {
+                subText: t('battle.delay_rule_sub', { turns: String(BATTLE_DELAY_THRESHOLD) }),
+                duration: 3200, color: '#FACC15', fontSize: 44,
+              });
+              await wait(800);
               // G2: 審判がボールを相手GKへ戻す飛行（瞬間移動の解消。軌跡線は残さない）
               const de = ev as BattleDelayEvent;
               const awarded = de.awardedToPieceId
@@ -1511,6 +1515,17 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               showOverlay('PASSIVE TACTICS!', { duration: 1200, color: '#FB7185', fontSize: 38 });
               await wait(500);
             }
+          }
+
+          // 遅延行為の事前警告（発動1ターン前）: 警告なしに突然DELAYが発動して見えるのを防ぐ。
+          // possessionDelayはカウント中のみ非null、発動/リセットでnullに戻るため1ストリークにつき1回だけ出る
+          const delayState = turnResult.board.possessionDelay;
+          if (delayState && delayState.count === BATTLE_DELAY_THRESHOLD - 1) {
+            showOverlay('DELAY WARNING', {
+              subText: t('battle.delay_warning_sub', { turns: String(delayState.count) }),
+              duration: 2800, color: '#FACC15', fontSize: 34,
+            });
+            await wait(600);
           }
 
           // 全フェーズ完了

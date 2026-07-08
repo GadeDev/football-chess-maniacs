@@ -220,6 +220,8 @@ const pt: Dict = {
   'battle.confirm_resolving': 'Executando...',
   'battle.confirm_waiting': '⏳ Aguardando o adversário',
   'battle.confirm_turn': '✓ Confirmar turno',
+  'battle.delay_rule_sub': 'Penalidade por manter a bola no próprio campo por {turns} turnos seguidos\nA bola passa para o goleiro adversário',
+  'battle.delay_warning_sub': 'A bola está há {turns} turnos no próprio campo\nMais um turno e a bola passará para o goleiro adversário',
 
   // ----- collection (collection.*) -----
   'collection.title': 'Coleção',

@@ -221,6 +221,8 @@ const ko: Dict = {
   'battle.confirm_resolving': '실행 중...',
   'battle.confirm_waiting': '⏳ 상대의 입력 대기',
   'battle.confirm_turn': '✓ 턴 확정',
+  'battle.delay_rule_sub': '자기 진영에서 {turns}턴 연속 볼 소유에 대한 페널티\n볼이 상대 GK에게 넘어갑니다',
+  'battle.delay_warning_sub': '자기 진영에서 볼 소유가 {turns}턴째 이어지고 있습니다\n한 턴 더 지나면 볼이 상대 GK에게 넘어갑니다',
 
   // ----- コレクション画面(collection.*) -----
   'collection.title': '컬렉션',

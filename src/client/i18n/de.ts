@@ -220,6 +220,8 @@ const de: Dict = {
   'battle.confirm_resolving': 'Wird ausgeführt...',
   'battle.confirm_waiting': '⏳ Warte auf Gegner',
   'battle.confirm_turn': '✓ Zug bestätigen',
+  'battle.delay_rule_sub': 'Strafe für {turns} Züge Ballbesitz in Folge in der eigenen Hälfte\nDer Ball geht an den gegnerischen Torwart',
+  'battle.delay_warning_sub': 'Ballbesitz in der eigenen Hälfte seit {turns} Zügen\nNoch ein Zug und der Ball geht an den gegnerischen Torwart',
 
   // ----- コレクション画面(collection.*) -----
   'collection.title': 'Sammlung',

@@ -43,7 +43,8 @@ import type {
 } from './types';
 
 const PASSIVE_TACTICS_THRESHOLD = 9;
-const BATTLE_DELAY_THRESHOLD = 3;
+// クライアントの遅延行為警告表示（発動1ターン前）が参照するためexport
+export const BATTLE_DELAY_THRESHOLD = 3;
 
 // ============================================================
 // ターン処理メイン
