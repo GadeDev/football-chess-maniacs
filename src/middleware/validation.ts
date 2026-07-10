@@ -45,9 +45,31 @@ export interface ValidationResult {
   validOrders: RawOrder[];
   /** 全指示無視か（#1~#4違反時） */
   rejected: boolean;
-  /** 個別に無視された指示と理由 */
-  violations: Array<{ order: RawOrder; rule: number; reason: string }>;
+  /** 個別に無視された指示。共有層は翻訳せず、code + params だけを返す。 */
+  violations: Array<{
+    order: RawOrder;
+    rule: number;
+    code: ValidationViolationCode;
+    params?: Record<string, string | number>;
+  }>;
 }
+
+export type ValidationViolationCode =
+  | 'UNKNOWN_PLAYER'
+  | 'INVALID_SEQUENCE'
+  | 'DUPLICATE_NONCE'
+  | 'TIMESTAMP_OUT_OF_RANGE'
+  | 'NOT_OWN_FIELD_PIECE'
+  | 'DUPLICATE_PIECE_ID'
+  | 'INVALID_ACTION'
+  | 'TARGET_HEX_OUT_OF_BOUNDS'
+  | 'MOVE_EXCEEDS_RANGE'
+  | 'MISSING_ACTION_TARGET'
+  | 'NON_BALL_HOLDER_ACTION'
+  | 'NO_SUBSTITUTION_SLOTS'
+  | 'MISSING_BENCH_PIECE'
+  | 'INVALID_BENCH_PIECE'
+  | 'FIELD_COST_EXCEEDED';
 
 const VALID_ACTIONS = new Set(['move', 'pass', 'shoot', 'dribble', 'substitute', 'skill']);
 const MAX_ORDERS = 11;
@@ -82,24 +104,24 @@ export function validateTurnInput(
 
   // ── #1: player_idが当該試合の参加者か ──
   if (!players.includes(input.player_id)) {
-    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 1, reason: 'Unknown player' }] };
+    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 1, code: 'UNKNOWN_PLAYER' }] };
   }
 
   // ── #2: sequenceが前回+1の単調増加か ──
   const lastSeq = lastSequences.get(input.player_id) ?? -1;
   if (input.sequence !== lastSeq + 1) {
-    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 2, reason: 'Invalid sequence' }] };
+    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 2, code: 'INVALID_SEQUENCE' }] };
   }
 
   // ── #3: nonceが未使用か ──
   if (usedNonces.has(input.nonce)) {
-    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 3, reason: 'Duplicate nonce' }] };
+    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 3, code: 'DUPLICATE_NONCE' }] };
   }
 
   // ── #4: timestampが現在時刻±5秒以内か ──
   const now = Date.now();
   if (Math.abs(input.timestamp - now) > TIMESTAMP_TOLERANCE_MS) {
-    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 4, reason: 'Timestamp out of range' }] };
+    return { validOrders: [], rejected: true, violations: [{ order: {} as RawOrder, rule: 4, code: 'TIMESTAMP_OUT_OF_RANGE', params: { toleranceMs: TIMESTAMP_TOLERANCE_MS } }] };
   }
 
   // ── #5: ordersの件数が11以下か（超過分切り捨て） ──
@@ -119,20 +141,20 @@ export function validateTurnInput(
     // ── #6: piece_idが自チームのフィールドコマか ──
     const piece = myPieceMap.get(order.piece_id);
     if (!piece) {
-      violations.push({ order, rule: 6, reason: 'Not own field piece' });
+      violations.push({ order, rule: 6, code: 'NOT_OWN_FIELD_PIECE', params: { pieceId: order.piece_id } });
       continue;
     }
 
     // ── #7: 同一piece_idが重複していないか ──
     if (seenPieceIds.has(order.piece_id)) {
-      violations.push({ order, rule: 7, reason: 'Duplicate piece_id' });
+      violations.push({ order, rule: 7, code: 'DUPLICATE_PIECE_ID', params: { pieceId: order.piece_id } });
       continue;
     }
     seenPieceIds.add(order.piece_id);
 
     // ── #8: actionが許可された値か ──
     if (!VALID_ACTIONS.has(order.action)) {
-      violations.push({ order, rule: 8, reason: `Invalid action: ${order.action}` });
+      violations.push({ order, rule: 8, code: 'INVALID_ACTION', params: { action: order.action } });
       continue;
     }
 
@@ -140,7 +162,7 @@ export function validateTurnInput(
     if (order.target_hex) {
       const [col, row] = order.target_hex;
       if (col < 0 || col > BOARD_MAX_COL || row < 0 || row > BOARD_MAX_ROW) {
-        violations.push({ order, rule: 9, reason: 'target_hex out of bounds' });
+        violations.push({ order, rule: 9, code: 'TARGET_HEX_OUT_OF_BOUNDS', params: { col, row } });
         continue;
       }
     }
@@ -149,20 +171,20 @@ export function validateTurnInput(
     if (order.action === 'move' && order.target_hex) {
       const dist = hexDistance(piece.coord, { col: order.target_hex[0], row: order.target_hex[1] });
       if (dist > piece.moveRange) {
-        violations.push({ order, rule: 10, reason: 'Move exceeds range' });
+        violations.push({ order, rule: 10, code: 'MOVE_EXCEEDS_RANGE', params: { distance: dist, range: piece.moveRange } });
         continue;
       }
     }
 
     // ── #11: パス/シュートのtargetが有効か ──
     if ((order.action === 'pass' || order.action === 'shoot') && !order.target_piece && !order.target_hex) {
-      violations.push({ order, rule: 11, reason: 'Missing target for pass/shoot' });
+      violations.push({ order, rule: 11, code: 'MISSING_ACTION_TARGET', params: { action: order.action } });
       continue;
     }
 
     // ── #14: ボール保持コマ以外がpass/shoot/dribbleしていないか ──
     if (['pass', 'shoot', 'dribble'].includes(order.action) && !piece.hasBall) {
-      violations.push({ order, rule: 14, reason: 'Non-ball holder cannot pass/shoot/dribble' });
+      violations.push({ order, rule: 14, code: 'NON_BALL_HOLDER_ACTION', params: { action: order.action, pieceId: order.piece_id } });
       continue;
     }
 
@@ -171,18 +193,18 @@ export function validateTurnInput(
       // #13: 交代回数が残り枠以内か
       subCount++;
       if (subCount > remainingSubs) {
-        violations.push({ order, rule: 13, reason: 'No substitution slots remaining' });
+        violations.push({ order, rule: 13, code: 'NO_SUBSTITUTION_SLOTS' });
         continue;
       }
       // #12は交代後の総コスト計算（bench_pieceの情報が必要）
       // ここでは簡易チェック：ベンチコマの存在だけ確認
       if (!order.bench_piece) {
-        violations.push({ order, rule: 12, reason: 'Missing bench_piece' });
+        violations.push({ order, rule: 12, code: 'MISSING_BENCH_PIECE' });
         continue;
       }
       const benchPiece = pieces.find((p) => p.id === order.bench_piece && p.isBench && p.team === playerTeam);
       if (!benchPiece) {
-        violations.push({ order, rule: 12, reason: 'Invalid bench_piece' });
+        violations.push({ order, rule: 12, code: 'INVALID_BENCH_PIECE', params: { pieceId: order.bench_piece } });
         continue;
       }
       // 総コスト検証
@@ -190,7 +212,7 @@ export function validateTurnInput(
       pendingSubCost += costChange;
       const totalFieldCost = myPieces.reduce((sum, p) => sum + p.cost, 0) + pendingSubCost;
       if (totalFieldCost > FIELD_MAX_COST) {
-        violations.push({ order, rule: 12, reason: 'Field cost exceeds 16 after substitution' });
+        violations.push({ order, rule: 12, code: 'FIELD_COST_EXCEEDED', params: { cost: totalFieldCost, max: FIELD_MAX_COST } });
         pendingSubCost -= costChange; // ロールバック
         subCount--;
         continue;

@@ -436,7 +436,7 @@ export default function HexBoard({
             ════════════════════════════════════════ */}
         <img
           src="/assets/board/board_mobile.png"
-          alt="Football Chess Board"
+          alt={t('board.alt')}
           draggable={false}
           style={{
             position: 'absolute',
@@ -678,7 +678,7 @@ export default function HexBoard({
               <div style={{
                 position: 'absolute', bottom: -12, left: '50%', transform: 'translateX(-50%)',
                 fontSize: 8, color: '#ffcc00', fontWeight: 'bold', textShadow: '0 0 3px #000',
-              }}>FREE</div>
+              }}>{t('board.free_ball')}</div>
             </div>
           );
         })()}

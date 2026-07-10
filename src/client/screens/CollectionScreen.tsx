@@ -9,7 +9,6 @@ import { apiUrl, type Page, type Position, type Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
-import { NPC_TEAMS } from '../../data/npc_teams';
 import { t, tn } from '../i18n';
 
 interface CollectionScreenProps {
@@ -23,11 +22,6 @@ type SortMode = 'cost' | 'position' | 'acquired';
 const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW'];
 const ALL_COSTS: Cost[] = [1, 1.5, 2, 2.5, 3];
 const ALL_ERAS = [1, 2, 3, 4, 5, 6, 7];
-
-/** Era(shelf)ごとの表示名。NPC_TEAMSの「〜オールスター」名から時代名部分だけを取り出す */
-const ERA_LABELS: Record<number, string> = Object.fromEntries(
-  NPC_TEAMS.map((team) => [team.shelf, team.name_ja.replace(/オールスター$/, '')]),
-);
 
 interface PieceEntry {
   id: string;
@@ -171,7 +165,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
             background: posFilter === p ? 'rgba(68,170,68,0.18)' : 'rgba(255,255,255,0.04)',
             color: posFilter === p ? '#6fd66f' : '#888',
           }}>
-            {p}
+            {p === 'ALL' ? t('common.all') : p}
           </button>
         ))}
       </div>
@@ -183,7 +177,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
             background: costFilter === c ? 'rgba(204,136,0,0.18)' : 'rgba(255,255,255,0.04)',
             color: costFilter === c ? '#e8a838' : '#888',
           }}>
-            {c === 'ALL' ? 'ALL' : `Cost ${c}`}
+            {c === 'ALL' ? t('common.all') : t('common.cost_value', { cost: c })}
           </button>
         ))}
         <select value={sort} onChange={e => setSort(e.target.value as SortMode)} style={{
@@ -212,7 +206,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
               <span style={{ fontSize: 14, fontWeight: 900, color: '#ffd700' }}>
                 {t('collection.era_label', { era: String(era) })}
               </span>
-              <span style={{ fontSize: 12, color: '#9cd89c', fontWeight: 700 }}>{ERA_LABELS[era]}</span>
+              <span style={{ fontSize: 12, color: '#9cd89c', fontWeight: 700 }}>{t(`era.shelf.${era}`)}</span>
             </div>
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
@@ -260,10 +254,10 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
           }}>
             <PieceIcon cost={selectedPiece.cost} position={selectedPiece.position} side="ally" />
             <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-              {selectedPiece.position} (Cost {selectedPiece.cost})
+              {selectedPiece.position} ({t('common.cost_value', { cost: selectedPiece.cost })})
             </div>
             <div style={{ color: '#9cd89c', fontSize: 13, fontWeight: 700 }}>
-              {t('collection.era_label', { era: String(selectedPiece.era) })} {ERA_LABELS[selectedPiece.era]}
+              {t('collection.era_label', { era: String(selectedPiece.era) })} {t(`era.shelf.${selectedPiece.era}`)}
             </div>
             <div style={{ color: '#aaa', fontSize: 13 }}>
               {selectedPiece.owned ? tn('collection.count', selectedPiece.count, { count: selectedPiece.count }) : t('collection.not_owned')}

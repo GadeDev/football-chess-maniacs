@@ -69,7 +69,7 @@ export default function ShootOverlay({ shooter, gk, myTeam, visible }: ShootOver
       border: '1px solid rgba(255,255,255,0.2)', zIndex: 50,
     }}>
       <div style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: 10, color: '#888', marginBottom: 2 }}>
-        SHOOT %
+        {t('battle.shoot_probability')}
       </div>
       {rates.map((rate, i) => (
         <div key={i} style={{

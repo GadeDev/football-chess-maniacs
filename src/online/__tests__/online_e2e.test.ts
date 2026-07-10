@@ -107,7 +107,8 @@ describe('オンライン対戦 バリデーション E2E', () => {
     const input = createTurnInput({ player_id: 'unknown_user' });
     const result = validateTurnInput(input, MATCH_ID, [HOME_USER, AWAY_USER], lastSequences, usedNonces, pieces, 'home', 3);
     expect(result.rejected).toBe(true);
-    expect(result.violations[0].rule).toBe(1);
+    expect(result.violations[0]).toMatchObject({ rule: 1, code: 'UNKNOWN_PLAYER' });
+    expect(result.violations[0]).not.toHaveProperty('reason');
   });
 
   // ── #2: シーケンス番号 ──
@@ -122,7 +123,7 @@ describe('オンライン対戦 バリデーション E2E', () => {
     const input = createTurnInput({ sequence: 5 });
     const result = validateTurnInput(input, MATCH_ID, [HOME_USER, AWAY_USER], lastSequences, usedNonces, pieces, 'home', 3);
     expect(result.rejected).toBe(true);
-    expect(result.violations[0].rule).toBe(2);
+    expect(result.violations[0]).toMatchObject({ rule: 2, code: 'INVALID_SEQUENCE' });
   });
 
   // ── #3: nonce重複 ──
@@ -132,7 +133,7 @@ describe('オンライン対戦 バリデーション E2E', () => {
     const input = createTurnInput({ nonce: 'dup_nonce' });
     const result = validateTurnInput(input, MATCH_ID, [HOME_USER, AWAY_USER], lastSequences, usedNonces, pieces, 'home', 3);
     expect(result.rejected).toBe(true);
-    expect(result.violations[0].rule).toBe(3);
+    expect(result.violations[0]).toMatchObject({ rule: 3, code: 'DUPLICATE_NONCE' });
   });
 
   // ── #4: タイムスタンプ ──
@@ -141,7 +142,7 @@ describe('オンライン対戦 バリデーション E2E', () => {
     const input = createTurnInput({ timestamp: Date.now() - 10000 });
     const result = validateTurnInput(input, MATCH_ID, [HOME_USER, AWAY_USER], lastSequences, usedNonces, pieces, 'home', 3);
     expect(result.rejected).toBe(true);
-    expect(result.violations[0].rule).toBe(4);
+    expect(result.violations[0]).toMatchObject({ rule: 4, code: 'TIMESTAMP_OUT_OF_RANGE' });
   });
 
   // ── #5: 指示数上限 ──

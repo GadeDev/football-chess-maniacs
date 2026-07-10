@@ -59,7 +59,7 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
       height: '100%',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>PROFILE</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>{t('screen.profile')}</h2>
 
       {/* スクロール可能領域: BackButtonはこの外（画面下部）に固定配置 */}
       <div style={{

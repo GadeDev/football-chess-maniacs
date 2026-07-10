@@ -125,11 +125,13 @@ export type TeamOrigin = 'custom' | 'preset';
 export interface FormationData {
   starters: FormationPiece[];
   bench: FormationPiece[];
-  /** チーム名（自作は既定で未設定→表示側で team.default_name にフォールバック、プリセットは PresetTeam.name を引き継ぐ） */
+  /** チーム名（自作は既定で未設定→表示側で team.default_name にフォールバック） */
   teamName?: string;
   /** 代表アイコン（絵文字）。プリセットは PresetTeam.emoji を引き継ぐ */
   teamEmoji?: string;
   origin?: TeamOrigin;
+  /** プリセットの安定ID。表示名を現在ロケールで都度解決するために使う。 */
+  presetTeamId?: string;
 }
 
 /** ボード最大行（0-33） */

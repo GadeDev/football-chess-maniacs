@@ -164,7 +164,7 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
       height: '100%', gap: 24, padding: 20,
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>FRIEND MATCH</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>{t('screen.friend_match')}</h2>
 
       {mode === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 320 }}>

@@ -8,7 +8,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { login, loginWithGoogle, register } from '../../platform/authClient';
 import { getGoogleClientId } from '../../platform/config';
 import { getLocale, t, type Locale } from '../../i18n';
-import { LEGAL_TERMS_APPLICABILITY } from '../LegalFooter';
+import { LEGAL_TERMS_APPLICABILITY_KEY } from '../LegalFooter';
 
 interface LoginModalProps {
   /** requireLogin(reason) で渡された理由（未ログインで踏んだ機能名など） */
@@ -162,7 +162,8 @@ export default function LoginModal({ reason, onClose, onSuccess }: LoginModalPro
     if (result.ok) {
       onSuccess();
     } else {
-      setError(result.error || t(mode === 'register' ? 'auth.register_failed' : 'auth.login_failed'));
+      console.warn('[LoginModal] Platform auth failed:', result.errorCode);
+      setError(t(mode === 'register' ? 'auth.register_failed' : 'auth.login_failed'));
     }
   }, [email, password, passwordConfirm, mode, onSuccess]);
 
@@ -176,7 +177,8 @@ export default function LoginModal({ reason, onClose, onSuccess }: LoginModalPro
     if (result.ok) {
       onSuccess();
     } else {
-      setError(result.error || t('auth.google_failed'));
+      console.warn('[LoginModal] Google auth failed:', result.errorCode);
+      setError(t('auth.google_failed'));
     }
   }, [submitting, onSuccess]);
 
@@ -239,7 +241,7 @@ export default function LoginModal({ reason, onClose, onSuccess }: LoginModalPro
 
         {error && <div style={{ color: '#ff6b6b', fontSize: 12, textAlign: 'center' }}>{error}</div>}
 
-        <div style={termsNoticeStyle}>{LEGAL_TERMS_APPLICABILITY}</div>
+        <div style={termsNoticeStyle}>{t(LEGAL_TERMS_APPLICABILITY_KEY)}</div>
 
         <GoogleSignInButton
           disabled={submitting}

@@ -9,6 +9,7 @@ import { PRESET_TEAMS, type PresetTeam } from '../../data/presetTeams';
 import type { Cost, Position } from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
 import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
 interface PresetTeamsScreenProps {
   onNavigate: (page: Page) => void;
@@ -16,6 +17,7 @@ interface PresetTeamsScreenProps {
 }
 
 export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: PresetTeamsScreenProps) {
+  const locale = useLocale();
   const [selectedEra, setSelectedEra] = useState(1);
   const [selectedTeam, setSelectedTeam] = useState<PresetTeam | null>(null);
 
@@ -34,7 +36,7 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
       <h2 style={{ fontSize: 20, fontWeight: 'bold', color: '#fff', padding: '16px 16px 8px', margin: 0 }}>
-        PRESET TEAMS
+        {t('screen.preset_teams')}
       </h2>
 
       {/* 時代タブ */}
@@ -49,7 +51,7 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
             background: selectedEra === era ? 'rgba(204,136,0,0.2)' : 'transparent',
             color: selectedEra === era ? '#cc8800' : '#888',
           }}>
-            GR {era}
+            {t('preset.group_rank', { era })}
           </button>
         ))}
       </div>
@@ -64,11 +66,11 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
                 borderRadius: 12, padding: 16, cursor: 'pointer', textAlign: 'center',
               }}>
                 <div style={{ fontSize: 20, color: '#cc8800', fontWeight: 'bold' }}>{team.emoji}</div>
-                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginTop: 6 }}>{team.name}</div>
-                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{team.nameEn}</div>
+                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginTop: 6 }}>{locale === 'ja' ? team.name : team.nameEn}</div>
+                {locale === 'ja' && <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{team.nameEn}</div>}
                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{team.formation}</div>
                 <div style={{ fontSize: 11, color: '#666' }}>
-                  Cost {team.totalCost}
+                  {t('common.cost_value', { cost: team.totalCost })}
                 </div>
               </div>
             ))}
@@ -88,10 +90,10 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <span style={{ fontSize: 24, color: '#cc8800', fontWeight: 'bold' }}>{selectedTeam.emoji}</span>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>{selectedTeam.name}</div>
-                <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{selectedTeam.nameEn}</div>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>{locale === 'ja' ? selectedTeam.name : selectedTeam.nameEn}</div>
+                {locale === 'ja' && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{selectedTeam.nameEn}</div>}
                 <div style={{ fontSize: 12, color: '#888' }}>
-                  {selectedTeam.formation} / Cost {totalCost}
+                  {selectedTeam.formation} / {t('common.cost_value', { cost: totalCost })}
                 </div>
               </div>
             </div>
@@ -112,18 +114,18 @@ export default function PresetTeamsScreen({ onNavigate, onSelectPresetTeam }: Pr
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: '#fff', fontSize: 13 }}>
-                      {p.name}
+                      {locale === 'ja' ? p.name : p.nameEn}
                       <span style={{ color: '#777', fontSize: 11, marginLeft: 6 }}>#{String(p.pieceId).padStart(3, '0')}</span>
                     </div>
                     <div style={{
                       color: '#888', fontSize: 11, marginTop: 2,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
-                      {p.summary}
+                      {t(p.summaryKey)}
                     </div>
                   </div>
                   <span style={{ color: '#888', fontSize: 11 }}>{p.position}</span>
-                  <span style={{ color: '#aaa', fontSize: 11 }}>Cost {p.cost}</span>
+                  <span style={{ color: '#aaa', fontSize: 11 }}>{t('common.cost_value', { cost: p.cost })}</span>
                 </div>
               ))}
             </div>

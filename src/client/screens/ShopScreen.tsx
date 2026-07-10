@@ -10,8 +10,9 @@ import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 import { buildPlatformShopUrl } from '../platform/config';
-import { LEGAL_TERMS_APPLICABILITY } from '../components/LegalFooter';
+import { LEGAL_TERMS_APPLICABILITY_KEY } from '../components/LegalFooter';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
@@ -25,7 +26,8 @@ const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW
 interface CatalogItem {
   pieceId: number;
   itemId: string;
-  name: string;
+  nameJa: string;
+  nameEn: string;
   position: Position;
   cost: Cost;
   imageUrl?: string;
@@ -53,7 +55,8 @@ function buildFallbackCatalog(): CatalogItem[] {
       items.push({
         pieceId: id++,
         itemId: `piece_${String(id - 1).padStart(3, '0')}`,
-        name: `${pos} ${costToDisplay(cost)}`,
+        nameJa: `${pos} ${costToDisplay(cost)}`,
+        nameEn: `${pos} ${costToDisplay(cost)}`,
         position: pos,
         cost,
         owned: false,
@@ -64,6 +67,7 @@ function buildFallbackCatalog(): CatalogItem[] {
 }
 
 export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
+  const locale = useLocale();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>('ALL');
   const [toast, setToast] = useState<string | null>(null);
@@ -86,7 +90,8 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         const mapped: CatalogItem[] = data.items.map((r) => ({
           pieceId: r.piece_id,
           itemId: r.item_id ?? `piece_${String(r.piece_id).padStart(3, '0')}`,
-          name: r.name_ja || r.name_en || `${r.position} ${r.cost}`,
+          nameJa: r.name_ja || r.name_en || `${r.position} ${r.cost}`,
+          nameEn: r.name_en || r.name_ja || `${r.position} ${r.cost}`,
           position: r.position.toUpperCase() as Position,
           cost: r.cost as Cost,
           imageUrl: r.image_url ?? undefined,
@@ -125,7 +130,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     }}>
       {/* ヘッダー: タイトル + Platformショップ導線（BackButtonはスクロール領域の外＝画面下部に固定配置） */}
       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 460, alignItems: 'center', padding: '20px 16px 0' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>SHOP</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff' }}>{t('screen.shop')}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => handleOpenPlatformShop()} style={{
             padding: '7px 14px', borderRadius: 20, border: 'none',
@@ -142,7 +147,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
         {t('shop.description')}
       </div>
       <div style={{ fontSize: 10, lineHeight: 1.5, color: '#6f7894', width: '100%', maxWidth: 460, padding: '6px 16px 0' }}>
-        {LEGAL_TERMS_APPLICABILITY}
+        {t(LEGAL_TERMS_APPLICABILITY_KEY)}
       </div>
 
       {/* ポジションフィルター */}
@@ -181,7 +186,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
               }}>
                 <PieceIcon cost={item.cost} position={item.position} side="ally" />
                 <div style={{ fontSize: 12, color: '#ddd', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
-                  {item.name}
+                  {locale === 'ja' ? item.nameJa : item.nameEn}
                 </div>
                 <div style={{ fontSize: 11, color: isSS ? '#ffd700' : '#8aa', }}>
                   {item.position} · {costToDisplay(item.cost)}

@@ -144,10 +144,10 @@ export default function CeremonyLayer({
             animation: kickoffTextAnim,
           }}>
             <div style={{ fontSize: 40, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
-              KICK OFF
+              {t('ceremony.kick_off')}
             </div>
             <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 8, fontWeight: 600 }}>
-              {ceremony === 'kickoff' ? '1st Half' : '2nd Half'}
+              {ceremony === 'kickoff' ? t('ceremony.first_half') : t('ceremony.second_half_short')}
             </div>
           </div>
         )}
@@ -160,7 +160,7 @@ export default function CeremonyLayer({
             animation: `fcms-scale-in ${CEREMONY_SCALE_IN_MS}ms ease-out forwards`,
           }}>
             <div style={{ fontSize: 40, fontWeight: 900, color: '#FFD700', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
-              HALF TIME
+              {t('ceremony.half_time')}
             </div>
             <div style={{ fontSize: 28, color: '#fff', marginTop: 16, fontWeight: 700, letterSpacing: 6 }}>
               {scoreHome} - {scoreAway}
@@ -191,7 +191,7 @@ export default function CeremonyLayer({
             animation: `fcms-scale-out ${SECONDHALF_CEREMONY_MS}ms ease-out forwards`,
           }}>
             <div style={{ fontSize: 36, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
-              SECOND HALF
+              {t('ceremony.second_half')}
             </div>
           </div>
         )}
@@ -207,7 +207,7 @@ export default function CeremonyLayer({
           }}>
             <div style={{ animation: reducedMotion ? 'none' : `fcms-whistle-shake ${FULLTIME_SHAKE_MS}ms ease-out` }}>
               <div style={{ fontSize: 42, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}>
-                FULL TIME
+                {t('ceremony.full_time')}
               </div>
               <div style={{ fontSize: 32, color: '#fff', marginTop: 16, fontWeight: 700, letterSpacing: 6 }}>
                 {scoreHome} - {scoreAway}

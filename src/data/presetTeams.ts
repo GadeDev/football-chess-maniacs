@@ -21,6 +21,7 @@ export interface PresetPiece {
   name: string;
   nameEn: string;
   summary: string;
+  summaryKey: string;
   col: number;
   row: number;
 }
@@ -147,6 +148,7 @@ function toPresetPiece(piece: (typeof NPC_TEAMS)[number]['starters'][number]): P
     name: catalog.name,
     nameEn: catalog.nameEn,
     summary: catalog.summary,
+    summaryKey: `preset.piece.${String(piece.piece_id).padStart(3, '0')}.summary`,
     col: piece.col,
     row: piece.row,
   };

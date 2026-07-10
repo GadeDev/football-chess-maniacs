@@ -198,9 +198,9 @@ describe.skipIf(!IS_LIVE)('WebSocket E2E (wrangler dev)', () => {
     client.ws.send(JSON.stringify({ ...makeTurnInput(session, 2, 1), nonce }));
     const rejected = await client.waitForMessage('INPUT_REJECTED', 5000);
     expect(rejected.type).toBe('INPUT_REJECTED');
-    // violations = [{order, rule, reason}]
-    const violations = rejected.violations as Array<{ reason: string }>;
-    expect(violations.some(v => v.reason.toLowerCase().includes('nonce'))).toBe(true);
+    // violations = [{order, rule, code, params?}]
+    const violations = rejected.violations as Array<{ code: string }>;
+    expect(violations.some(v => v.code === 'DUPLICATE_NONCE')).toBe(true);
 
     client.close();
   }, 30000);
@@ -218,8 +218,8 @@ describe.skipIf(!IS_LIVE)('WebSocket E2E (wrangler dev)', () => {
     client.ws.send(JSON.stringify(makeTurnInput(session, 2, 5)));
     const rejected = await client.waitForMessage('INPUT_REJECTED', 5000);
     expect(rejected.type).toBe('INPUT_REJECTED');
-    const violations = rejected.violations as Array<{ reason: string }>;
-    expect(violations.some(v => v.reason.includes('sequence'))).toBe(true);
+    const violations = rejected.violations as Array<{ code: string }>;
+    expect(violations.some(v => v.code === 'INVALID_SEQUENCE')).toBe(true);
 
     client.close();
   }, 30000);

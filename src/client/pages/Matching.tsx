@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiUrl, getWsBaseUrl, type Page, type GameMode, type Team, type MatchmakingWsMessage, type ComDifficulty } from '../types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 import type { PresetTeam } from '../../data/presetTeams';
 import { resolveActiveTeamId } from '../utils/resolveActiveTeamId';
 
@@ -22,6 +23,7 @@ interface MatchingProps {
 }
 
 export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular', opponent }: MatchingProps) {
+  const locale = useLocale();
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<'searching' | 'found' | 'com_suggested' | 'error'>('searching');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
 
       case 'ERROR':
         console.error('[Matching] WS error:', data.message);
-        setErrorMsg(data.message);
+        setErrorMsg(t('matching.error_generic'));
         setStatus('error');
         break;
     }
@@ -192,7 +194,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
           }}>
             <span style={{ fontSize: 12, color: '#888' }}>{t('team.opponent_label')}</span>
             <span style={{ fontSize: 16, fontWeight: 'bold', color: '#cc8800' }}>{opponent.emoji}</span>
-            <span style={{ fontSize: 15, fontWeight: 'bold' }}>{opponent.name}</span>
+            <span style={{ fontSize: 15, fontWeight: 'bold' }}>{locale === 'ja' ? opponent.name : opponent.nameEn}</span>
             <span style={{ fontSize: 12, color: '#888' }}>{t('team.era_label', { era: opponent.era })}</span>
           </div>
         )}
@@ -237,7 +239,9 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
       <div style={{ fontSize: 12, color: '#666' }}>
         {elapsed < 10 ? '±200' : elapsed < 20 ? '±400' : t('matching.all_regions')}
         {wsStatus !== 'connected' && wsStatus !== 'disconnected' && (
-          <span style={{ marginLeft: 8, color: '#888' }}>({wsStatus})</span>
+          <span style={{ marginLeft: 8, color: '#888' }}>
+            ({t(wsStatus === 'connecting' ? 'matching.status_connecting' : 'matching.status_reconnecting')})
+          </span>
         )}
       </div>
 

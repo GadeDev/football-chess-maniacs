@@ -17,16 +17,17 @@ interface TokenResponse {
 
 type AuthResult =
   | { ok: true; data: TokenResponse }
-  | { ok: false; error: string };
+  | { ok: false; errorCode: string };
 
 function createIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `idem_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
-function getApiError(data: unknown, status: number): string {
+function getApiErrorCode(data: unknown, status: number): string {
   const d = data as { error?: string; error_code?: string; message?: string } | null;
-  return d?.error || d?.error_code || d?.message || `HTTP ${status}`;
+  const raw = d?.error_code || d?.error;
+  return raw && /^[A-Z0-9_]+$/.test(raw) ? raw : `HTTP_${status}`;
 }
 
 // ── 認証状態の変更通知（React側はuseAuthフックがこれを購読する） ──
@@ -49,47 +50,59 @@ function notifyAuthChange(loggedIn: boolean): void {
 
 /** メール + パスワードでログイン */
 export async function login(email: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json().catch(() => null) as TokenResponse | null;
-  if (!res.ok || !data) return { ok: false, error: getApiError(data, res.status) };
+  try {
+    const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json().catch(() => null) as TokenResponse | null;
+    if (!res.ok || !data) return { ok: false, errorCode: getApiErrorCode(data, res.status) };
 
-  saveTokens(data.access_token, data.refresh_token);
-  notifyAuthChange(true);
-  return { ok: true, data };
+    saveTokens(data.access_token, data.refresh_token);
+    notifyAuthChange(true);
+    return { ok: true, data };
+  } catch {
+    return { ok: false, errorCode: 'NETWORK_ERROR' };
+  }
 }
 
 /** メール + パスワードで新規登録 */
 export async function register(email: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json().catch(() => null) as TokenResponse | null;
-  if (!res.ok || !data) return { ok: false, error: getApiError(data, res.status) };
+  try {
+    const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json().catch(() => null) as TokenResponse | null;
+    if (!res.ok || !data) return { ok: false, errorCode: getApiErrorCode(data, res.status) };
 
-  saveTokens(data.access_token, data.refresh_token);
-  notifyAuthChange(true);
-  return { ok: true, data };
+    saveTokens(data.access_token, data.refresh_token);
+    notifyAuthChange(true);
+    return { ok: true, data };
+  } catch {
+    return { ok: false, errorCode: 'NETWORK_ERROR' };
+  }
 }
 
 /** Google Identity Services の ID token でログイン */
 export async function loginWithGoogle(idToken: string, locale?: string): Promise<AuthResult> {
-  const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/google`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
-    body: JSON.stringify(locale ? { id_token: idToken, locale } : { id_token: idToken }),
-  });
-  const data = await res.json().catch(() => null) as TokenResponse | null;
-  if (!res.ok || !data) return { ok: false, error: getApiError(data, res.status) };
+  try {
+    const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
+      body: JSON.stringify(locale ? { id_token: idToken, locale } : { id_token: idToken }),
+    });
+    const data = await res.json().catch(() => null) as TokenResponse | null;
+    if (!res.ok || !data) return { ok: false, errorCode: getApiErrorCode(data, res.status) };
 
-  saveTokens(data.access_token, data.refresh_token);
-  notifyAuthChange(true);
-  return { ok: true, data };
+    saveTokens(data.access_token, data.refresh_token);
+    notifyAuthChange(true);
+    return { ok: true, data };
+  } catch {
+    return { ok: false, errorCode: 'NETWORK_ERROR' };
+  }
 }
 
 // リフレッシュの同時実行を1本化（複数箇所で同時401→複数refreshを防ぐ）

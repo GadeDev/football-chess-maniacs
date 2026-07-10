@@ -180,13 +180,13 @@ export default function PKShootout({ homePieces, awayPieces, myTeam, isMobile, o
           color: lastResult.scored ? '#ffd700' : '#cc4444',
           textShadow: lastResult.scored ? '0 0 20px rgba(255,215,0,0.5)' : 'none',
         }}>
-          {lastResult.scored ? 'GOAL!' : 'SAVED!'}
+          {lastResult.scored ? t('pkshootout.goal') : t('pkshootout.saved')}
         </div>
       )}
 
       {phase === 'done' && (
         <div style={{ fontSize: 28, fontWeight: 900, color: '#ffd700', marginBottom: 16 }}>
-          {homeScore > awayScore ? 'HOME WIN!' : awayScore > homeScore ? 'AWAY WIN!' : 'DRAW'}
+          {homeScore > awayScore ? t('pkshootout.home_win') : awayScore > homeScore ? t('pkshootout.away_win') : t('pkshootout.draw')}
         </div>
       )}
 

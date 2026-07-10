@@ -261,6 +261,16 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
       case 'INPUT_REJECTED': {
         console.warn('[Battle] Input rejected:', JSON.stringify(data.violations));
+        const violations = Array.isArray(data.violations)
+          ? data.violations as Array<{ rule?: number; code?: string }>
+          : [];
+        const isSeqViolation = violations.some(v => v.code === 'INVALID_SEQUENCE' || v.rule === 2);
+        const rejectionMessage = t(isSeqViolation ? 'battle.input_resyncing' : 'battle.input_rejected');
+        setDisconnectBannerPositive(false);
+        setDisconnectBanner(rejectionMessage);
+        setTimeout(() => {
+          setDisconnectBanner(current => current === rejectionMessage ? null : current);
+        }, RECONNECT_BANNER_MS);
         // sequenceのズレはサーバーの期待値に再同期して自己回復する
         const expected = (data as { expectedSequence?: number }).expectedSequence;
         if (typeof expected === 'number') {
@@ -271,8 +281,6 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         dispatch({ type: 'SET_TURN_PHASE', phase: 'INPUT' });
         // sequence違反（rule 2）はリロード復帰直後に必ず1回起きる（クライアントのsequenceが0に戻るため）。
         // 再同期後に1回だけ自動再送してユーザーの再確定操作を不要にする
-        const isSeqViolation = Array.isArray(data.violations)
-          && (data.violations as Array<{ rule?: number }>).some(v => v.rule === 2);
         if (isSeqViolation && typeof expected === 'number' && !seqRetryRef.current) {
           seqRetryRef.current = true;
           setTimeout(() => handleConfirmRef.current?.(), 150);
@@ -294,7 +302,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           board: { pieces: PieceData[] }; turn: number; scoreHome: number; scoreAway: number;
         };
         setTimeout(() => {
-          showOverlayRef.current?.('HALF TIME', {
+          showOverlayRef.current?.(t('ceremony.half_time'), {
             subText: `${ht.scoreHome} - ${ht.scoreAway}`,
             duration: 2000, color: '#FFD700', fontSize: 48,
           });
@@ -1341,17 +1349,17 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             if (ev.type === 'TACKLE') {
               const te = ev as TackleEvent;
               if (te.result.success) {
-                p1Effects.push({ coord: te.coord, icon: '⚔', color: '#fff', text: 'TACKLE', burst: 'impact' });
+                p1Effects.push({ coord: te.coord, icon: '⚔', color: '#fff', text: t('battle.effect_tackle_short'), burst: 'impact' });
                 const tkr = te.result.tackler;
-                showOverlay('TACKLE!', {
+                showOverlay(t('battle.effect_tackle'), {
                   subText: `${tkr.position} \u2605${tkr.cost}`,
                   duration: 1000, color: '#F97316', fontSize: 48,
                 });
                 soundManager.play('tackle');
               } else {
                 // C4: タックルを振り切った突破の瞬間のみ砂煙（通常ドリブルでは出さない=メリハリ）
-                p1Effects.push({ coord: te.coord, icon: '💨', color: '#00cccc', text: 'BREAK', burst: 'dust' });
-                showOverlay('BREAKTHROUGH!', { duration: 800, color: '#00dddd', fontSize: 40 });
+                p1Effects.push({ coord: te.coord, icon: '💨', color: '#00cccc', text: t('battle.effect_break_short'), burst: 'dust' });
+                showOverlay(t('battle.effect_breakthrough'), { duration: 800, color: '#00dddd', fontSize: 40 });
               }
             }
           }
@@ -1364,8 +1372,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           for (const ev of evts) {
             if (ev.type === 'FOUL') {
               const fe = ev as EngineFoulEvent;
-              p2Effects.push({ coord: fe.coord, icon: '🟨', color: '#ffcc00', text: 'FOUL' });
-              showOverlay('FOUL!', {
+              p2Effects.push({ coord: fe.coord, icon: '🟨', color: '#ffcc00', text: t('battle.effect_foul_short') });
+              showOverlay(t('battle.effect_foul'), {
                 subText: fe.result.outcome === 'pk' ? 'PK' : 'FK',
                 duration: 1500, color: '#FACC15', fontSize: 48,
               });
@@ -1395,7 +1403,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 if (offsideEv) {
                   const receiver = turnResult.board.pieces.find(p => p.id === offsideEv.receiverId);
                   const coord = receiver?.coord ?? { col: 10, row: 16 };
-                  setPhaseEffects([{ coord, icon: '🚩', color: '#ffcc00', text: 'OFFSIDE' }]);
+                  setPhaseEffects([{ coord, icon: '🚩', color: '#ffcc00', text: t('battle.effect_offside_short') }]);
                   // C5b: 判定に使われたオフサイドラインをスナップショットから再構成して点滅表示
                   // （エンジンと同じ getOffsideLine を同じ入力=ターン開始時スナップショットで呼ぶ）
                   const attackTeam: Team = offsideEv.receiverId.startsWith('h') ? 'home' : 'away';
@@ -1411,7 +1419,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                     );
                     setOffsideFlash({ row: lineRow, startedAt: performance.now(), durationMs: OFFSIDE_FLASH_MS });
                   }
-                  showOverlay('OFFSIDE!', { duration: 1200, color: '#FACC15', fontSize: 48 });
+                  showOverlay(t('battle.effect_offside'), { duration: 1200, color: '#FACC15', fontSize: 48 });
                   await wait(800);
                   setPhaseEffects([]);
                   // G2: 審判がボールを守備側GKへ戻す飛行（瞬間移動の解消。軌跡線は残さない）
@@ -1458,15 +1466,15 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                 if (se.result.outcome === 'goal') {
                   soundManager.play('goal');
                 } else if (isMissed) {
-                  showOverlay('MISSED!', { duration: 1000, color: '#FACC15', fontSize: 44 });
+                  showOverlay(t('battle.effect_missed'), { duration: 1000, color: '#FACC15', fontSize: 44 });
                 } else if (se.result.outcome === 'blocked') {
-                  showOverlay('BLOCKED!', { duration: 800, fontSize: 44 });
+                  showOverlay(t('battle.effect_blocked'), { duration: 800, fontSize: 44 });
                 } else if (se.result.outcome === 'saved_catch') {
                   const gk = postPieces.find(pp => pp.position === 'GK' && pp.team !== shooter.team);
-                  showOverlay('GK CATCH!', { duration: 800, color: '#22C55E', fontSize: 40 });
+                  showOverlay(t('battle.effect_gk_catch'), { duration: 800, color: '#22C55E', fontSize: 40 });
                 } else if (se.result.outcome === 'saved_ck') {
                   const gk = postPieces.find(pp => pp.position === 'GK' && pp.team !== shooter.team);
-                  showOverlay('GREAT SAVE!', {
+                  showOverlay(t('battle.effect_great_save'), {
                     subText: gk ? `GK \u2605${gk.cost}` : undefined,
                     duration: 1200, color: '#22C55E', fontSize: 48,
                   });
@@ -1493,8 +1501,8 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               }
               const coord = interceptor?.coord ?? { col: 10, row: 16 };
               // C5a: インターセプト地点にオレンジの火花（reduced-motion時はImpactBurst側で自動省略されアイコンのみ）
-              p4Effects.push({ coord, icon: '✋', color: '#ff8800', text: 'INTERCEPTED', burst: 'spark' });
-              showOverlay('BALL CUT!', {
+              p4Effects.push({ coord, icon: '✋', color: '#ff8800', text: t('battle.effect_intercepted_short'), burst: 'spark' });
+              showOverlay(t('battle.effect_ball_cut'), {
                 subText: interceptor ? `${interceptor.position} \u2605${interceptor.cost}` : undefined,
                 duration: 1200, color: '#ff8800', fontSize: 48,
               });
@@ -1508,7 +1516,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           // フリーボール発生チェック
           for (const ev of evts) {
             if (ev.type === 'LOOSE_BALL') {
-              showOverlay('LOOSE BALL!', { duration: 1000, fontSize: 40 });
+              showOverlay(t('battle.effect_loose_ball'), { duration: 1000, fontSize: 40 });
               await wait(400);
             }
           }
@@ -1516,7 +1524,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
           // 遅延行為 / 消極的戦術
           for (const ev of evts) {
             if (ev.type === 'BATTLE_DELAY') {
-              showOverlay('DELAY!', { duration: 1200, color: '#FACC15', fontSize: 44 });
+              showOverlay(t('battle.effect_delay'), { duration: 1200, color: '#FACC15', fontSize: 44 });
               await wait(500);
               // G2: 審判がボールを相手GKへ戻す飛行（瞬間移動の解消。軌跡線は残さない）
               const de = ev as BattleDelayEvent;
@@ -1527,7 +1535,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               }
             }
             if (ev.type === 'PASSIVE_TACTICS') {
-              showOverlay('PASSIVE TACTICS!', { duration: 1200, color: '#FB7185', fontSize: 38 });
+              showOverlay(t('battle.effect_passive_tactics'), { duration: 1200, color: '#FB7185', fontSize: 38 });
               await wait(500);
             }
           }
@@ -1573,7 +1581,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
               if (kickSuccess) {
                 if (fouledTeam === 'home') newScoreHome++; else newScoreAway++;
                 goalScoredRef.current = { scored: true, scorerTeam: fouledTeam };
-                showOverlay('GOAL!!', {
+                showOverlay(t('battle.effect_goal'), {
                   subText: `${isPK ? 'PK' : 'FK'} ${newScoreHome} - ${newScoreAway}`,
                   duration: 2000, color: '#FFD700', fontSize: 64, glow: true,
                 });
@@ -1589,7 +1597,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
                   scoreAway: newScoreAway,
                 });
               } else {
-                showOverlay(guessedRight ? 'SAVE!' : 'MISS!', { duration: 1200, fontSize: 48 });
+                showOverlay(guessedRight ? t('battle.effect_save') : t('battle.effect_miss'), { duration: 1200, fontSize: 48 });
                 await wait(1200);
                 // Phase H: GKがボールを得て動的配置で仕切り直し（COM観戦は演出なしで盤面整合のみ）
                 const defenseTeam: Team = fouledTeam === 'home' ? 'away' : 'home';
@@ -1935,7 +1943,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
     if (kickSuccess) {
       if (fouledTeam === 'home') newScoreHome++; else newScoreAway++;
-      showOverlay('GOAL!!', {
+      showOverlay(t('battle.effect_goal'), {
         subText: `${kickLabel} → ${gkGuessedRight ? t('battle.power_breakthrough') : t('battle.in_frame_goal')}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}\n${newScoreHome} - ${newScoreAway}`,
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
@@ -1956,7 +1964,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     }
 
     // FK失敗: 守備側がボールを得て仕切り直し（Phase H: ワイプ演出 + 動的再配置）
-    showOverlay(gkGuessedRight ? 'GREAT SAVE!' : 'MISSED!', {
+    showOverlay(gkGuessedRight ? t('battle.effect_great_save') : t('battle.effect_missed'), {
       subText: `${matchup}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}`,
       duration: 1500, color: '#4ade80', fontSize: 48,
     });
@@ -2003,7 +2011,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
     if (kickSuccess) {
       if (fouledTeam === 'home') newScoreHome++; else newScoreAway++;
-      showOverlay('GOAL!!', {
+      showOverlay(t('battle.effect_goal'), {
         subText: `${kickLabel} → ${gkGuessedRight ? t('battle.power_breakthrough') : t('battle.in_frame_goal')}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}\n${newScoreHome} - ${newScoreAway}`,
         duration: 2500, color: '#FFD700', fontSize: 64, glow: true,
       });
@@ -2024,7 +2032,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     }
 
     // PK失敗: 守備側（GK）がボールを得て仕切り直し（Phase H: ワイプ演出 + 動的再配置）
-    showOverlay(gkGuessedRight ? 'GREAT SAVE!' : 'MISSED!', {
+    showOverlay(gkGuessedRight ? t('battle.effect_great_save') : t('battle.effect_missed'), {
       subText: `${matchup}\n${t('battle.kicker_vs_gk', { kicker: kickLabel, gk: gkLabel })}`,
       duration: 1500, color: '#4ade80', fontSize: 48,
     });

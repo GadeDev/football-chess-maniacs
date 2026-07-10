@@ -4,10 +4,11 @@
 
 import React from 'react';
 import type { Page } from '../types';
-import { type LastSetup, resolveTeamName } from '../utils/lastSetup';
+import { type LastSetup, resolveLastSetupTeamName } from '../utils/lastSetup';
 import type { ActiveMatchInfo } from '../utils/activeMatch';
 import { useAuth } from '../contexts/AuthContext';
 import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
 interface TitleProps {
   onNavigate: (page: Page) => void;
@@ -180,7 +181,8 @@ function TeamCard({
   onQuickMatch: () => void;
   onQuickOnlineMatch: () => void;
 }) {
-  const teamName = resolveTeamName(lastSetup?.teamName);
+  const locale = useLocale();
+  const teamName = resolveLastSetupTeamName(lastSetup, locale);
   const teamEmoji = lastSetup?.teamEmoji || '⚽';
   const starters = lastSetup?.formationData?.starters ?? [];
   const totalCost = starters.reduce((sum, p) => sum + p.cost, 0);
