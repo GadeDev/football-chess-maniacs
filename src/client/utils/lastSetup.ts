@@ -5,7 +5,8 @@
 // ============================================================
 
 import type { GameMode, ComDifficulty, FormationData, TeamOrigin } from '../types';
-import { t } from '../i18n';
+import { t, type Locale } from '../i18n';
+import { PRESET_TEAMS } from '../../data/presetTeams';
 
 export interface LastSetup {
   gameMode: GameMode;
@@ -22,6 +23,19 @@ const STORAGE_KEY = 'fcms_last_setup';
 /** チーム名の表示用フォールバック（未設定時は「マイチーム」） */
 export function resolveTeamName(name?: string): string {
   return name && name.trim().length > 0 ? name : t('team.default_name');
+}
+
+/** プリセット名は永続化時の言語に焼き込まず、現在ロケールで都度解決する。 */
+export function resolveLastSetupTeamName(setup: LastSetup | null | undefined, locale: Locale): string {
+  if (setup?.origin === 'preset' && setup.formationData) {
+    const presetId = setup.formationData.presetTeamId;
+    const firstPieceId = setup.formationData.starters[0]?.id;
+    const preset = PRESET_TEAMS.find((team) =>
+      team.id === presetId || firstPieceId?.startsWith(`preset-${team.id}-`),
+    );
+    if (preset) return locale === 'ja' ? preset.name : preset.nameEn;
+  }
+  return resolveTeamName(setup?.teamName);
 }
 
 const DEFAULT_TEAM_EMOJI = '⚽';

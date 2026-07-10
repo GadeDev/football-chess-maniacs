@@ -8,6 +8,8 @@
 import React, { useRef, useEffect } from 'react';
 import type { HexCoord, HexCell, PieceData, OrderData, ActionMode } from '../../types';
 import { renderBallTrails, renderPhaseEffects, hasFlyingTrail, offsideFlashAlpha, type OffsideFlash } from './overlay_renderers';
+import { t } from '../../i18n';
+import { useLocale } from '../../i18n/useLocale';
 
 /** ボール軌跡（EXECUTIONフェーズ中に表示） */
 export interface BallTrail {
@@ -130,6 +132,7 @@ export default function Overlay({
   offsideFlash = null,
 }: OverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const locale = useLocale();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -300,7 +303,7 @@ export default function Overlay({
           ctx.fillStyle = COLORS.longPassWarning;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`LONG (${dist}HEX)`, mx, my - 10);
+          ctx.fillText(t('board.long_pass_warning', { distance: dist }), mx, my - 10);
           ctx.restore();
         }
       }
@@ -401,7 +404,7 @@ export default function Overlay({
     width, height, highlightHexes, zocHexes, offsideLine,
     selectedPieceId, actionMode, orders, pieces, hexMap,
     showZoneBorders, hoverCoord, shootRangeHexes, passTargetHexes, throughPassHexes, longPassWarnings,
-    phaseEffects, ballTrails, offsideFlash,
+    phaseEffects, ballTrails, offsideFlash, locale,
   ]);
 
   return (

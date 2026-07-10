@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NPC_TEAMS } from '../npc_teams';
 import { PRESET_TEAMS, pickNpcOpponent, pickRandomNpcTeam } from '../presetTeams';
+import ja from '../../client/i18n/ja';
 
 describe('PRESET_TEAMS', () => {
   it('NPCチーム定義から世界観プリセットを生成する', () => {
@@ -34,6 +35,18 @@ describe('PRESET_TEAMS', () => {
         expect(piece.row).toBeLessThanOrEqual(33);
       }
     }
+  });
+
+  it('ja辞書の時代名・紹介文が正本データと完全一致する', () => {
+    const summaryKeys = new Set<string>();
+    for (const team of PRESET_TEAMS) {
+      expect(ja[`era.shelf.${team.era}`]).toBe(team.name.replace(/オールスター$/, ''));
+      for (const piece of team.pieces) {
+        summaryKeys.add(piece.summaryKey);
+        expect(ja[piece.summaryKey]).toBe(piece.summary);
+      }
+    }
+    expect(summaryKeys.size).toBe(77);
   });
 });
 

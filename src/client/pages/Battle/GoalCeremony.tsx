@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Team } from '../../types';
 import { GOAL_CEREMONY_MS } from './battleUtils';
+import { t } from '../../i18n';
 
 // ── 演出タイミング ──
 /** タメ: 暗転のみで静止する時間。この後に着弾（フラッシュ/スラム）が来る */
@@ -227,7 +228,7 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
             : `gc-word-slam .42s cubic-bezier(.15,1.6,.3,1) ${tame(70)} both`,
           transform: reducedMotion ? 'rotate(-5deg)' : undefined,
         }}>
-          GOOAL!
+          {t('ceremony.goal')}
         </div>
       </div>
 
@@ -240,7 +241,7 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
           : exiting ? `gc-fade-out ${EXIT_MS}ms ease-in both`
           : `gc-sub-in .3s ease-out ${tame(300)} both`,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.home.hi }}>HOME</span>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.home.hi }}>{t('common.home')}</span>
         <span style={{
           fontSize: 32, fontWeight: 900, lineHeight: 1,
           fontFamily: "'Arial Black','Hiragino Sans W8',sans-serif",
@@ -254,7 +255,7 @@ export default function GoalCeremony({ scorerTeam, scoreHome, scoreAway }: GoalC
           color: !homeLit ? PALETTES.away.hi : '#dfe7ee', display: 'inline-block',
           animation: (!reducedMotion && !homeLit && !exiting) ? `gc-score-bump .7s cubic-bezier(.2,2.4,.4,1) ${tame(350)}` : 'none',
         }}>{scoreAway}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.away.hi }}>AWAY</span>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.18em', color: PALETTES.away.hi }}>{t('common.away')}</span>
       </div>
     </div>
   );

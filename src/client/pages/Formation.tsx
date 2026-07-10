@@ -19,6 +19,7 @@ import {
   saveDraft, loadDraft,
   type ServerOwnedPiece, type ServerTeamSlot,
 } from '../utils/formationServer';
+import { defaultSlotStorageName, normalizeStoredSlotName } from '../utils/defaultSlotName';
 
 /** コスト値 → 役割名キーのサフィックス（1→'1', 1.5→'1p', 2→'2', 2.5→'2p', 3→'3'） */
 const COST_KEY: Record<number, string> = { 1: '1', 1.5: '1p', 2: '2', 2.5: '2p', 3: '3' };
@@ -38,7 +39,8 @@ interface OwnedPiece {
   pieceId: number;
   position: Position;
   cost: Cost;
-  name: string;
+  nameJa: string;
+  nameEn: string;
   /** 時代（Era 1〜7棚ではなく era 1-13。0 = 不明） */
   era: number;
 }
@@ -187,9 +189,14 @@ function toOwnedPiece(p: ServerOwnedPiece): OwnedPiece {
     pieceId: p.pieceId,
     position: p.position as Position,
     cost: p.cost as Cost,
-    name: getLocale() === 'ja' ? p.nameJa : p.nameEn,
+    nameJa: p.nameJa,
+    nameEn: p.nameEn,
     era: p.era,
   };
+}
+
+function ownedPieceName(piece: OwnedPiece): string {
+  return getLocale() === 'ja' ? piece.nameJa : piece.nameEn;
 }
 
 /** サーバー保存済みチーム → SlotArray（所持コマ照合で名前・eraを補完） */
@@ -209,7 +216,8 @@ function buildSlotArray(serverSlots: ServerTeamSlot[], owned: OwnedPiece[]): Slo
         pieceId: fp.piece_id,
         position: (o?.position ?? fp.position) as Position,
         cost: (o?.cost ?? fp.cost) as Cost,
-        name: o?.name ?? fp.position,
+        nameJa: o?.nameJa ?? fp.position,
+        nameEn: o?.nameEn ?? fp.position,
         era: o?.era ?? 0,
         col: fp.col ?? fallbackCoord.col,
         row: fp.row ?? fallbackCoord.row,
@@ -220,12 +228,12 @@ function buildSlotArray(serverSlots: ServerTeamSlot[], owned: OwnedPiece[]): Slo
       return o ?? {
         id: `p${bp.piece_id}`, pieceId: bp.piece_id,
         position: bp.position as Position, cost: bp.cost as Cost,
-        name: bp.position, era: 0,
+        nameJa: bp.position, nameEn: bp.position, era: 0,
       };
     });
     arr[idx] = {
       teamId: s.teamId,
-      name: s.name,
+      name: normalizeStoredSlotName(s.name, s.slotNumber),
       systemBase: s.formationPreset,
       totalCost: starters.reduce((sum, p) => sum + p.cost, 0),
       starters,
@@ -501,7 +509,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
     const result = await saveTeam(accessToken, {
       teamId: existing?.teamId,
       slotNumber: idx + 1,
-      name: teamName.trim() || t('formation.slot_n', { n: idx + 1 }),
+      name: teamName.trim() || defaultSlotStorageName(idx + 1),
       formationPreset: currentPreset,
       fieldPieces: starters.map(s => ({ piece_id: s.pieceId, position: s.position, cost: s.cost, col: s.col, row: s.row })),
       benchPieces: bench.map(b => ({ piece_id: b.pieceId, position: b.position, cost: b.cost })),
@@ -800,7 +808,7 @@ function Header({ totalCost, starterCount, benchCount, hasGK, currentPreset, onP
       {/* セーブスロット + セーブ枠ショップ導線 */}
       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <button onClick={onShowSlots} style={{ ...btnStyle('#334155'), padding: '4px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span role="img" aria-label="save">{'\u{1F4BE}'}</span>
+          <span role="img" aria-label={t('formation.save')}>{'\u{1F4BE}'}</span>
           {t('formation.save_load')}
         </button>
         <button onClick={onOpenSaveSlotShop} style={{ ...btnStyle('#2563eb'), padding: '4px 10px', fontSize: 12 }}>
@@ -1082,7 +1090,7 @@ function DetailPanel({ piece, onSwap, onDeselect }: {
       <PieceIcon cost={piece.cost} position={piece.position} side="ally" selected />
 
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>{piece.name}</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{ownedPieceName(piece)}</div>
         <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>
           {t('formation.piece_cost_line', { position: piece.position, cost: piece.cost, rank: costToRank(piece.cost) })}
         </div>
@@ -1137,7 +1145,7 @@ function BenchPanel({ bench, selectedIdx, onSelect, onAdd, onSwap }: {
               <span style={{ width: 22, fontSize: 12, color: '#64748b', textAlign: 'right' }}>B{i + 1}</span>
               <PieceIcon cost={piece.cost} position={piece.position} side="ally" style={{ width: 36, height: 36, flexShrink: 0 }} />
               <div style={{ flex: 1, fontSize: 13 }}>
-                {piece.name}
+                {ownedPieceName(piece)}
                 <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>{piece.position} {costToRank(piece.cost)}</span>
               </div>
             </div>
@@ -1215,7 +1223,7 @@ function CardGrid({ pieces, usedIds, totalCost, selectedStarterCost, cardFilter,
 
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                  {piece.name}
+                  {ownedPieceName(piece)}
                 </div>
                 <div style={{ fontSize: 10, color: '#64748b' }}>
                   {piece.position} {costToRank(piece.cost)}
@@ -1276,7 +1284,7 @@ function SlotModal({ slots, activeSlotIdx, availableSlots, onSave, onLoad, onDel
         <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
           {'\u{1F451}'} {t('formation.save_slots')}
           <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 4, marginLeft: 4 }}>
-            Premium
+            {t('formation.premium_badge')}
           </span>
         </h3>
 

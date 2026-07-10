@@ -66,6 +66,12 @@ const STORAGE_KEY = 'fcms.locale'; // FCMS (Football Chess ManiacS) ロケール
 let currentLocale: Locale = FALLBACK_LOCALE;
 const listeners = new Set<() => void>();
 
+function syncDocumentLang(locale: Locale): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = locale;
+  }
+}
+
 // ---------------------------------------------------------------------
 // 低レベル lookup
 // ---------------------------------------------------------------------
@@ -118,6 +124,16 @@ export function t(key: string, params?: Record<string, string | number>): string
   return interpolate(raw, params);
 }
 
+/** 保存済みのローカライズ値を正規化する用途など、現在値を変えず任意ロケールで引く。 */
+export function tForLocale(
+  locale: Locale,
+  key: string,
+  params?: Record<string, string | number>,
+): string {
+  const raw = DICTS[locale]?.[key] ?? DICTS[FALLBACK_LOCALE]?.[key] ?? key;
+  return interpolate(raw, params);
+}
+
 // 複数形対応翻訳。count に応じて .one / .other を選ぶ。
 // 英語的な単複(1 が one、それ以外 other)を既定とする。
 // 言語固有の複雑な複数形ルールが必要なら、ここに CLDR 的分岐を足す。
@@ -140,6 +156,7 @@ export function getLocale(): Locale {
 export function setLocale(locale: Locale): void {
   if (!SUPPORTED_LOCALES.includes(locale)) return;
   currentLocale = locale;
+  syncDocumentLang(locale);
   try {
     localStorage.setItem(STORAGE_KEY, locale);
   } catch {
@@ -162,7 +179,7 @@ export function detectInitialLocale(): Locale {
   } catch {
     /* ignore */
   }
-  const browser = (typeof navigator !== 'undefined' ? navigator.language : '') || '';
+  const browser = ((typeof navigator !== 'undefined' ? navigator.language : '') || '').toLowerCase();
   // prefix 分岐(言語を足したらここにも追加する)
   if (browser.startsWith('ja')) return 'ja' as Locale;
   if (browser.startsWith('en')) return 'en' as Locale;
@@ -177,6 +194,7 @@ export function detectInitialLocale(): Locale {
 // アプリ起動時に1回呼ぶ
 export function initLocale(): void {
   currentLocale = detectInitialLocale();
+  syncDocumentLang(currentLocale);
 }
 
 // ---------------------------------------------------------------------

@@ -361,20 +361,32 @@ export function RightPanel({ orders, pieces, events, turn, onRemoveOrder }: Righ
 // ヘルパー
 // ================================================================
 
-function formatActionLabel(action: string | null): string {
+export function formatActionLabel(action: string | null): string {
   switch (action) {
     case 'move': return t('action.move');
     case 'pass': return t('action.pass');
     case 'shoot': return t('action.shoot');
     case 'dribble': return t('action.dribble');
+    case 'throughPass': return t('sidepanel.action_through_pass');
     case 'substitute': return t('action.sub');
     case 'skill': return t('action.skill');
-    default: return String(action ?? '');
+    default: return action === null ? '' : t('sidepanel.action_unknown');
   }
 }
 
 function successRateSuffix(probability: number | undefined): string {
   return typeof probability === 'number' ? t('sidepanel.success_rate', { probability }) : '';
+}
+
+export function formatShootOutcome(outcome: unknown): string {
+  switch (outcome) {
+    case 'goal': return t('sidepanel.shoot_outcome_goal');
+    case 'blocked': return t('sidepanel.shoot_outcome_blocked');
+    case 'saved_catch': return t('sidepanel.shoot_outcome_saved_catch');
+    case 'saved_ck': return t('sidepanel.shoot_outcome_saved_ck');
+    case 'missed': return t('sidepanel.shoot_outcome_missed');
+    default: return t('sidepanel.shoot_outcome_unknown');
+  }
 }
 
 /** シュートチェーンの結果を決定づけたcheck（outcome別に対応するcheckが異なる）。probability/breakdown共通の参照元 */
@@ -410,13 +422,13 @@ function eventBreakdown(event: GameEvent): any {
   }
 }
 
-function formatEvent(event: GameEvent): string {
+export function formatEvent(event: GameEvent): string {
   switch (event.type) {
     case 'PIECE_MOVED': return t('sidepanel.event_moved');
     case 'ZOC_STOP': return t('sidepanel.event_zoc_stop');
     case 'TACKLE': return t('sidepanel.event_tackle') + successRateSuffix((event as any).result?.probability);
     case 'FOUL': return t('sidepanel.event_foul');
-    case 'SHOOT': return t('sidepanel.event_shoot', { outcome: (event as any).result?.outcome ?? '' })
+    case 'SHOOT': return t('sidepanel.event_shoot', { outcome: formatShootOutcome((event as any).result?.outcome) })
       + successRateSuffix(shootDecisiveResult((event as any).result)?.probability);
     case 'PASS_DELIVERED': return t('sidepanel.event_pass_delivered');
     case 'PASS_CUT': return t('sidepanel.event_pass_cut') + successRateSuffix(passCutDecisiveResult((event as any).result)?.probability);
@@ -426,7 +438,8 @@ function formatEvent(event: GameEvent): string {
     case 'SUBSTITUTION': return t('sidepanel.event_substitution');
     case 'COLLISION': return t('sidepanel.event_collision') + successRateSuffix((event as any).result?.probability);
     case 'BALL_ACQUIRED': return t('sidepanel.event_ball_acquired');
-    default: return event.type;
+    case 'LOOSE_BALL': return t('sidepanel.event_loose_ball');
+    default: return t('sidepanel.event_unknown');
   }
 }
 

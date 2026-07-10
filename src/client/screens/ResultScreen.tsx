@@ -46,8 +46,8 @@ export default function ResultScreen({
 }: ResultScreenProps) {
   const myScore = myTeam === 'home' ? scoreHome : scoreAway;
   const opScore = myTeam === 'home' ? scoreAway : scoreHome;
-  const result = myScore > opScore ? 'WIN' : myScore < opScore ? 'LOSE' : 'DRAW';
-  const resultColor = result === 'WIN' ? '#ffd700' : result === 'LOSE' ? '#666' : '#aaa';
+  const resultKey = myScore > opScore ? 'result.win' : myScore < opScore ? 'result.lose' : 'result.draw';
+  const resultColor = myScore > opScore ? '#ffd700' : myScore < opScore ? '#666' : '#aaa';
 
   return (
     <div style={{
@@ -60,7 +60,7 @@ export default function ResultScreen({
         fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 900,
         color: resultColor, letterSpacing: 4,
       }}>
-        {result}
+        {t(resultKey)}
       </div>
 
       {reason === 'disconnect' && (
@@ -87,8 +87,8 @@ export default function ResultScreen({
             side={mvp.team === myTeam ? 'ally' : 'enemy'}
           />
           <div>
-            <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 'bold' }}>MVP</div>
-            <div style={{ fontSize: 14, color: '#fff' }}>{mvp.position} (Cost {mvp.cost})</div>
+            <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 'bold' }}>{t('common.mvp')}</div>
+            <div style={{ fontSize: 14, color: '#fff' }}>{mvp.position} ({t('common.cost_value', { cost: mvp.cost })})</div>
             <div style={{ fontSize: 12, color: '#aaa' }}>
               {mvp.goals > 0 && `${mvp.goals}G `}
               {mvp.assists > 0 && `${mvp.assists}A `}
@@ -103,9 +103,9 @@ export default function ResultScreen({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', color: '#4488cc', padding: '6px 0', fontWeight: 600 }}>HOME</th>
+              <th style={{ textAlign: 'left', color: '#4488cc', padding: '6px 0', fontWeight: 600 }}>{t('common.home')}</th>
               <th style={{ textAlign: 'center', color: '#888', padding: '6px 0' }}></th>
-              <th style={{ textAlign: 'right', color: '#cc4444', padding: '6px 0', fontWeight: 600 }}>AWAY</th>
+              <th style={{ textAlign: 'right', color: '#cc4444', padding: '6px 0', fontWeight: 600 }}>{t('common.away')}</th>
             </tr>
           </thead>
           <tbody>

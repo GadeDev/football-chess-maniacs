@@ -84,7 +84,7 @@ export default function HalftimeSubPanel({
         {/* ヘッダー */}
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#FFD700', letterSpacing: 2 }}>
-            HALF TIME
+            {t('ceremony.half_time')}
           </div>
           <div style={{ fontSize: 32, fontWeight: 700, marginTop: 8, letterSpacing: 4 }}>
             <span style={{ color: '#4488cc' }}>{scoreHome}</span>
@@ -164,7 +164,7 @@ export default function HalftimeSubPanel({
                     }} />
                     {bp.position} {rankLabel(bp.cost)}
                     {!swapOk && selectedField && (
-                      <span style={{ fontSize: 10, color: '#f44' }}>COST</span>
+                      <span style={{ fontSize: 10, color: '#f44', textTransform: 'uppercase' }}>{t('common.cost')}</span>
                     )}
                   </button>
                 );

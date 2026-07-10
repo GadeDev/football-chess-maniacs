@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { TURN_INDICATOR_MS } from './battleUtils';
+import { t } from '../../i18n';
 
 const reducedMotion =
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,7 +27,7 @@ export default function TurnIndicator({ turn }: { turn: number }) {
       }}
     >
       <style>{`@keyframes fcms-turn-fade { from { opacity: 0; } to { opacity: 1; } }`}</style>
-      Turn {turn}
+      {t('battle.turn_indicator', { turn })}
     </span>
   );
 }

@@ -161,7 +161,7 @@ export default function SubstitutionPanel({
             const inP = benchPieces.find(p => p.id === sub.inId);
             return (
               <div key={i} style={{ fontSize: 12, color: '#ddd', padding: '2px 0' }}>
-                {outP?.position}(Cost{outP?.cost}) → {inP?.position}(Cost{inP?.cost})
+                {outP?.position}({t('common.cost_compact', { cost: outP?.cost ?? '' })}) → {inP?.position}({t('common.cost_compact', { cost: inP?.cost ?? '' })})
               </div>
             );
           })}

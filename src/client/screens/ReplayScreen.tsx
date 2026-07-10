@@ -75,7 +75,7 @@ export default function ReplayScreen({ onNavigate, turns, myTeam }: ReplayScreen
         padding: '8px 12px', background: 'rgba(0,0,0,0.3)', flexShrink: 0,
       }}>
         <span style={{ fontSize: 14, color: '#fff', fontWeight: 'bold' }}>
-          REPLAY — Turn {currentTurn?.turn ?? 0}
+          {t('screen.replay_turn', { turn: currentTurn?.turn ?? 0 })}
         </span>
         <span style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
           {currentTurn?.scoreHome ?? 0} - {currentTurn?.scoreAway ?? 0}

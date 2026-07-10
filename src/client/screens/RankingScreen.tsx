@@ -70,7 +70,7 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       height: '100%', background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', padding: '20px 0 12px', color: '#fff' }}>RANKING</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', padding: '20px 0 12px', color: '#fff' }}>{t('screen.ranking')}</h2>
 
       {/* タブ */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
@@ -103,9 +103,9 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
             <thead>
               <tr style={{ color: '#666', fontSize: 11 }}>
                 <th style={{ textAlign: 'left', padding: '6px 4px' }}>#</th>
-                <th style={{ textAlign: 'left', padding: '6px 4px' }}>Name</th>
-                <th style={{ textAlign: 'right', padding: '6px 4px' }}>Elo</th>
-                <th style={{ textAlign: 'right', padding: '6px 4px' }}>W-D-L</th>
+                <th style={{ textAlign: 'left', padding: '6px 4px' }}>{t('common.name')}</th>
+                <th style={{ textAlign: 'right', padding: '6px 4px' }}>{t('common.elo')}</th>
+                <th style={{ textAlign: 'right', padding: '6px 4px' }}>{t('common.record_wdl')}</th>
               </tr>
             </thead>
             <tbody>
@@ -139,7 +139,7 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13,
         }}>
           <span style={{ color: '#4488cc', fontWeight: 'bold' }}>#{me.rank} {me.name}</span>
-          <span style={{ color: '#aaa' }}>Elo {me.elo}</span>
+          <span style={{ color: '#aaa' }}>{t('common.elo')} {me.elo}</span>
           <span style={{ color: '#888', fontSize: 11 }}>{me.wins}-{me.draws}-{me.losses}</span>
         </div>
       )}

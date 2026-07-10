@@ -1,23 +1,23 @@
 import React from 'react';
+import { t } from '../i18n';
 
-export const LEGAL_TERMS_APPLICABILITY =
-  '本ゲームは Universo Fútbol の一部として提供され、Universo Fútbol の利用規約が適用されます。';
+export const LEGAL_TERMS_APPLICABILITY_KEY = 'legal.terms_applicability';
 
 export const LEGAL_LINKS = [
-  { label: '利用規約', href: 'https://universo-futbol.com/terms' },
-  { label: 'プライバシーポリシー', href: 'https://universo-futbol.com/privacy' },
-  { label: '特定商取引法に基づく表記', href: 'https://universo-futbol.com/tokushoho' },
-  { label: 'お問い合わせ', href: 'https://universo-futbol.com/contact' },
+  { labelKey: 'legal.terms', href: 'https://universo-futbol.com/terms' },
+  { labelKey: 'legal.privacy', href: 'https://universo-futbol.com/privacy' },
+  { labelKey: 'legal.commerce_disclosure', href: 'https://universo-futbol.com/tokushoho' },
+  { labelKey: 'legal.contact', href: 'https://universo-futbol.com/contact' },
 ] as const;
 
 export default function LegalFooter() {
   return (
-    <footer style={footerStyle} aria-label="Legal links">
-      <span style={operatorStyle}>運営: 株式会社ゲイド(Universo Fútbol)</span>
+    <footer style={footerStyle} aria-label={t('legal.links_aria')}>
+      <span style={operatorStyle}>{t('legal.operator')}</span>
       <nav style={linksStyle}>
         {LEGAL_LINKS.map((link) => (
           <a key={link.href} href={link.href} target="_blank" rel="noopener" style={linkStyle}>
-            {link.label}
+            {t(link.labelKey)}
           </a>
         ))}
       </nav>

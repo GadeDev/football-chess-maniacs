@@ -3,16 +3,21 @@
 // (プレイブック §5「キー数パリティ」/ 教訓1「複数形なし言語の日本語混入防止」)
 // =====================================================================
 
-import { describe, it, expect, afterEach } from 'vitest';
-import { t, tn, setLocale, getLocale, __test__ } from '../index';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { t, tn, setLocale, getLocale, initLocale, __test__ } from '../index';
 import ja from '../ja';
 import en from '../en';
 
 const { DICTS, SUPPORTED_LOCALES, FALLBACK_LOCALE } = __test__;
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   __test__.setCurrent('ja'); // 他テストへ影響しないよう正本へ戻す
 });
+
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+}
 
 describe('辞書パリティ', () => {
   it('ja と en のキー集合が完全一致する', () => {
@@ -25,6 +30,24 @@ describe('辞書パリティ', () => {
     const base = Object.keys(DICTS[FALLBACK_LOCALE]).sort();
     for (const loc of SUPPORTED_LOCALES) {
       expect(Object.keys(DICTS[loc]).sort()).toEqual(base);
+    }
+  });
+
+  it('全辞書で各キーの placeholder 集合が正本(ja)と一致する', () => {
+    const base = DICTS[FALLBACK_LOCALE];
+    for (const loc of SUPPORTED_LOCALES) {
+      for (const key of Object.keys(base)) {
+        expect(placeholders(DICTS[loc][key])).toEqual(placeholders(base[key]));
+      }
+    }
+  });
+
+  it('ja以外の辞書値に未翻訳のかな文字を残さない', () => {
+    for (const loc of SUPPORTED_LOCALES) {
+      if (loc === FALLBACK_LOCALE) continue;
+      for (const [key, value] of Object.entries(DICTS[loc])) {
+        expect(value, `${loc}:${key}`).not.toMatch(/[ぁ-んァ-ヶ]/);
+      }
     }
   });
 
@@ -58,6 +81,26 @@ describe('t() 基本動作', () => {
   it('{var} 補間が効く', () => {
     __test__.setCurrent('ja');
     expect(t('replay.turn', { current: 3, total: 36 })).toBe('ターン 3/36');
+  });
+});
+
+describe('ロケールと document.lang の同期', () => {
+  it('setLocale() が html lang を同期する', () => {
+    const documentElement = { lang: 'ja' };
+    vi.stubGlobal('document', { documentElement });
+
+    setLocale('zh-CN');
+    expect(documentElement.lang).toBe('zh-CN');
+  });
+
+  it('initLocale() が navigator.language を大小文字非依存で検出して html lang を同期する', () => {
+    const documentElement = { lang: 'ja' };
+    vi.stubGlobal('document', { documentElement });
+    vi.stubGlobal('navigator', { language: 'EN-us' });
+
+    initLocale();
+    expect(getLocale()).toBe('en');
+    expect(documentElement.lang).toBe('en');
   });
 });
 

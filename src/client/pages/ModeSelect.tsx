@@ -12,6 +12,7 @@ import { pickNpcOpponent } from '../../data/presetTeams';
 import { useAuth } from '../contexts/AuthContext';
 import BackButton from '../components/ui/BackButton';
 import { t } from '../i18n';
+import { useLocale } from '../i18n/useLocale';
 
 interface ModeSelectProps {
   /** 初期選択モード（前回設定の復元用） */
@@ -29,10 +30,10 @@ interface ModeSelectProps {
 
 type BattleType = 'com' | 'online' | 'friend';
 
-const DIFFICULTIES: { id: ComDifficulty; label: string; icon: string; color: string }[] = [
-  { id: 'beginner', label: t('difficulty.beginner'), icon: '\u{1F7E2}', color: '#44aa44' },
-  { id: 'regular', label: t('difficulty.regular'), icon: '\u{1F7E1}', color: '#cc8800' },
-  { id: 'maniac', label: t('difficulty.maniac'), icon: '\u{1F534}', color: '#cc4444' },
+const DIFFICULTIES: { id: ComDifficulty; labelKey: string; icon: string; color: string }[] = [
+  { id: 'beginner', labelKey: 'difficulty.beginner', icon: '\u{1F7E2}', color: '#44aa44' },
+  { id: 'regular', labelKey: 'difficulty.regular', icon: '\u{1F7E1}', color: '#cc8800' },
+  { id: 'maniac', labelKey: 'difficulty.maniac', icon: '\u{1F534}', color: '#cc4444' },
 ];
 
 function initialBattleType(mode: GameMode): BattleType {
@@ -48,6 +49,7 @@ export default function ModeSelect({
   onNavigate,
   onBack,
 }: ModeSelectProps) {
+  const locale = useLocale();
   const [battleType, setBattleType] = useState<BattleType>(initialBattleType(initialMode));
   const [onlineMode, setOnlineMode] = useState<'ranked' | 'casual'>(initialMode === 'casual' ? 'casual' : 'ranked');
   const [difficulty, setDifficulty] = useState<ComDifficulty>(initialDifficulty);
@@ -138,7 +140,7 @@ export default function ModeSelect({
                       fontWeight: active ? 'bold' : 'normal',
                     }}
                   >
-                    <span style={{ marginRight: 4 }}>{d.icon}</span>{d.label}
+                    <span style={{ marginRight: 4 }}>{d.icon}</span>{t(d.labelKey)}
                   </button>
                 );
               })}
@@ -152,7 +154,7 @@ export default function ModeSelect({
           }}>
             <span style={{ fontSize: 12, color: '#888' }}>{t('team.opponent_label')}</span>
             <span style={{ fontSize: 16, fontWeight: 'bold', color: '#cc8800' }}>{opponent.emoji}</span>
-            <span style={{ fontSize: 15, fontWeight: 'bold', flex: 1 }}>{opponent.name}</span>
+            <span style={{ fontSize: 15, fontWeight: 'bold', flex: 1 }}>{locale === 'ja' ? opponent.name : opponent.nameEn}</span>
             <span style={{ fontSize: 12, color: '#888' }}>{t('team.era_label', { era: opponent.era })}</span>
           </div>
         </div>

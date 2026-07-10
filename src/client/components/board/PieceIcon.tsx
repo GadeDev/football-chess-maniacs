@@ -97,7 +97,7 @@ const PieceIcon = memo(function PieceIcon({
         ...style,
       }}
       role="img"
-      aria-label={`${position} Cost${cost} ${side === "ally" ? t('piece.side_ally') : t('piece.side_enemy')}`}
+      aria-label={`${position} ${t('common.cost_compact', { cost })} ${side === "ally" ? t('piece.side_ally') : t('piece.side_enemy')}`}
     >
       {/* PNG トークン画像 */}
       <img

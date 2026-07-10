@@ -50,9 +50,11 @@ function presetTeamToFormationData(team: PresetTeam): FormationData {
       row: MAX_ROW - piece.row,
     })),
     bench: [],
+    // 永続データには正本名と安定IDを保存し、表示時に現在ロケールで解決する。
     teamName: team.name,
     teamEmoji: team.emoji,
     origin: 'preset',
+    presetTeamId: team.id,
   };
 }
 

@@ -30,7 +30,7 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
       height: '100%',
       background: 'linear-gradient(180deg, #0a0a1e 0%, #1a1a3e 100%)',
     }}>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>SETTINGS</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#fff', margin: 0, padding: '20px 0 0' }}>{t('screen.settings')}</h2>
 
       {/* スクロール可能領域: BackButtonはこの外（画面下部）に固定配置 */}
       <div style={{
@@ -57,10 +57,10 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
 
           {/* サウンド */}
           <Section title={t('settings.sound')}>
-            <ToggleRow label="BGM" checked={settings.bgmEnabled} onChange={v => update({ bgmEnabled: v })} />
+            <ToggleRow label={t('common.bgm')} checked={settings.bgmEnabled} onChange={v => update({ bgmEnabled: v })} />
             <ToggleRow label={t('settings.sfx')} checked={settings.sfxEnabled} onChange={v => update({ sfxEnabled: v })} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-              <span style={{ color: '#888', fontSize: 13, width: 50 }}>{t('settings.volume')}</span>
+              <span style={{ color: '#888', fontSize: 13, minWidth: 50, flexShrink: 0 }}>{t('settings.volume')}</span>
               <input type="range" min={0} max={100} value={settings.volume}
                 onChange={e => update({ volume: Number(e.target.value) })}
                 style={{ flex: 1, accentColor: '#4488cc' }}
@@ -95,10 +95,10 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
               {LEGAL_LINKS.map(link => (
                 <a key={link.href} href={link.href} target="_blank" rel="noopener" style={{ color: '#7a8db0', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                  {link.label}
+                  {t(link.labelKey)}
                 </a>
               ))}
-              <span style={{ color: '#555' }}>Version 0.9.0 (Phase B)</span>
+              <span style={{ color: '#555' }}>{t('settings.version')}</span>
             </div>
           </Section>
         </div>

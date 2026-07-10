@@ -12,6 +12,7 @@ import {
   SUPPORTED_LOCALES,
   LOCALE_NATIVE_NAMES,
   setLocale,
+  t,
   type Locale,
 } from './index';
 import { useLocale } from './useLocale';
@@ -31,7 +32,7 @@ export default function LanguageSelect({ style, className }: LanguageSelectProps
       onChange={(e) => setLocale(e.target.value as Locale)}
       className={className}
       style={style}
-      aria-label="Language"
+      aria-label={t('settings.language_aria')}
     >
       {SUPPORTED_LOCALES.map((loc) => (
         <option key={loc} value={loc}>
