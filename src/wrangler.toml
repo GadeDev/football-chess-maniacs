@@ -85,3 +85,69 @@ AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
 # PLATFORM_HMAC_SECRET
 # PLATFORM_SERVICE_API_KEY (optional internal AI debug key)
 # PLATFORM_CHECKOUT_RETURN_URL (optional override; origin must be allowed by Platform)
+
+# ════════════════════════════════════════════════════════════════
+# Staging: connects to Football-Platform's Staging API, never production.
+# All D1/KV/R2/Queue resources below are staging-only (newly created,
+# distinct IDs from production) — no production data is shared or copied.
+# No [[routes]] — this env only serves *.workers.dev, so footballchess.io
+# stays bound to the top-level (production) Worker only.
+# workers_dev is set explicitly (not inherited from the top level into
+# named environments in this Wrangler version).
+# ════════════════════════════════════════════════════════════════
+[env.staging]
+workers_dev = true
+routes = []
+
+[env.staging.observability]
+enabled = true
+
+[env.staging.durable_objects]
+bindings = [
+  { name = "GAME_SESSION", class_name = "GameSession" },
+  { name = "MATCHMAKING", class_name = "Matchmaking" },
+]
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameSession", "Matchmaking"]
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "fcms-staging"
+database_id = "af7a2b04-90c7-44c4-a016-7e1fc02f50e6"
+migrations_dir = "migrations"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "c90fd5dfa3df42c2b75ea10082826e3f"
+
+[[env.staging.r2_buckets]]
+binding = "R2"
+bucket_name = "fcms-storage-staging"
+
+[[env.staging.queues.producers]]
+binding = "MATCH_RESULT_QUEUE"
+queue = "fcms-match-results-staging"
+
+[[env.staging.queues.consumers]]
+queue = "fcms-match-results-staging"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[env.staging.ai]
+binding = "AI"
+
+[[env.staging.services]]
+binding = "PLATFORM"
+service = "fc-platform-api-staging"
+
+[env.staging.vars]
+CORS_ORIGIN = "https://fcms-staging.pages.dev"
+GAME_CLIENT_URL = "https://fcms-staging.pages.dev"
+PLATFORM_API_BASE = "https://fc-platform-api-staging.yanagiho.workers.dev"
+PLATFORM_GAME_ID = "football_chess_maniacs"
+PLATFORM_SAVE_SLOT_SKU = "fcms_save_slots_9"
+PLATFORM_SUBSCRIPTION_SKU = "uf_subscription_monthly_premium"
+SUBSCRIPTION_SAVE_SLOT_BONUS = "3"
+AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
