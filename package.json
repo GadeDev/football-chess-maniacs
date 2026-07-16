@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:staging": "VITE_PLATFORM_API_URL=https://fc-platform-api-staging.yanagiho.workers.dev vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
