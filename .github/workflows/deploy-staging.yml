@@ -1,0 +1,71 @@
+name: Deploy Staging
+
+# Manual-only, exact-commit-SHA deploy of the Worker + client to Football
+# Chess ManiacS Staging (football-chess-maniacs-staging.yanagiho.workers.dev
+# / fcms-staging.pages.dev). D1 migrations run against the staging database
+# only (fcms-staging, distinct ID from production). Production untouched.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Exact 40-character commit SHA to deploy to staging"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 20
+    steps:
+      - name: Validate commit SHA format
+        run: |
+          sha="${{ inputs.commit_sha }}"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be an exact 40-character hex commit SHA"
+            exit 1
+          fi
+      - name: Require Cloudflare credentials
+        run: |
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ] || [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID repository secrets are not set. Staging deploy cannot run until they are configured."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+      - name: Verify checked-out commit matches requested SHA
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "${{ inputs.commit_sha }}" ]; then
+            echo "::error::Checked out $actual, expected ${{ inputs.commit_sha }}"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Apply D1 migrations (staging database only)
+        run: npx --yes wrangler@4 d1 migrations apply fcms-staging --env staging --remote
+        working-directory: src
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy Worker (staging)
+        run: npx --yes wrangler@4 deploy --env staging
+        working-directory: src
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - run: npm run build
+      - name: Deploy client (staging Pages project)
+        run: npx --yes wrangler@4 pages deploy dist --project-name=fcms-staging --branch=main --commit-hash "${{ inputs.commit_sha }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
