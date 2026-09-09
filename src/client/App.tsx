@@ -300,6 +300,9 @@ function AppShell() {
 
   // フレンド対戦の合流成立: レーティング非対象の通常オンライン試合として開始する
   const handleFriendMatchFound = useCallback((id: string, team?: Team) => {
+    // 直前にサーバーCOMを遊んでいた場合の一時トークンを残さない。
+    // フレンド対戦は通常JWT（自己対戦のAwayタブだけsessionStorage席トークン）を使う。
+    setComAuthToken(null);
     setGameMode('casual');
     setComOpponent(null);
     handleMatchFound(id, team);
