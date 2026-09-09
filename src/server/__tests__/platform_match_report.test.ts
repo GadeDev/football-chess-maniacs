@@ -94,6 +94,20 @@ describe('buildMatchFinishPayload', () => {
     expect(payload.participants.every(p => p.stats.opponent_type === 'human')).toBe(true);
   });
 
+  it('同一アカウント2タブ対戦: synthetic Away席を実ユーザーIDとして送らない', () => {
+    const data: MatchFinishSourceData = {
+      ...BASE,
+      matchId: 'friend_selftest',
+      awayUserId: 'friend_self_12345678-1234-1234-1234-123456789abc',
+    };
+    const payload = buildMatchFinishPayload(data);
+    const away = payload.participants.find(p => p.side === 'away')!;
+    expect(payload.mode).toBe('friend');
+    expect(away.user_id).toBeNull();
+    expect(away.guest_session_id).toBe(data.awayUserId);
+    expect(away.stats.opponent_type).toBe('human');
+  });
+
   it('disconnect: disconnect_lossフラグが敗者側に立つ', () => {
     const data: MatchFinishSourceData = {
       ...BASE, reason: 'disconnect', disconnectLoser: 'away', scoreHome: 1, scoreAway: 1,
