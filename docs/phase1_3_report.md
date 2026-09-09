@@ -37,7 +37,7 @@ COM対戦は`homeUserId`/`awayUserId`のどちらかが`'com_ai'`(サーバー�
 turnLogには各ターンの「開始時刻」は保存されていない(`GameState.turnStartedAt`はDOの一時状態のみでturnLogには載らない)。そこで「ターンiの開始時刻 ≈ ターンi-1の解決時刻(`turnLog[i-1].timestamp`)、初手は試合作成時刻(`matches.created_at`)」という近似を採用し、そのプレイヤーの入力送信タイムスタンプ(`TurnInput.timestamp`)との差分を合計している。タイムアウト(空入力)ターンはこの合計に含めない(思考時間ではなく無為に経過した60秒であり、`turn_timeouts`側で既に表現されているため)。この近似は実際のターン開始と数十ms〜1秒程度ズレる可能性があるが、指示書の「取れない値は無理に作らない」の精神に反しない範囲の妥当な代替値と判断した(生成不可能な値を捏造するのではなく、既存の記録から導出可能な最善の近似)。
 
 **FK/PK/CKミニゲームの扱い(集計対象外・意図的な省略)**
-`docs/fcms_ingot_platform_service_runbook.md`及びCLAUDE.mdの記述によれば、FK/PK/CKミニゲームは現状クライアント側(`client/components/minigame/*`)のみで解決されるロジックであり、`engine/processTurn`が生成する`GameEvent`には対応するイベント型が存在しない(エンジン仕様としては`SHOOT`/`FOUL`等の既存イベントの範囲に収まる)。そのため本実装ではミニゲーム結果に由来する追加カウント(例: PK成功率)は集計していない。指示書「イベント型と実装の対応が曖昧な場合は…省略する」に従った。
+当時の実装資料及びCLAUDE.mdの記述によれば、FK/PK/CKミニゲームは現状クライアント側(`client/components/minigame/*`)のみで解決されるロジックであり、`engine/processTurn`が生成する`GameEvent`には対応するイベント型が存在しない(エンジン仕様としては`SHOOT`/`FOUL`等の既存イベントの範囲に収まる)。そのため本実装ではミニゲーム結果に由来する追加カウント(例: PK成功率)は集計していない。指示書「イベント型と実装の対応が曖昧な場合は…省略する」に従った。
 
 **loadout_snapshotの省略**
 契約は`participants[].loadout_snapshot`を任意フィールドとしており(「入れてよい」)、必須ではない。Queue Consumer内で`teams`テーブルへの追加クエリを発行する実装は可能だが、本作業のスコープ(「Queue Consumerへの送信追加」「turnLog集計ロジックの新設」)を最小に保つため見送った。将来必要になれば`teams.field_pieces`から追加できる。
