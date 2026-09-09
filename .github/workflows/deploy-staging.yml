@@ -1,10 +1,15 @@
 name: Deploy Staging
 
-# Manual-only, exact-commit-SHA deploy of the Worker + client to Football
-# Chess ManiacS Staging (football-chess-maniacs-staging.yanagiho.workers.dev
-# / fcms-staging.pages.dev). D1 migrations run against the staging database
-# only (fcms-staging, distinct ID from production). Production untouched.
+# Automatically deploy every main update to Football Chess ManiacS Staging.
+# Manual exact-SHA deployment remains available as a fallback.
+# Targets:
+# - Worker: football-chess-maniacs-staging.yanagiho.workers.dev
+# - Client: fcms-staging.pages.dev
+# Production is untouched.
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -18,6 +23,9 @@ concurrency:
   group: deploy-staging
   cancel-in-progress: false
 
+env:
+  DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_sha || github.sha }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,9 +34,9 @@ jobs:
     steps:
       - name: Validate commit SHA format
         run: |
-          sha="${{ inputs.commit_sha }}"
+          sha="$DEPLOY_SHA"
           if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::commit_sha must be an exact 40-character hex commit SHA"
+            echo "::error::deploy SHA must be an exact 40-character hex commit SHA"
             exit 1
           fi
       - name: Require Cloudflare credentials
@@ -39,12 +47,12 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
+          ref: ${{ env.DEPLOY_SHA }}
       - name: Verify checked-out commit matches requested SHA
         run: |
           actual="$(git rev-parse HEAD)"
-          if [ "$actual" != "${{ inputs.commit_sha }}" ]; then
-            echo "::error::Checked out $actual, expected ${{ inputs.commit_sha }}"
+          if [ "$actual" != "$DEPLOY_SHA" ]; then
+            echo "::error::Checked out $actual, expected $DEPLOY_SHA"
             exit 1
           fi
       - uses: actions/setup-node@v4
@@ -65,7 +73,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: npm run build
       - name: Deploy client (staging Pages project)
-        run: npx --yes wrangler@4 pages deploy dist --project-name=fcms-staging --branch=main --commit-hash "${{ inputs.commit_sha }}"
+        run: npx --yes wrangler@4 pages deploy dist --project-name=fcms-staging --branch=main --commit-hash "$DEPLOY_SHA"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
