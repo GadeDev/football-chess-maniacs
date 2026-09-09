@@ -78,9 +78,9 @@ export function resolveWinnerSide(
   return null;
 }
 
-/** COM対戦のゲスト擬似ID（com_player_*）か否か */
+/** COMゲスト擬似ID / 同一アカウント自己対戦の一時Away席IDか否か */
 function isGuestPseudoId(userId: string): boolean {
-  return userId.startsWith('com_player_');
+  return userId.startsWith('com_player_') || userId.startsWith('friend_self_');
 }
 
 function buildParticipant(
