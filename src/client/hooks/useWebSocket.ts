@@ -45,8 +45,23 @@ export function useWebSocket(options: UseWebSocketOptions) {
     const rs = wsRef.current?.readyState;
     if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
+    // 同一アカウントでフレンド対戦を2タブ検証する場合、参加側タブだけに
+    // sessionStorageでAway席専用トークンが保存される。通常対戦/ホスト側はJWTを使う。
+    let connectionToken = token;
+    try {
+      const match = url.match(/\/match\/([^/?]+)\/ws$/);
+      const matchId = match?.[1];
+      if (matchId && typeof sessionStorage !== 'undefined') {
+        const friendSeatToken = sessionStorage.getItem(`fcms_friend_ws_token:${matchId}`);
+        if (friendSeatToken) connectionToken = friendSeatToken;
+      }
+    } catch {
+      // sessionStorage が利用できない環境では通常トークンへフォールバック
+    }
+
     // §7-2: URLクエリパラメータにトークンを含める
-    const wsUrl = `${url}?token=${encodeURIComponent(token)}`;
+    const separator = url.includes('?') ? '&' : '?';
+    const wsUrl = `${url}${separator}token=${encodeURIComponent(connectionToken)}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     setStatus('connecting');
