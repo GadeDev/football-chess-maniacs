@@ -36,6 +36,31 @@ export class GameSession extends DurableObject<Env['Bindings']> {
       return this.handleInit(request);
     }
 
+    // /friend-auth: 同一アカウント2タブ自己対戦のAway席だけに使う一時トークンを登録。
+    // Workerのfriend/joinからDOへ内部的に呼ばれ、通常対戦のJWT認証には影響しない。
+    if (url.pathname.endsWith('/friend-auth') && request.method === 'POST') {
+      let body: { userId?: string; token?: string };
+      try {
+        body = await request.json() as { userId?: string; token?: string };
+      } catch {
+        return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+      }
+      const state = await this.getGameState();
+      if (!state) {
+        return Response.json({ error: 'Game not initialized' }, { status: 409 });
+      }
+      if (!body.userId || (body.userId !== state.homeUserId && body.userId !== state.awayUserId)) {
+        return Response.json({ error: 'Not a participant' }, { status: 403 });
+      }
+      if (!body.token || body.token.length < 20 || body.token.length > 200) {
+        return Response.json({ error: 'Invalid token' }, { status: 400 });
+      }
+      const friendTokens = (await this.ctx.storage.get<Record<string, string>>('friendSessionTokens')) ?? {};
+      friendTokens[body.userId] = body.token;
+      await this.ctx.storage.put('friendSessionTokens', friendTokens);
+      return Response.json({ ok: true });
+    }
+
     // /leave: プレイヤーの明示的な棄権（リロード復帰バナーの「棄権する」）。
     // 離脱者を不戦敗として即座に試合を終了し、相手にMATCH_ENDを通知する
     if (url.pathname.endsWith('/leave') && request.method === 'POST') {
@@ -71,38 +96,44 @@ export class GameSession extends DurableObject<Env['Bindings']> {
     // （旧実装は isComMatch のみで分岐しており、Bot補完マッチが常に403で接続不能だった）
     const existingState = await this.getGameState();
     const isComSession = existingState?.isComMatch === true && !!existingState?.comSessionToken;
+    const token = url.searchParams.get('token');
+    if (!token) {
+      return new Response('Missing token', { status: 401 });
+    }
 
     let userId: string;
     if (isComSession) {
-      const token = url.searchParams.get('token');
-      if (!token) {
-        return new Response('Missing token for COM session', { status: 401 });
-      }
       if (!existingState?.comSessionToken || !timingSafeEqual(token, existingState.comSessionToken)) {
         return new Response('Invalid COM session token', { status: 403 });
       }
       userId = existingState.homeUserId;
     } else {
-      const token = url.searchParams.get('token');
-      if (!token) {
-        return new Response('Missing token', { status: 401 });
-      }
+      // 同一アカウント2タブ自己対戦の参加側はJWTではなく、friend/joinが発行した
+      // Away席専用トークンを使う。JWTと長さが異なることがあるため比較前に長さを確認する。
+      const friendTokens = (await this.ctx.storage.get<Record<string, string>>('friendSessionTokens')) ?? {};
+      const friendEntry = Object.entries(friendTokens).find(([, expected]) =>
+        token.length === expected.length && timingSafeEqual(token, expected),
+      );
 
-      try {
-        const players = existingState ? [existingState.homeUserId, existingState.awayUserId] : undefined;
-        const result = await verifyWebSocketToken(
-          token,
-          this.env.PLATFORM_JWKS_URL,
-          {
-            issuer: this.env.PLATFORM_JWT_ISSUER,
-            audience: this.env.PLATFORM_JWT_AUDIENCE,
-            clockSkewSeconds: 60,
-          },
-          players,
-        );
-        userId = result.userId;
-      } catch (e) {
-        return new Response(`Authentication failed: ${(e as Error).message}`, { status: 401 });
+      if (friendEntry) {
+        userId = friendEntry[0];
+      } else {
+        try {
+          const players = existingState ? [existingState.homeUserId, existingState.awayUserId] : undefined;
+          const result = await verifyWebSocketToken(
+            token,
+            this.env.PLATFORM_JWKS_URL,
+            {
+              issuer: this.env.PLATFORM_JWT_ISSUER,
+              audience: this.env.PLATFORM_JWT_AUDIENCE,
+              clockSkewSeconds: 60,
+            },
+            players,
+          );
+          userId = result.userId;
+        } catch (e) {
+          return new Response(`Authentication failed: ${(e as Error).message}`, { status: 401 });
+        }
       }
     }
 
