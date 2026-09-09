@@ -131,14 +131,18 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
         body: JSON.stringify({ roomId: joinId, teamId }),
       });
       if (res.ok) {
-        const data = await res.json() as { matchId: string; team: Team };
+        const data = await res.json() as { matchId: string; team: Team; token?: string };
+        // 同一アカウントの2タブ自己対戦では、Away席専用の一時トークンを
+        // sessionStorageへ保存する。sessionStorageはタブ単位なのでHost側JWTを汚さない。
+        if (data.token) {
+          sessionStorage.setItem(`fcms_friend_ws_token:${data.matchId}`, data.token);
+        }
         onMatchFound(data.matchId, data.team);
         return;
       }
       const body = await res.json().catch(() => ({} as { error?: string })) as { error?: string };
       if (body.error === 'ROOM_NOT_FOUND') setError(t('friend.error_not_found'));
       else if (body.error === 'ROOM_ALREADY_USED') setError(t('friend.error_already_used'));
-      else if (body.error === 'CANNOT_JOIN_OWN_ROOM') setError(t('friend.error_own_room'));
       else setError(t('friend.error_not_found'));
     } catch {
       setError(t('friend.error_not_found'));
