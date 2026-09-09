@@ -1,5 +1,7 @@
 # FCMS Monetization Integration Audit - 2026-07-04
 
+> これは2026-07-04時点の監査記録。現行仕様は[Platform課金方針](fcms_platform_commerce_policy.md)を参照。INGOT仕様は2026-09-09に削除済みで、以下の残存コードの記載は再利用指示ではない。
+
 ## Scope
 
 Source instruction: `/Users/yanagiho-mba/Downloads/files 4/19_fcms_monetization_codex.md`.
@@ -33,7 +35,7 @@ FCMS must use Universo Futbol Platform as the billing and entitlement source of 
 
 - `src/api/shop.ts` still contains INGOT wallet, INGOT product, and `items/purchase` code paths.
 - `src/types/piece.ts` still exposes `pieceCostToIngots` for legacy callers/tests.
-- `docs/fcms_ingot_platform_service_runbook.md` documents the old INGOT service path.
+- The former INGOT runbook was deleted on 2026-09-09; Git history retains the historical record.
 - Older Platform product matching in `src/api/shop.ts` maps per-piece products by `sku`; tier checkout should instead pass the chosen item through metadata.
 
 ## Platform-Side TODOs

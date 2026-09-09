@@ -1,5 +1,8 @@
 # データ実態調査報告: Football Chess ManiacS
 
+> 過去の実装監査記録。現行課金方針は[Platform課金方針](docs/fcms_platform_commerce_policy.md)を参照。INGOT仕様は2026-09-09に削除済み。以下の通貨コード・台帳への言及は当時の証跡で、再利用指示ではない。
+
+
 ## 1. 要約(5行以内)
 - プレイヤーIDはPlatform user_idそのもの(JWT `sub`)。ブラウザが `fc-platform-api` を直接叩き、`localStorage`にPlatform JWTを保存する構成(server仲介なし)。
 - 試合の進行状態・戦績・レーティング・棋譜はすべてFCMS自前のCloudflare D1 / R2に保存されており、Platformの`match_results`/`match_participants`/`user_game_stats`には一切送られていない。`POST /v1/game/matches/finish` の呼び出しはコード上どこにも存在しない。
@@ -158,7 +161,7 @@ Commerce/Auth連携については**クライアント直接送信**の箇所が
 | 購入行動(どの駒を課金/INGOTで買ったか) | 保存済み(Platform正本 + `user_pieces_v2.source='purchase'`) | Platform DB + D1 | ○ | risk_taking(課金傾向) |
 | リプレイ視聴行動 | 保存されていない(API提供のみ、閲覧ログなし) | 未計測 | △ | - |
 
-**game_id突き合わせ**: このリポジトリのコード中で使われているgame_idリテラルは一貫して `football_chess_maniacs`(`src/wrangler.toml`の`PLATFORM_GAME_ID`, `src/api/auth.ts`の`DEFAULT_PLATFORM_GAME_ID`, `src/client/platform/config.ts`の`PLATFORM_GAME_ID`, `docs/fcms_ingot_platform_service_runbook.md`)。旧`fcm`という短縮game_idはコード内に見当たらない。Platform側CLAUDE.mdの運用ログにある「game_id `fcm`」表記は本リポジトリの現行実装とは一致せず、**推測: 初期のFCM連携作業時点(P10着手前)では`fcm`という仮のgame_idが検討/登録されていたが、後にFCMS側の正式なgame_idとして`football_chess_maniacs`に統一された可能性が高い**。Platform本番の`games`テーブルに`football_chess_maniacs`が実在するかどうかはこのリポジトリからは確認できない(Platform側での確認が必要)。
+**game_id突き合わせ**: このリポジトリのコード中で使われているgame_idリテラルは一貫して `football_chess_maniacs`(`src/wrangler.toml`の`PLATFORM_GAME_ID`, `src/api/auth.ts`の`DEFAULT_PLATFORM_GAME_ID`, `src/client/platform/config.ts`の`PLATFORM_GAME_ID`)。旧`fcm`という短縮game_idはコード内に見当たらない。Platform側CLAUDE.mdの運用ログにある「game_id `fcm`」表記は本リポジトリの現行実装とは一致せず、**推測: 初期のFCM連携作業時点(P10着手前)では`fcm`という仮のgame_idが検討/登録されていたが、後にFCMS側の正式なgame_idとして`football_chess_maniacs`に統一された可能性が高い**。Platform本番の`games`テーブルに`football_chess_maniacs`が実在するかどうかはこのリポジトリからは確認できない(Platform側での確認が必要)。
 
 ## 6. リスクと特記事項(Q12-13)
 

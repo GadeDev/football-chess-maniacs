@@ -1,5 +1,8 @@
 # Football Chess ManiacS — プラットフォーム実装仕様書 v1.0
 
+> 課金方針は[Platform課金方針](fcms_platform_commerce_policy.md)に従う。INGOTおよび独自通貨は使用しない。
+
+
 ## 文書メタデータ
 - **文書種別**: FCMS側の実装仕様書(Football-Platform連携込み)
 - **対象スコープ**: コマ購入 / チーム編成 / 編成セーブ / NPCチーム対戦 / ランキング表示 / ランキングマッチング
@@ -567,7 +570,7 @@ Content-Type: application/json
 4. `INSERT OR IGNORE INTO webhook_deliveries_received ... processed=0, result='processing'` で処理権をclaim
    - `changes=0` かつ `processed=1` なら 200 OK を返す(冪等)
    - `changes=0` かつ `processed=0` なら同時処理中として副作用を実行せず再送に任せる
-5. claim できたリクエストだけがwallet/piece更新などの副作用を実行
+5. claim できたリクエストだけがpiece権利更新などの副作用を実行
 6. 実処理後に `processed=1`, `result='ok'` 等へ更新
 7. `sku` から `piece_id` を抽出
    - パターン: `/^fcms_piece_(\d{3})$/`
