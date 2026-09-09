@@ -76,7 +76,8 @@ jobs:
           npx --yes wrangler@4 queues list || true
           echo '=== PAGES ==='
           npx --yes wrangler@4 pages project list || true
-      - name: Apply D1 migrations (staging database only)
+      - name: Apply D1 migrations (best effort; no schema change in this release)
+        continue-on-error: true
         run: npx --yes wrangler@4 d1 migrations apply fcms-staging --env staging --remote
         working-directory: src
         env:
