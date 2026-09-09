@@ -220,9 +220,12 @@ match.post('/friend/join', async (c) => {
   if (room.matchId) {
     return c.json({ error: 'ROOM_ALREADY_USED' }, 409);
   }
-  if (room.hostUserId === userId) {
-    return c.json({ error: 'CANNOT_JOIN_OWN_ROOM' }, 400);
-  }
+
+  // 通常はJWTのuserIdをAway席に使う。同一アカウントで2タブ自己対戦する場合だけ、
+  // Away席を内部的な別userIdに分離し、専用の一時WebSocketトークンを発行する。
+  const isSelfJoin = room.hostUserId === userId;
+  const awayUserId = isSelfJoin ? `friend_self_${crypto.randomUUID()}` : userId;
+  const selfSeatToken = isSelfJoin ? crypto.randomUUID() : undefined;
 
   const matchId = `friend_${crypto.randomUUID()}`;
   const doId = c.env.GAME_SESSION.idFromName(matchId);
@@ -233,7 +236,7 @@ match.post('/friend/join', async (c) => {
     body: JSON.stringify({
       matchId,
       homeUserId: room.hostUserId,
-      awayUserId: userId,
+      awayUserId,
       homeTeamId: room.hostTeamId,
       awayTeamId: body.teamId ?? 'default',
     }),
@@ -243,16 +246,28 @@ match.post('/friend/join', async (c) => {
     return c.json({ error: 'Failed to initialize session', detail: errBody }, 500);
   }
 
+  if (selfSeatToken) {
+    const authRes = await stub.fetch(new Request('https://do/friend-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: awayUserId, token: selfSeatToken }),
+    }));
+    if (!authRes.ok) {
+      const detail = await authRes.text();
+      return c.json({ error: 'Failed to initialize self-match auth', detail }, 500);
+    }
+  }
+
   await c.env.DB.prepare(
     'INSERT INTO matches (id, home_user_id, away_user_id, status, score_home, score_away, created_at) VALUES (?, ?, ?, ?, 0, 0, ?)',
   )
-    .bind(matchId, room.hostUserId, userId, 'playing', new Date().toISOString())
+    .bind(matchId, room.hostUserId, awayUserId, 'playing', new Date().toISOString())
     .run();
 
   // ホストのポーリング用にmatchIdを書き戻す（残りTTLは短縮し、参加後の放置滞留を防ぐ）
   await c.env.KV.put(kvKey, JSON.stringify({ ...room, matchId }), { expirationTtl: 60 });
 
-  return c.json({ matchId, team: 'away' as const });
+  return c.json({ matchId, team: 'away' as const, token: selfSeatToken });
 });
 
 // ── COM対戦セッション作成（サーバーサイドAI用） ──
