@@ -34,6 +34,17 @@ function isRequested(): boolean {
       sessionStorage.removeItem('fcms.debug');
       return false;
     }
+    // URL に指定が無い場合: 同じタブでの「再読み込み」「戻る/進む」のときだけ前回の状態を引き継ぐ
+    // （エラー画面の「再読み込み」で消えないため）。URL を新しく開いた場合は出さず、記憶も消す。
+    // 以前は無条件に引き継いでいたため、デバッグ後に同じタブで通常 URL を開いてもパネルが残る混乱があった。
+    const nav = (typeof performance !== 'undefined' && performance.getEntriesByType
+      ? (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)
+      : undefined);
+    const carriedOver = nav ? (nav.type === 'reload' || nav.type === 'back_forward') : false;
+    if (!carriedOver) {
+      sessionStorage.removeItem('fcms.debug');
+      return false;
+    }
     return sessionStorage.getItem('fcms.debug') === '1';
   } catch {
     return false;
