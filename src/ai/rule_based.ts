@@ -17,7 +17,7 @@ import {
   type PieceLegalMoves,
   type LegalAction,
 } from './legal_moves';
-import type { Difficulty } from './prompt_builder';
+import type { Difficulty } from './types';
 import type { AiContext, DiffConfig } from './ai_context';
 import { selectBallHolderOrder } from './ball_holder_ai';
 import { selectFormationOrders } from './formation_ai';

@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { apiUrl, getWsBaseUrl, type Page, type GameMode, type Team, type MatchmakingWsMessage, type ComDifficulty } from '../types';
+import { getWsBaseUrl, type Page, type GameMode, type Team, type MatchmakingWsMessage } from '../types';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { t } from '../i18n';
 import { useLocale } from '../i18n/useLocale';
@@ -17,12 +17,11 @@ interface MatchingProps {
   onMatchFound: (matchId: string, team?: Team, serverComToken?: string) => void;
   gameMode: GameMode;
   authToken: string;
-  comDifficulty?: ComDifficulty;
   /** COM対戦の対戦相手（NPC_TEAMSから選出済み。COM対戦のみ渡される） */
   opponent?: PresetTeam | null;
 }
 
-export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, comDifficulty = 'regular', opponent }: MatchingProps) {
+export default function Matching({ onNavigate, onMatchFound, gameMode, authToken, opponent }: MatchingProps) {
   const locale = useLocale();
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState<'searching' | 'found' | 'com_suggested' | 'error'>('searching');
@@ -111,57 +110,19 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
   }, [gameMode, hasAuthToken, wsConnect, wsDisconnect]);
 
   // ── COM対戦: 即座にマッチング成立 ──
-  // VITE_USE_GEMMA=true の場合はサーバーサイドCOM（GameSession DO経由）
-  // それ以外はクライアントサイドCOM（従来の即時マッチ）
+  // COM対戦は常にクライアントサイド（ブラウザ内でルールベースAIを実行）。
   // refガードなし: React StrictModeの再マウントでもtimerが正常に動くようにする
   useEffect(() => {
     if (gameMode !== 'com' && gameMode !== 'comVsCom') return;
 
-    const viteEnv = (import.meta as unknown as { env?: Record<string, string> }).env ?? {};
-    const useGemma = viteEnv.VITE_USE_GEMMA === 'true' && gameMode !== 'comVsCom';
+    const timer = setTimeout(() => {
+      const comMatchId = `com_${Date.now()}`;
+      setStatus('found');
+      onMatchFound(comMatchId);
+    }, 1000);
 
-    if (useGemma) {
-      // サーバーサイドCOM: GameSession DO を作成して接続
-      let cancelled = false;
-      let matched = false;
-      (async () => {
-        try {
-          const res = await fetch(apiUrl('/match/com'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              comDifficulty,
-              comEra: '現代',
-            }),
-          });
-          if (!res.ok) throw new Error(`Server returned ${res.status}`);
-          const data = await res.json() as { matchId: string; userId: string; team: 'home' | 'away'; token: string };
-          if (cancelled || matched) return;
-          matched = true;
-          setStatus('found');
-          onMatchFound(data.matchId, data.team, data.token);
-        } catch (e) {
-          console.warn('[Matching] Server-side COM creation failed, falling back to client-side:', e);
-          if (cancelled || matched) return;
-          matched = true;
-          const comMatchId = `com_${Date.now()}`;
-          setStatus('found');
-          onMatchFound(comMatchId);
-        }
-      })();
-
-      return () => { cancelled = true; };
-    } else {
-      // クライアントサイドCOM（従来）: 1秒後に即マッチ
-      const timer = setTimeout(() => {
-        const comMatchId = `com_${Date.now()}`;
-        setStatus('found');
-        onMatchFound(comMatchId);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [gameMode, onMatchFound, comDifficulty]);
+    return () => clearTimeout(timer);
+  }, [gameMode, onMatchFound]);
 
   // ── オンライン対戦: 経過時間カウント ──
   useEffect(() => {

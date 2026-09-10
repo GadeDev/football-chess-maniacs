@@ -29,7 +29,7 @@ describe('resolveMatchMode', () => {
     ['friend_abc', 'friend'],
     ['casual_abc', 'casual'],
     ['com_abc', 'com'],
-    ['gemma_com_abc', 'com'],
+    ['server_com_abc', 'com'],
     ['abc123', 'ranked'],
   ] as const)('%s → %s', (matchId, expected) => {
     expect(resolveMatchMode(matchId)).toBe(expected);
@@ -72,7 +72,7 @@ describe('buildMatchFinishPayload', () => {
   it('COM対戦: awayが"com_ai"ならCOM側を除外しopponent_type=cpu', () => {
     const data: MatchFinishSourceData = {
       ...BASE,
-      matchId: 'gemma_com_123',
+      matchId: 'server_com_123',
       homeUserId: 'com_player_abcdef',
       awayUserId: 'com_ai',
     };

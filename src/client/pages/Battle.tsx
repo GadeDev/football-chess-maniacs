@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fcmsFetch } from '../platform/authClient';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
-import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
+import { POSITION_COLORS, getWsBaseUrl, MAX_ROW } from '../types';
 import type { PresetTeam } from '../../data/presetTeams';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { useGameState } from '../hooks/useGameState';
@@ -133,55 +133,11 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const matchStartedAtRef = useRef<string>(new Date().toISOString());
   const comReportSentRef = useRef(false);
 
-  // サーバーサイドCOM: matchIdが gemma_com_ で始まる場合はDO経由（WebSocket接続）
+  // サーバーサイドCOM: matchIdが server_com_ で始まる場合はDO経由（WebSocket接続）
   // クライアントサイドCOM: matchIdが com_ で始まる場合は従来のローカル処理
-  const isServerCom = !!matchId?.startsWith('gemma_com_');
+  const isServerCom = !!matchId?.startsWith('server_com_');
   const isComVsCom = gameMode === 'comVsCom';
   const isCom = !isServerCom && (gameMode === 'com' || gameMode === 'comVsCom' || matchId?.startsWith('com_'));
-
-  // ── Gemma AI（サーバー経由）設定 ──
-  const viteEnv = (import.meta as unknown as { env?: Record<string, string> }).env ?? {};
-  const useGemmaRef = useRef(viteEnv.VITE_USE_GEMMA === 'true');
-
-  /** サーバーのGemma AI APIを呼び出してaway命令を取得 */
-  const fetchGemmaOrders = useCallback(async (
-    pieces: EnginePiece[],
-    scoreHome: number,
-    scoreAway: number,
-    turn: number,
-    maxTurn: number,
-  ): Promise<EngineOrder[] | null> => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/turn'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pieces,
-          myTeam: 'away',
-          scoreHome,
-          scoreAway,
-          turn,
-          maxTurn,
-          difficulty: comDifficulty,
-          era: '現代',
-        }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json() as {
-        orders: Array<{ pieceId: string; type: string; target?: { col: number; row: number }; targetPieceId?: string }>;
-        usedGemma: boolean;
-        gemmaLatencyMs: number | null;
-        fallbackReason: string | null;
-      };
-      console.log(
-        `[Battle] Gemma AI: usedGemma=${data.usedGemma}, latency=${data.gemmaLatencyMs}ms, fallback=${data.fallbackReason}`,
-      );
-      return data.orders as EngineOrder[];
-    } catch (e) {
-      console.warn('[Battle] Gemma AI fetch failed, using rule-based fallback:', e);
-      return null;
-    }
-  }, [comDifficulty]);
 
   // ── ハーフタイム交代管理 ──
   const [halftimeSubsUsed, setHalftimeSubsUsed] = useState(0);
@@ -522,7 +478,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   }, [state.status]);
 
   // クライアントCOM対戦の戦績報告（Phase 1-3補完）。ログイン時のみfire-and-forget。
-  // オンライン/サーバーCOM（gemma_com_）はDO→Queue経由で送信済みのため対象外。
+  // オンライン/サーバーCOM（server_com_）はDO→Queue経由で送信済みのため対象外。
   // アクセストークン（900秒失効）は1試合（15分超）の間にほぼ確実に切れるが、
   // fcmsFetchが送信前のrefreshと401時の1回リトライを担う（Issue #36）。
   useEffect(() => {
@@ -1148,38 +1104,16 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
             .map(o => clientOrderToEngine(o, fieldPieces));
         }
 
-        // away側 COM AI命令生成（Gemma AI → フォールバック: ルールベース）
-        let awayOrders: EngineOrder[];
-
-        if (useGemmaRef.current && !isComVsCom) {
-          const gemmaOrders = await fetchGemmaOrders(
-            enginePieces, state.scoreHome, state.scoreAway, state.turn, maxTurn,
-          );
-          if (gemmaOrders) {
-            awayOrders = gemmaOrders;
-            console.log(`[Battle] Gemma AI orders: ${awayOrders.length}`);
-          } else {
-            const comResult = generateRuleBasedOrders({
-              pieces: enginePieces, myTeam: 'away',
-              scoreHome: state.scoreHome, scoreAway: state.scoreAway,
-              turn: state.turn, maxTurn,
-              remainingSubs: MAX_SUBSTITUTIONS, benchPieces: [], maxFieldCost: MAX_FIELD_COST,
-              difficulty: comDifficulty,
-            });
-            awayOrders = comResult.orders;
-            console.log(`[Battle] Gemma fallback → rule-based: orders=${awayOrders.length}`);
-          }
-        } else {
-          const comResult = generateRuleBasedOrders({
-            pieces: enginePieces, myTeam: 'away',
-            scoreHome: state.scoreHome, scoreAway: state.scoreAway,
-            turn: state.turn, maxTurn,
-            remainingSubs: MAX_SUBSTITUTIONS, benchPieces: [], maxFieldCost: MAX_FIELD_COST,
-            difficulty: comDifficulty,
-          });
-          awayOrders = comResult.orders;
-          console.log(`[Battle] COM AI (away): strategy=${comResult.strategy}, orders=${awayOrders.length}`);
-        }
+        // away側 COM AI命令生成（ルールベース）
+        const comResult = generateRuleBasedOrders({
+          pieces: enginePieces, myTeam: 'away',
+          scoreHome: state.scoreHome, scoreAway: state.scoreAway,
+          turn: state.turn, maxTurn,
+          remainingSubs: MAX_SUBSTITUTIONS, benchPieces: [], maxFieldCost: MAX_FIELD_COST,
+          difficulty: comDifficulty,
+        });
+        const awayOrders: EngineOrder[] = comResult.orders;
+        console.log(`[Battle] COM AI (away): strategy=${comResult.strategy}, orders=${awayOrders.length}`);
 
         // 3. エンジン Board 構築
         // THROUGH_PASS入力時のfreeBallHexはUI仮表示なので、エンジンには渡さない。
@@ -1816,7 +1750,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     if (isMobile && navigator.vibrate) {
       navigator.vibrate([50, 30, 50]);
     }
-  }, [isCom, isComVsCom, matchId, state, dispatch, isMobile, wsSend, boardContext, formationData, clearReplayTimers, fetchGemmaOrders, comDifficulty, performGoalKickRestart, platformUserId]);
+  }, [isCom, isComVsCom, matchId, state, dispatch, isMobile, wsSend, boardContext, formationData, clearReplayTimers, comDifficulty, performGoalKickRestart, platformUserId]);
 
   // COM観戦用: handleConfirmの最新参照を保持
   handleConfirmRef.current = handleConfirm;

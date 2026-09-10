@@ -372,7 +372,6 @@ function AppShell() {
             onMatchFound={handleMatchFound}
             gameMode={gameMode}
             authToken={authToken ?? ''}
-            comDifficulty={comDifficulty}
             opponent={comOpponent}
           />
         )}

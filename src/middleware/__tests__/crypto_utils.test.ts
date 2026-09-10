@@ -57,7 +57,7 @@ describe('timingSafeEqual', () => {
 describe('MATCH_ID_PATTERN', () => {
   it('通常のmatchIdを受理する', () => {
     expect(MATCH_ID_PATTERN.test('com_1713780000000')).toBe(true);
-    expect(MATCH_ID_PATTERN.test('gemma_com_1713780000000_a1b2c3d4e5f6')).toBe(true);
+    expect(MATCH_ID_PATTERN.test('server_com_1713780000000_a1b2c3d4e5f6')).toBe(true);
     expect(MATCH_ID_PATTERN.test('match_abc-123')).toBe(true);
   });
 

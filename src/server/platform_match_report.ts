@@ -59,7 +59,7 @@ const COM_PSEUDO_USER_ID = 'com_ai';
 export function resolveMatchMode(matchId: string): MatchMode {
   if (matchId.startsWith('friend_')) return 'friend';
   if (matchId.startsWith('casual_')) return 'casual';
-  if (matchId.startsWith('com_') || matchId.startsWith('gemma_com_')) return 'com';
+  if (matchId.startsWith('com_') || matchId.startsWith('server_com_')) return 'com';
   return 'ranked';
 }
 

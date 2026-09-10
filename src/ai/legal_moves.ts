@@ -2,7 +2,7 @@
 // legal_moves.ts — 合法手生成（§5 ルールベース安全層）
 //
 // 毎ターン全11枚の合法手を列挙。
-// Gemmaに渡す構造化データの生成 & フォールバック時の手の列挙に使用。
+// ルールベースAIの手の列挙 & 将来の棋譜学習用の構造化データに使用。
 // ============================================================
 
 import type {
@@ -53,14 +53,14 @@ function canShootFromZone(zone: Zone, team: Team): boolean {
 // ================================================================
 
 export interface LegalAction {
-  /** ユニークID（Gemmaが参照する） */
+  /** ユニークID */
   id: string;
   action: OrderType;
   targetHex?: HexCoord;
   targetPieceId?: string;
   benchPieceId?: string;
   shootZone?: ShootZone;
-  /** Gemma向けの注釈 */
+  /** 手の注釈（ログ・学習データ用） */
   note: string;
 }
 
@@ -305,34 +305,4 @@ function estimateBlockProbability(shooter: Piece, opponents: Piece[]): number {
 
 function isBench(piece: Piece, benchPieces: Piece[]): boolean {
   return benchPieces.some((bp) => bp.id === piece.id);
-}
-
-// ================================================================
-// §5-2 Gemmaへの合法手データ変換
-// ================================================================
-
-/**
- * Gemma入力用のJSON構造に変換（§5-2 フォーマット準拠）
- * 合法手は上位5手に絞る（§9-5 プロンプトサイズ管理）
- */
-export function toLegalMovesJson(
-  allMoves: PieceLegalMoves[],
-  maxActionsPerPiece: number = 5,
-): object[] {
-  return allMoves.map((pm) => ({
-    piece_id: pm.pieceId,
-    position: pm.position,
-    cost: pm.cost,
-    current_hex: [pm.currentHex.col, pm.currentHex.row],
-    has_ball: pm.hasBall,
-    legal_actions: pm.legalActions.slice(0, maxActionsPerPiece).map((a) => ({
-      id: a.id,
-      action: a.action,
-      ...(a.targetHex ? { target: [a.targetHex.col, a.targetHex.row] } : {}),
-      ...(a.targetPieceId ? { target_piece: a.targetPieceId } : {}),
-      ...(a.shootZone ? { zone: a.shootZone } : {}),
-      ...(a.benchPieceId ? { bench_piece: a.benchPieceId } : {}),
-      note: a.note,
-    })),
-  }));
 }

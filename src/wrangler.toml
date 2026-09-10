@@ -57,10 +57,6 @@ queue = "fcms-match-results"
 max_batch_size = 10
 max_batch_timeout = 30
 
-# ── Workers AI ──
-[ai]
-binding = "AI"
-
 # ── Service Bindings ──
 [[services]]
 binding = "PLATFORM"
@@ -75,7 +71,6 @@ PLATFORM_GAME_ID = "football_chess_maniacs"
 PLATFORM_SAVE_SLOT_SKU = "fcms_save_slots_9"
 PLATFORM_SUBSCRIPTION_SKU = "uf_subscription_monthly_premium"
 SUBSCRIPTION_SAVE_SLOT_BONUS = "3"
-AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
 
 # ── Secrets (set via `wrangler secret put`) ──
 # PLATFORM_JWKS_URL
@@ -135,9 +130,6 @@ queue = "fcms-match-results-staging"
 max_batch_size = 10
 max_batch_timeout = 30
 
-[env.staging.ai]
-binding = "AI"
-
 [[env.staging.services]]
 binding = "PLATFORM"
 service = "fc-platform-api-staging"
@@ -150,4 +142,3 @@ PLATFORM_GAME_ID = "football_chess_maniacs"
 PLATFORM_SAVE_SLOT_SKU = "fcms_save_slots_9"
 PLATFORM_SUBSCRIPTION_SKU = "uf_subscription_monthly_premium"
 SUBSCRIPTION_SAVE_SLOT_BONUS = "3"
-AI_MODEL_ID = "@cf/google/gemma-3-12b-it"
