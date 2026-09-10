@@ -1,0 +1,67 @@
+name: Deploy footballchess.io (manual)
+
+# footballchess.io（開発用の公開先）へ手動配信する。main への push では動かない。
+# Actions 画面の「Run workflow」で confirm に "deploy" と入力したときだけ実行される。
+# Targets:
+# - Worker: football-chess-maniacs（routes: footballchess.io）
+# - Client: football-chess-maniacs.pages.dev
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '本番配信する場合は deploy と入力'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'deploy' }}
+    runs-on: ubuntu-latest
+    # Cloudflare API トークンは staging environment の secret を流用（同一アカウント）。
+    # 対象はあくまで本番 Worker / Pages。
+    environment: staging
+    timeout-minutes: 20
+    steps:
+      - name: Require Cloudflare API token
+        run: |
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN environment secret is not set."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - name: Deploy Worker (production, footballchess.io routes)
+        run: npx --yes wrangler@4 deploy
+        working-directory: src
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # VITE_PLATFORM_API_URL を渡さない = 本番 Platform API を向く（build:staging と対）
+      - run: npm run build
+      # board_mobile.png は 2026-09-10 時点でリポジトリにも配信物にも存在しない
+      # （一度も git 追跡されたことがなく、footballchess.io でも 404 相当）。
+      # 原本が用意され次第このステップは失敗扱い（exit 1）に戻すこと。
+      - name: Warn if board background is missing from the bundle
+        run: |
+          if [ ! -f dist/assets/board/board_mobile.png ]; then
+            echo "::warning::dist/assets/board/board_mobile.png is missing — 盤面背景は alt テキスト表示になります"
+          fi
+      - name: Deploy client (production Pages project)
+        run: npx --yes wrangler@4 pages deploy dist --project-name=football-chess-maniacs --branch=main --commit-hash "$GITHUB_SHA"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Smoke
+        run: |
+          curl -sI https://footballchess.io/assets/board/board_mobile.png | head -1
+          curl -s https://footballchess.io/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1
+          curl -s https://footballchess.io/api/ranking | head -c 200
