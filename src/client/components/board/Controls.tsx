@@ -150,16 +150,22 @@ export function useControls({
         zoomAround(pinchRef.current.midX, pinchRef.current.midY, newScale);
       } else if (e.touches.length === 1 && dragRef.current) {
         // ドラッグ中
-        const dx = e.touches[0].clientX - dragRef.current.startX;
-        const dy = e.touches[0].clientY - dragRef.current.startY;
+        // 注意: dragRef.current はイベント時点で読み切ること。setTransform の更新関数は
+        // React が次の描画時に遅延実行するため、その前に touchend が dragRef.current = null
+        // にすると更新関数内で null.originTx を読んで描画中に例外 → エラー境界が無ければ
+        // アプリ全体がアンマウントされる（Android Chrome 実機のタップは touchstart→
+        // 1px の touchmove→touchend が1フレーム内に連続するため確実に踏む。Issue #13）
+        const drag = dragRef.current;
+        const dx = e.touches[0].clientX - drag.startX;
+        const dy = e.touches[0].clientY - drag.startY;
         if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
           didDragRef.current = true;
         }
-        setTransform((prev) => ({
-          ...prev,
-          x: dragRef.current!.originTx + dx,
-          y: dragRef.current!.originTy + dy,
-        }));
+        // しきい値未満（タップの指ぶれ）では盤面を動かさない
+        if (!didDragRef.current) return;
+        const x = drag.originTx + dx;
+        const y = drag.originTy + dy;
+        setTransform((prev) => ({ ...prev, x, y }));
       }
     },
     [zoomAround, setTransform],
@@ -191,17 +197,18 @@ export function useControls({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!dragRef.current) return;
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
+      const drag = dragRef.current;
+      if (!drag) return;
+      // handleTouchMove と同じ理由で、更新関数の中では dragRef を参照しない
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
         didDragRef.current = true;
       }
-      setTransform((prev) => ({
-        ...prev,
-        x: dragRef.current!.originTx + dx,
-        y: dragRef.current!.originTy + dy,
-      }));
+      if (!didDragRef.current) return;
+      const x = drag.originTx + dx;
+      const y = drag.originTy + dy;
+      setTransform((prev) => ({ ...prev, x, y }));
     },
     [setTransform],
   );
