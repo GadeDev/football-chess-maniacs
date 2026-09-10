@@ -34,7 +34,7 @@ import { pickNpcOpponent, pickRandomNpcTeam } from '../data/presetTeams';
 import { MAX_ROW } from './types';
 import { loadLastSetup, saveLastSetup, type LastSetup } from './utils/lastSetup';
 import { saveActiveMatch, loadActiveMatch, clearActiveMatch, type ActiveMatchInfo } from './utils/activeMatch';
-import { apiUrl } from './types';
+import { fcmsFetch } from './platform/authClient';
 import { useLocale } from './i18n/useLocale';
 import { t } from './i18n';
 import LegalFooter from './components/LegalFooter';
@@ -86,6 +86,8 @@ function AppShell() {
   useLocale(); // ロケール変更時にルートから再描画し、全画面の t()/tn() 表示を更新する
 
   // JWT認証トークン: AuthProvider が Universo SSO fragment 消費 / ログインモーダル / localStorage を一元管理する
+  // authToken は WebSocket 接続に渡す用途のみ。REST は fcmsFetch が tokenStore の
+  // 最新トークンを使う（Issue #36）。WS 側の鮮度確保は useWebSocket が行う。
   const { accessToken: authToken, isLoggedIn, requireLogin } = useAuth();
 
   const [page, setPage] = useState<Page>('title');
@@ -233,15 +235,13 @@ function AppShell() {
   // 終了済み/参加者不一致なら黙って破棄する
   const [resumableMatch, setResumableMatch] = useState<ActiveMatchInfo | null>(null);
   useEffect(() => {
-    if (!authToken) return;
+    if (!isLoggedIn) return;
     const saved = loadActiveMatch();
     if (!saved) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/match/${saved.matchId}`), {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
+        const res = await fcmsFetch(`/match/${saved.matchId}`);
         if (cancelled) return;
         if (res.ok) {
           const body = await res.json() as { status?: string };
@@ -257,7 +257,7 @@ function AppShell() {
       }
     })();
     return () => { cancelled = true; };
-  }, [authToken]);
+  }, [isLoggedIn]);
 
   const handleResumeMatch = useCallback(() => {
     if (!resumableMatch) return;
@@ -272,15 +272,12 @@ function AppShell() {
   const handleAbandonMatch = useCallback(() => {
     if (!resumableMatch) return;
     // サーバーへ離脱通知（即時不戦敗処理。失敗してもDISCONNECT_GRACE_MSで同じ結果になる）
-    if (authToken) {
-      fetch(apiUrl(`/match/${resumableMatch.matchId}/leave`), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${authToken}` },
-      }).catch(() => {});
+    if (isLoggedIn) {
+      fcmsFetch(`/match/${resumableMatch.matchId}/leave`, { method: 'POST' }).catch(() => {});
     }
     clearActiveMatch();
     setResumableMatch(null);
-  }, [resumableMatch, authToken]);
+  }, [resumableMatch, isLoggedIn]);
 
   const handleMatchFound = useCallback((id: string, team?: Team, serverComToken?: string) => {
     setMatchId(id);
@@ -408,13 +405,13 @@ function AppShell() {
         {page === 'replay' && (
           <Replay onNavigate={navigate} matchId={matchId ?? undefined} />
         )}
-        {page === 'shop' && <ShopScreen onNavigate={navigate} authToken={authToken ?? undefined} />}
-        {page === 'ranking' && <RankingScreen onNavigate={navigate} authToken={authToken ?? undefined} />}
-        {page === 'collection' && <CollectionScreen onNavigate={navigate} authToken={authToken ?? undefined} />}
+        {page === 'shop' && <ShopScreen onNavigate={navigate} />}
+        {page === 'ranking' && <RankingScreen onNavigate={navigate} />}
+        {page === 'collection' && <CollectionScreen onNavigate={navigate} />}
         {page === 'profile' && <ProfileScreen onNavigate={navigate} />}
         {page === 'settings' && <SettingsScreen onNavigate={navigate} />}
         {page === 'friendMatch' && (
-          <FriendMatchScreen onNavigate={navigate} authToken={authToken ?? ''} onMatchFound={handleFriendMatchFound} />
+          <FriendMatchScreen onNavigate={navigate} onMatchFound={handleFriendMatchFound} />
         )}
         {page === 'presetTeams' && (
           <PresetTeamsScreen onNavigate={navigate} onSelectPresetTeam={handleSelectPresetTeam} />

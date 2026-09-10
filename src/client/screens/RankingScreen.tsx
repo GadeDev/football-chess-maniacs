@@ -4,15 +4,15 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
-import { apiUrl, type Page } from '../types';
+import { type Page } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { fcmsFetch } from '../platform/authClient';
 import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 
 interface RankingScreenProps {
   onNavigate: (page: Page) => void;
-  authToken?: string;
 }
 
 type Tab = 'overall' | 'weekly' | 'friends';
@@ -34,7 +34,7 @@ const TAB_LABELS: { id: Tab; labelKey: string }[] = [
   { id: 'friends', labelKey: 'ranking.tab_friends' },
 ];
 
-export default function RankingScreen({ onNavigate, authToken }: RankingScreenProps) {
+export default function RankingScreen({ onNavigate }: RankingScreenProps) {
   const [tab, setTab] = useState<Tab>('overall');
   const [top, setTop] = useState<RankEntry[]>([]);
   const [me, setMe] = useState<RankEntry | null>(null);
@@ -46,9 +46,7 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
     (async () => {
       setLoading(true);
       try {
-        const headers: Record<string, string> = {};
-        if (authToken) headers.Authorization = `Bearer ${authToken}`;
-        const res = await fetch(apiUrl('/api/ranking'), { headers });
+        const res = await fcmsFetch('/api/ranking');
         if (!res.ok) throw new Error(`ranking ${res.status}`);
         const data = (await res.json()) as { top: RankEntry[]; me: RankEntry | null };
         if (cancelled) return;
@@ -61,7 +59,7 @@ export default function RankingScreen({ onNavigate, authToken }: RankingScreenPr
       }
     })();
     return () => { cancelled = true; };
-  }, [authToken]);
+  }, [isLoggedIn]);
 
   const showOverall = tab === 'overall';
 

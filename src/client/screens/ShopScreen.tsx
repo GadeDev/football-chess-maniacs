@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { apiUrl, type Page, type Position, type Cost } from '../types';
+import { type Page, type Position, type Cost } from '../types';
 import { costToDisplay } from '../../types/piece';
 import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
@@ -12,11 +12,12 @@ import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 import { useLocale } from '../i18n/useLocale';
 import { buildPlatformShopUrl } from '../platform/config';
+import { fcmsFetch } from '../platform/authClient';
+import { useAuth } from '../contexts/AuthContext';
 import { LEGAL_TERMS_APPLICABILITY_KEY } from '../components/LegalFooter';
 
 interface ShopScreenProps {
   onNavigate: (page: Page) => void;
-  authToken?: string;
 }
 
 const ALL_POSITIONS: Position[] = ['GK', 'DF', 'SB', 'VO', 'MF', 'OM', 'WG', 'FW'];
@@ -66,24 +67,22 @@ function buildFallbackCatalog(): CatalogItem[] {
   return items;
 }
 
-export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
+export default function ShopScreen({ onNavigate }: ShopScreenProps) {
   const locale = useLocale();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>('ALL');
   const [toast, setToast] = useState<string | null>(null);
 
-  const authHeaders = useMemo<Record<string, string>>(() => {
-    const h: Record<string, string> = {};
-    if (authToken) h.Authorization = `Bearer ${authToken}`;
-    return h;
-  }, [authToken]);
+  // 所持フラグはログイン状態で変わるので、ログイン状態を依存に取る。
+  // Bearer は fcmsFetch が tokenStore の最新トークンから付与する。
+  const { isLoggedIn } = useAuth();
 
   // カタログ取得（API → 失敗時フォールバック）
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(apiUrl('/api/shop/catalog?limit=200'), { headers: authHeaders });
+        const res = await fcmsFetch('/api/shop/catalog?limit=200');
         if (!res.ok) throw new Error(`catalog ${res.status}`);
         const data = (await res.json()) as { items: RawCatalogItem[] };
         if (cancelled) return;
@@ -105,7 +104,7 @@ export default function ShopScreen({ onNavigate, authToken }: ShopScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [authHeaders]);
+  }, [isLoggedIn]);
 
   const handleOpenPlatformShop = useCallback((itemId?: string) => {
     window.location.href = buildPlatformShopUrl(itemId);

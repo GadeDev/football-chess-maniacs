@@ -5,7 +5,8 @@
 // ============================================================
 
 import { getPlatformApiUrl } from './config';
-import { saveTokens, getAccessToken, getRefreshToken, clearTokens } from './tokenStore';
+import { saveTokens, getAccessToken, getRefreshToken, clearTokens, isAccessTokenExpiring } from './tokenStore';
+import { apiUrl } from '../types';
 
 const API_PREFIX = '/v1';
 
@@ -132,6 +133,9 @@ export async function refresh(): Promise<boolean> {
       }
       const data = await res.json() as TokenResponse;
       saveTokens(data.access_token, data.refresh_token);
+      // 成功時も通知する。これが無いと AuthContext の accessToken state が
+      // 古いままになり、呼び出し元が失効トークンを送り続ける（Issue #36）。
+      notifyAuthChange(true);
       return true;
     } catch {
       // ネットワークエラーはトークンを消さない（オフライン耐性）
@@ -168,6 +172,45 @@ export async function authFetch(path: string, options: RequestInit = {}, _isRetr
   if (res.status === 401 && !_isRetry) {
     const refreshed = await refresh();
     if (refreshed) return authFetch(path, options, true);
+  }
+  return res;
+}
+
+/**
+ * 送信直前に使うべきアクセストークンを返す。失効間近なら refresh してから返す。
+ * - トークンが無ければ null
+ * - refresh 失敗でトークンが消えている（refresh token 無し / 401）なら null
+ * - ネットワーク失敗ならトークンは消えないので手持ちのものを返す（オフライン耐性）
+ */
+export async function ensureFreshAccessToken(): Promise<string | null> {
+  const token = getAccessToken();
+  if (!token) return null;
+  if (!isAccessTokenExpiring()) return token;
+
+  await refresh();
+  return getAccessToken();
+}
+
+/**
+ * FCMS Worker API 用の認証付きfetch（Platform API 用の authFetch と対になる）。
+ * 送信前に必要なら refresh し、401 なら1回だけ refresh して再送する。
+ * トークンが無い場合は Bearer 無しで送る（ランキング閲覧など公開APIのため）。
+ * @param path /api/... または /match/... のパス
+ */
+export async function fcmsFetch(path: string, options: RequestInit = {}, _isRetry = false): Promise<Response> {
+  const token = _isRetry ? getAccessToken() : await ensureFreshAccessToken();
+  const headers = new Headers(options.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  else headers.delete('Authorization');
+  if (!headers.has('Content-Type') && options.body && typeof options.body === 'string') {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const res = await fetch(apiUrl(path), { ...options, headers });
+
+  if (res.status === 401 && !_isRetry) {
+    const refreshed = await refresh();
+    if (refreshed) return fcmsFetch(path, options, true);
   }
   return res;
 }

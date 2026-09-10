@@ -10,8 +10,7 @@ import CenterOverlay, { type OverlayItem } from '../components/CenterOverlay';
 import { soundManager } from '../audio/SoundManager';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
-import { refresh as refreshAuthToken } from '../platform/authClient';
-import { getAccessToken } from '../platform/tokenStore';
+import { fcmsFetch } from '../platform/authClient';
 import type { BallTrail } from '../components/board/Overlay';
 import { type FlyingBallData } from '../components/FlyingBall';
 import { POSITION_COLORS, apiUrl, getWsBaseUrl, MAX_ROW } from '../types';
@@ -123,7 +122,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   const replayTurnsRef = useRef<TurnSnapshot[]>([]);
 
   // クライアントCOM対戦の戦績報告用（Phase 1-3補完）。ログイン時のみ試合終了後に送信
-  const { userId: platformUserId, accessToken } = useAuth();
+  const { userId: platformUserId, isLoggedIn } = useAuth();
   const comTurnLogRef = useRef<Array<{
     turn: number;
     inputs: Record<string, { player_id: string; nonce: string; timestamp: number; orders: unknown[] }>;
@@ -361,11 +360,14 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   });
 
   // ── オンライン対戦 / サーバーサイドCOM: WS接続 + ゲーム初期化 ──
+  // authToken の「値」ではなく「有無」を依存に取る。値を依存にすると refresh による
+  // トークン更新（約14分ごと）のたびに試合中のWSが切断→再接続される（Issue #36）。
+  const hasAuthToken = !!authToken;
   useEffect(() => {
     if (isCom && !isServerCom) return;
     if (!matchId) return;
     // オンライン対戦はauthToken必須、サーバーサイドCOMはauthTokenなしでも接続可能
-    if (!isServerCom && !authToken) return;
+    if (!isServerCom && !hasAuthToken) return;
 
     wsConnect();
 
@@ -379,7 +381,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     });
 
     return () => wsDisconnect();
-  }, [isCom, isServerCom, matchId, authToken, wsConnect, wsDisconnect, dispatch, propMyTeam]);
+  }, [isCom, isServerCom, matchId, hasAuthToken, wsConnect, wsDisconnect, dispatch, propMyTeam]);
 
   // ── COM対戦: ゲーム状態を即座に初期化 ──
   // ── 1st Halfキックオフチーム（ランダム決定、2nd Halfは逆） ──
@@ -521,12 +523,12 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
 
   // クライアントCOM対戦の戦績報告（Phase 1-3補完）。ログイン時のみfire-and-forget。
   // オンライン/サーバーCOM（gemma_com_）はDO→Queue経由で送信済みのため対象外。
-  // アクセストークン（900秒失効）は1試合（15分超）の間にほぼ確実に切れるため、
-  // 送信前にrefreshを試行し、それでも401なら1回だけrefresh→再送する（リトライは1回まで）
+  // アクセストークン（900秒失効）は1試合（15分超）の間にほぼ確実に切れるが、
+  // fcmsFetchが送信前のrefreshと401時の1回リトライを担う（Issue #36）。
   useEffect(() => {
     if (state.status !== 'finished' || comReportSentRef.current) return;
     if (!isCom || isComVsCom || !state.matchId?.startsWith('com_')) return;
-    if (!accessToken || !platformUserId || comTurnLogRef.current.length === 0) return;
+    if (!isLoggedIn || !platformUserId || comTurnLogRef.current.length === 0) return;
     comReportSentRef.current = true;
     const body = JSON.stringify({
       matchId: state.matchId,
@@ -536,19 +538,9 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
       finishedAt: new Date().toISOString(),
       turnLog: comTurnLogRef.current,
     });
-    const send = (token: string) => fetch(apiUrl('/match/com-report'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body,
-    });
     void (async () => {
       try {
-        // refresh失敗時（オフライン等）は手持ちのトークンでそのまま試す
-        await refreshAuthToken();
-        let res = await send(getAccessToken() ?? accessToken);
-        if (res.status === 401 && (await refreshAuthToken())) {
-          res = await send(getAccessToken() ?? accessToken);
-        }
+        const res = await fcmsFetch('/match/com-report', { method: 'POST', body });
         if (!res.ok) {
           console.warn(`[Battle] com-report rejected: HTTP ${res.status}`);
         }
@@ -557,7 +549,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
         console.warn('[Battle] com-report failed:', e);
       }
     })();
-  }, [state.status, state.matchId, state.scoreHome, state.scoreAway, isCom, isComVsCom, accessToken, platformUserId]);
+  }, [state.status, state.matchId, state.scoreHome, state.scoreAway, isCom, isComVsCom, isLoggedIn, platformUserId]);
 
   // リプレイ中 or 相手待ちフラグ（操作不可）
   const isResolving = state.status === 'resolving';

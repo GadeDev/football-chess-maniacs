@@ -87,9 +87,11 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
   });
 
   // ── オンライン対戦: WS接続開始 ──
+  // authToken の値ではなく有無を依存にする（refresh による更新で再接続しない。Issue #36）
+  const hasAuthToken = !!authToken;
   useEffect(() => {
     if (gameMode === 'com' || gameMode === 'comVsCom') return;
-    if (!authToken) {
+    if (!hasAuthToken) {
       setErrorMsg(t('matching.login_required'));
       setStatus('error');
       return;
@@ -98,7 +100,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
     let cancelled = false;
     (async () => {
       // WS接続前に編成teamIdを解決（JOIN_QUEUEで送る）
-      teamIdRef.current = await resolveActiveTeamId(authToken);
+      teamIdRef.current = await resolveActiveTeamId();
       if (cancelled) return;
       wsConnect();
     })();
@@ -106,7 +108,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
       cancelled = true;
       wsDisconnect();
     };
-  }, [gameMode, authToken, wsConnect, wsDisconnect]);
+  }, [gameMode, hasAuthToken, wsConnect, wsDisconnect]);
 
   // ── COM対戦: 即座にマッチング成立 ──
   // VITE_USE_GEMMA=true の場合はサーバーサイドCOM（GameSession DO経由）

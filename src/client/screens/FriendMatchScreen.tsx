@@ -6,15 +6,15 @@
 // ============================================================
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { apiUrl, type Page, type Team } from '../types';
+import { type Page, type Team } from '../types';
 import { resolveActiveTeamId } from '../utils/resolveActiveTeamId';
 import { useAuth } from '../contexts/AuthContext';
+import { fcmsFetch } from '../platform/authClient';
 import BackButton from '../components/ui/BackButton';
 import { t } from '../i18n';
 
 interface FriendMatchScreenProps {
   onNavigate: (page: Page) => void;
-  authToken: string;
   /** 合流成立時: バトル画面へ遷移する */
   onMatchFound: (matchId: string, team?: Team) => void;
 }
@@ -35,7 +35,7 @@ function buildInviteUrl(roomId: string): string {
   return url.toString();
 }
 
-export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound }: FriendMatchScreenProps) {
+export default function FriendMatchScreen({ onNavigate, onMatchFound }: FriendMatchScreenProps) {
   const [mode, setMode] = useState<'menu' | 'hosting' | 'joining'>('menu');
   const [roomId, setRoomId] = useState('');
   const [joinId, setJoinId] = useState(() => friendRoomIdFromUrl());
@@ -60,10 +60,9 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
     setError('');
     setBusy(true);
     try {
-      const teamId = await resolveActiveTeamId(authToken);
-      const res = await fetch(apiUrl('/match/friend/create'), {
+      const teamId = await resolveActiveTeamId();
+      const res = await fcmsFetch('/match/friend/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ teamId }),
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
@@ -75,9 +74,7 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
       const poll = async () => {
         if (matchedRef.current) return;
         try {
-          const statusRes = await fetch(apiUrl(`/match/friend/status/${data.roomId}`), {
-            headers: { Authorization: `Bearer ${authToken}` },
-          });
+          const statusRes = await fcmsFetch(`/match/friend/status/${data.roomId}`);
           if (statusRes.ok) {
             const status = await statusRes.json() as { matched: boolean; matchId?: string; team?: Team; expired?: boolean };
             if (status.matched && status.matchId) {
@@ -103,7 +100,7 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
     } finally {
       setBusy(false);
     }
-  }, [authToken, onMatchFound, isLoggedIn, requireLogin]);
+  }, [onMatchFound, isLoggedIn, requireLogin]);
 
   const handleCopy = useCallback((kind: 'id' | 'url') => {
     const text = kind === 'id' ? roomId : buildInviteUrl(roomId);
@@ -124,10 +121,9 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
     setError('');
     setBusy(true);
     try {
-      const teamId = await resolveActiveTeamId(authToken);
-      const res = await fetch(apiUrl('/match/friend/join'), {
+      const teamId = await resolveActiveTeamId();
+      const res = await fcmsFetch('/match/friend/join', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ roomId: joinId, teamId }),
       });
       if (res.ok) {
@@ -149,7 +145,7 @@ export default function FriendMatchScreen({ onNavigate, authToken, onMatchFound 
     } finally {
       setBusy(false);
     }
-  }, [joinId, authToken, onMatchFound, isLoggedIn, requireLogin]);
+  }, [joinId, onMatchFound, isLoggedIn, requireLogin]);
 
   const handleBack = useCallback(() => {
     matchedRef.current = true;

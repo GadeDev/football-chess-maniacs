@@ -156,7 +156,7 @@ public/
 | ball.ts | §9-2 フェーズ2 | ✅ |
 | special.ts | §9-2 フェーズ3 | ✅ |
 | turn_processor.ts | §9-2 全フェーズ統合 | ✅ |
-| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/ssoFragment) | ✅ 825 tests passing (+10 skip: ライブE2E) |
+| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/authClient/AuthContext/useWebSocket/ssoFragment) | ✅ 855 tests passing (+10 skip: ライブE2E) |
 | worker.ts + api/* | Hono REST API + WebSocket | ✅ |
 | durable/game_session.ts | §4-3 DO Hibernation + §7-2 WS認証 + processTurn統合 + ハーフタイム/AT/ゴールリスタート | ✅ |
 | durable/matchmaking.ts | §4-2 シャード構成マッチメイキング | ✅ |
@@ -275,6 +275,9 @@ public/
 | クライアントCOM対戦の戦績送信（2026-07-08, `1ce0f04`） | Phase 1-3の構造的制約（`com_`のクライアントCOM対戦はQueueに到達せず戦績未送信）を解消。サーバー: `POST /match/com-report`新設（JWT必須+matchingレート制限。バリデーション: matchId `/^com_\d{10,17}$/`・スコア0-99・ISO時刻/3時間上限・turnLog 1〜60ターン/150イベント/ターン・512KBボディ上限。`sendMatchFinishReport`再利用でmode=com/人間1名参加、Platform側`(game_id, external_match_id)`ユニークで冪等）。クライアント: BattleにDO互換の`comTurnLogRef`を記録（processTurn同期のためDate.now()≒確定時刻、思考時間の近似はサーバーCOM経路と同意味論）、試合終了（status finished）時に**ログイン時のみ**fire-and-forget送信（ゲスト・COM観戦は送らない、失敗はゲーム進行に無影響）。テスト+5件（809→814）。**本番実地検証済み**: スモークユーザーで202受理→Platform統計 matches_played 1→2 / wins 0→1 を確認 | ✅ |
 | 戦績不達の原因調査（2026-07-08, 調査のみ・コード無変更） | オーナー実機2試合がPlatform `match_results` に不達（既存2件=7/7の2回のスモークのまま）の原因調査。**確認済み事実**: ①設定不一致なし（`wrangler secret list` に `PLATFORM_GAME_SERVER_TOKEN` 存在・名前一致、`PLATFORM_API_BASE`=本番Platform、payloadにgame_idフィールド自体がなくトークンでゲーム識別）②コードはWorker（7/7 10:01Z デプロイ）・Pages（`Battle-180u49mX.js` に com-report 含有）とも本番反映済み ③**本番D1 `matches` は7/7スモーク1行のみ=本日2試合はクライアントCOM対戦（`/match/com-report` 経路のみ該当）** ④`/match/com-report` はjwtMiddleware必須（無効/無トークンとも401を実測確認）。**最有力仮説: アクセストークン失効による401の黙殺** — Platform実トークンは900秒失効だがCOM対戦1試合は15分超、`AuthContext` はexp検証も自動refreshもなく（localStorage存在チェックのみで「ログイン中」表示）、Battle.tsxのcom-report送信は素の`fetch`（`authFetch`の401→refresh機構を通らない）+`.catch(()=>{})`で無音消滅。次点仮説: ゲストプレイ（送信条件で最初からスキップ）。**修正案（未実装・承認待ち）**: 送信前`refresh()`または401時1回refresh→再送、非2xxの`console.warn`、Worker `[observability]`有効化（現状過去ログ参照不能）、AuthContextのexp検証。**Platform側FCMS旧トークン2本のrevokeは修正完了まで保留** | ✅ |
 | com-reportトークン失効修正（2026-07-08, 指示書 UF_FCMS_ComReport_Fix_v1, PR #35） | 上記調査の最有力仮説（アクセストークン900秒失効 < 1試合15分超 → 401黙殺）への最小修正。①Battle.tsxのcom-report送信を「送信前に`refresh()`試行→tokenStore最新トークンで送信→401なら**1回だけ**refresh→再送」に変更（`authClient.refresh()`再利用=同時実行一本化済み・例外を投げない。refresh失敗時は手持ちトークンでそのまま試行、ゲスト除外ガード・fire-and-forget設計は不変）。②可観測性: 非2xx応答と例外を`console.warn`出力（完全無音を解消、UI表示なし）、`src/wrangler.toml`に`[observability] enabled = true`追加（tail以外の過去ログ参照を可能に）。スコープ外: AuthContextのexp検証・自動refresh・FCMS API向けauthFetch共通ラッパーは**Issue #36 起票のみ**（中期対応）。検証: tsc 0エラー/テスト804件pass/vite build/wrangler dry-run成功。**実機検証（ログイン状態で15分超のCOM対戦完走→com-report 2xx→Platform match_results 3件以上）はマージ+デプロイ後にオーナー協調で実施** | ✅ |
+| 課金方針転換（2026-09-09, PR #42, 正本 `docs/fcms_platform_commerce_policy.md`） | Owner決定: 課金・決済はPlatformで行い、INGOT（ゲーム内通貨・通貨パック・残高・換算・通貨消費購入）を仕様から削除。旧INGOTサービス手順書を削除。**仕様文書のみの変更**で、`src/api/shop.ts`（wallet/ingots/ingot-products/purchase経路）・`src/api/webhooks.ts`の通貨処理・`src/types/piece.ts`の換算関数・関連テストは残存（除去は別タスク。Platformへの商品導線と購入権利のゲーム内反映は維持すること）。販売商品・価格・販売開始・配備は未承認 | ✅（docsのみ） |
+| フレンド対戦 同一アカウント2タブ自己対戦（2026-09-10, PR #43/#44） | ログイン済みユーザーがタブAでルーム作成→タブBで同じルームに参加できる（旧`CANNOT_JOIN_OWN_ROOM` 400を撤廃）。`POST /match/friend/join`はhostと同一userIdの場合にAway席を合成ID `friend_self_<uuid>` に分離し、DO `/friend-auth`（`friendSessionTokens`ストレージ）へ一時トークンを登録してレスポンス`token`で返す。クライアント（`FriendMatchScreen`）は`sessionStorage['fcms_friend_ws_token:<matchId>']`（タブ単位＝ホスト側JWTを汚さない）に保存し、`useWebSocket`が`/match/:id/ws`接続時にJWTより優先。別ユーザーの通常参加はJWT経路のまま（`token`なし）。Platform戦績では`friend_self_*`を`com_player_*`と同様にゲスト参加扱い（`platform_match_report.ts`）。App.tsxはフレンド対戦前に`comAuthToken`をクリア。**用途は自己テスト**（`friend_`はレート対象外）。`match_friend.test.ts`は旧400テストが未更新で赤だったのを新仕様（200+token/合成ID/DO 2回到達/D1 away_user_id）の検証に置換（2026-09-10, PR #49） | ✅ |
+| Staging自動デプロイ（2026-07-16〜17 env整備 PR #39-#41 → 2026-09-10 自動化 PR #45-#48） | `.github/workflows/deploy-staging.yml`: mainへのpushで自動実行（`workflow_dispatch`で任意SHAの手動デプロイも可、GitHub `staging` environmentの`CLOUDFLARE_API_TOKEN`が必要）。`src/wrangler.toml [env.staging]`（Worker `football-chess-maniacs-staging.yanagiho.workers.dev`・D1 `fcms-staging`・KV/R2/Queueは別ID・`routes = []`・`PLATFORM_API_BASE`=Platform Staging）へWorkerをデプロイし、クライアントをPagesプロジェクト`fcms-staging`（`fcms-staging.pages.dev`）へデプロイ。D1 migrationは`continue-on-error`。**本番（footballchess.io）は対象外**で従来通り手動`wrangler deploy`/`pages deploy`。**修正（2026-09-10）**: クライアントのビルドが`npm run build`だったため`VITE_PLATFORM_API_URL`未設定→バンドルが本番Platform APIを向き、Staging WorkerのJWT検証（Platform Staging）と噛み合わずログイン系が全滅する構成だった（PR #40が作った`build:staging`をワークフローが使っていなかった）→`npm run build:staging`に変更。Staging Workerの`PLATFORM_JWKS_URL`/`PLATFORM_JWT_ISSUER`/`PLATFORM_JWT_AUDIENCE`/`PLATFORM_GAME_SERVER_TOKEN`がenv.staging用に設定済みか、Google OAuthクライアントに`fcms-staging.pages.dev`が登録済みかは要確認 | ✅（ワークフロー整備。初回成功はActionsで確認） |
 
 ---
 
@@ -734,6 +737,7 @@ LIVE_E2E=1 npx vitest run src/online/__tests__/ws_e2e_live.test.ts  # Terminal 2
 - `vite.config.ts`: root=src/client, React plugin, 出力=dist/
 - `wrangler.toml`: `[ai] binding = "AI"`, `AI_MODEL_ID = "@cf/google/gemma-3-12b-it"`, DO=`new_sqlite_classes`（Free plan必須）
 - **本番URL**: `https://footballchess.io`（Worker custom domain。API以外のGETはPages本体へプロキシ）/ Worker直: `https://football-chess-maniacs.yanagiho.workers.dev` / Pages直: `https://football-chess-maniacs.pages.dev`
+- **Staging URL**: Worker `https://football-chess-maniacs-staging.yanagiho.workers.dev` / Pages `https://fcms-staging.pages.dev`（`wrangler deploy --env staging` + `npm run build:staging` → `pages deploy dist --project-name=fcms-staging`。GitHub Actions `deploy-staging.yml`がmain pushで自動実行）
 - `VITE_USE_GEMMA=true`: クライアント側のGemma AI呼び出しを有効化（.env.localで設定）
 
 ---
@@ -756,7 +760,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | ✅ | ~~`callPlatformApi` にタイムアウト追加~~ — 対応済み（`AbortController` + `DEFAULT_PLATFORM_API_TIMEOUT_MS` 15秒、外部signal合成対応。2026-07-08確認） | `api/auth.ts` |
 | ✅ | ~~`/match/com` のDO大量生成リスク~~ — 対応済み（IP単位の二重レート制限: 3req/分 + 20req/時。2026-07-08確認） | `worker.ts` / `rate_limit.ts` |
 | 🟡 | Webhookにタイムスタンプ署名がある場合は5分窓のリプレイ防止を追加（現状 `delivery_id` 永続テーブル依存） | `api/webhooks.ts` |
-| 🟡 | クライアントの `authToken` 取得・保管経路をドキュメント化（postMessage受領か localStorage 保管か未確認） | `App.tsx` / `ShopScreen.tsx` |
+| ✅ | ~~クライアントの `authToken` 取得・保管経路をドキュメント化~~ — 対応済み（2026-09-10, Issue #36）: localStorage `fcms_token`/`fcms_refresh_token` に保管、`AuthContext` は exp を検証し失効60秒前に自動refresh、FCMS API は `fcmsFetch` で最新トークンを自動付与。WS接続（`useWebSocket`/Battle/Matching）はトークンの値ではなく有無を依存にし、refreshによる更新で試合中に再接続しない（`tokenRef`+`hasAuthToken`、2026-09-10レビュー修正） | `AuthContext.tsx` / `authClient.ts` |
 | 🟡 | 旧通貨コードの除去は未着手。Platform課金方針に従い呼出元・互換処理を確認して整理する。通貨返金機能の新規実装は不要 | `docs/fcms_platform_commerce_policy.md` |
 
 ### 良好な点
@@ -784,7 +788,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | ✅ | JOIN_QUEUEの実teamId送信は対応済（`8fc5c94`）。オンライン/フレンド対戦の2クライアントE2Eも検証済（2026-07-02、S1〜S5全PASS+バグ8件修正。上表・outgame_plan_v2 §7参照）。残: `client_hash`（盤面ハッシュ）は未実装のまま（サーバー未検証のため実害なし） | `e2e/online_s*.mjs` |
 | ✅ | リプレイ視聴: COM対戦(`66076cb`)+**オンライン対戦(2026-07-08、TURN_RESULT経路のクライアント録画)**を配線済。残: リロード再接続時の欠落ターン補完（サーバーR2 `/replays/:id` 経由のビューア接続）、`/replays/:id/turn/:turn`(誰も書かず実質stub) | `api/replay.ts` |
 | ✅ | 選手交代: エンジン(applySubstitutions)+クライアントCOM(`d4becd7`)+DO/PvP・サーバーCOM(`a03b243`)で実装済み。残: COM AIへのbench供給(現状AIは交代提案せず) / 得点後リスタートでDOは交代がリセット(クライアントは保持)の挙動差 / オンラインE2E未検証 | `game_session.ts` |
-| ✅ | FriendMatch: `POST /match/friend/create`・`GET /match/friend/status/:roomId`・`POST /match/friend/join`で実装済み(outgame整理v2 T6, `f909eac`)。招待コード/URL方式、matchIdは`friend_`prefixでレーティング対象外。残: E2E未検証。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*`, `api/match.ts` |
+| ✅ | FriendMatch: `POST /match/friend/create`・`GET /match/friend/status/:roomId`・`POST /match/friend/join`で実装済み(outgame整理v2 T6, `f909eac`)。招待コード/URL方式、matchIdは`friend_`prefixでレーティング対象外。同一アカウント2タブ自己対戦は#43/#44（2026-09-10）。残: 別ユーザー2アカウントでの実機E2E未検証。Collection(`c44ed82`)/Ranking(`7d58a51`)は実データ化済。RankingはPvP対戦が無いと空。Ranking weekly/friendsタブは準備中表示 | `client/screens/*`, `api/match.ts` |
 | ✅ | ~~デッドコード整理~~ — 対応済み（2026-07-08）: `pages/HalfTime.tsx`（到達不能）+ App/typesの参照、`api/auth.ts` の未マウント`/purchase`ハンドラ+Honoアプリを削除。`pages/Result.tsx`は既に存在せず | — |
 | ✅ | ~~`public/assets/characters/`（PK/FKスプライト9枚）~~ — git追跡化済み(2026-07-07)+PK/FKミニゲームに配線済み(2026-07-08、`minigame/KickScene.tsx`)。リアクション5枚のみ未使用（結果演出が文字ベースのため、将来の磨き込み候補） | — |
 

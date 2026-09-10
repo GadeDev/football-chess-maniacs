@@ -2,14 +2,14 @@
 // resolveActiveTeamId.ts — マッチング/フレンド対戦に渡す編成teamIdを解決
 // ============================================================
 
-import { apiUrl } from '../types';
+import { fcmsFetch } from '../platform/authClient';
 
 /**
  * is_active なチーム → 無ければ先頭 → 無ければ 'default'（サーバーは固定4-4-2にフォールバック）。
  */
-export async function resolveActiveTeamId(token: string): Promise<string> {
+export async function resolveActiveTeamId(): Promise<string> {
   try {
-    const res = await fetch(apiUrl('/api/teams'), { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fcmsFetch('/api/teams');
     if (!res.ok) return 'default';
     const data = (await res.json()) as { teams?: Array<{ id: string; is_active?: boolean }> };
     const teams = data.teams ?? [];
