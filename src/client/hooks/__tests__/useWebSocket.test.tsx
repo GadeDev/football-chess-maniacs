@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
 
 const { ensureFreshAccessTokenMock } = vi.hoisted(() => ({
-  ensureFreshAccessTokenMock: vi.fn(async () => 'fresh.jwt.token'),
+  ensureFreshAccessTokenMock: vi.fn<() => Promise<string | null>>(async () => 'fresh.jwt.token'),
 }));
 vi.mock('../../platform/authClient', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../platform/authClient')>();
@@ -39,7 +39,8 @@ async function flush() {
 describe('useWebSocket token freshness (Issue #36)', () => {
   beforeEach(() => {
     openedUrls.length = 0;
-    ensureFreshAccessTokenMock.mockClear();
+    ensureFreshAccessTokenMock.mockReset();
+    ensureFreshAccessTokenMock.mockResolvedValue('fresh.jwt.token');
     vi.stubGlobal('WebSocket', FakeWebSocket);
   });
 
@@ -95,5 +96,34 @@ describe('useWebSocket token freshness (Issue #36)', () => {
     await flush();
 
     expect(openedUrls).toHaveLength(0);
+  });
+
+  it('token propが変わってもconnect/disconnectのidentityは変わらない（試合中のWS再接続を防ぐ）', async () => {
+    // refresh 成功で AuthContext の accessToken が変わると呼び出し元は再レンダーされる。
+    // その際 connect の identity が変わると Battle/Matching の useEffect が
+    // 「切断→再接続」を実行してしまうため、identity は token に依存してはならない。
+    ensureFreshAccessTokenMock.mockResolvedValue(null); // 鮮度確保は素通しにして prop の値を観察する
+    const { result, rerender } = renderHook(
+      ({ token }) => useWebSocket({
+        url: 'ws://localhost:8787/match/m1/ws',
+        token,
+        onMessage: () => {},
+        autoReconnect: false,
+      }),
+      { initialProps: { token: 'first.jwt.token' } },
+    );
+    const connectBefore = result.current.connect;
+    const disconnectBefore = result.current.disconnect;
+
+    rerender({ token: 'second.jwt.token' });
+
+    expect(result.current.connect).toBe(connectBefore);
+    expect(result.current.disconnect).toBe(disconnectBefore);
+
+    // ただし次に接続するときは最新の token prop を使う
+    act(() => { result.current.connect(); });
+    await flush();
+    expect(openedUrls).toHaveLength(1);
+    expect(openedUrls[0]).toContain('token=second.jwt.token');
   });
 });
