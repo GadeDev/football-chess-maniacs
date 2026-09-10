@@ -26,3 +26,17 @@ describe('diagPanel smoke', () => {
     vi.useRealTimers();
   });
 });
+
+describe('diagPanel persistence', () => {
+  it('URL に fcmsdebug が無く、通常ナビゲーションで開いた場合は前回の記憶があっても出さない（記憶も消す）', async () => {
+    document.getElementById('fcms-diag-panel')?.remove();
+    sessionStorage.setItem('fcms.debug', '1');
+    window.history.replaceState({}, '', '/');
+    (window as unknown as { requestAnimationFrame: (cb: FrameRequestCallback) => number }).requestAnimationFrame = () => 0;
+    // jsdom には navigation entry が無い → carriedOver=false と同じ扱い
+    const { installDiagPanelIfRequested } = await import('../diagPanel');
+    installDiagPanelIfRequested();
+    expect(document.getElementById('fcms-diag-panel')).toBeNull();
+    expect(sessionStorage.getItem('fcms.debug')).toBeNull();
+  });
+});
