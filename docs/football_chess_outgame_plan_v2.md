@@ -326,7 +326,7 @@ COM観戦（COM同士の自動対戦）は上記3種とは別枠の小さい機�
 
 ## 7. 既知の問題
 
-### スマホ実機（Android Chrome）: KICKOFF後のタッチで暗転・進行不能（未解決、優先度: 高）
+### スマホ実機（Android Chrome）: KICKOFF後のタッチで暗転・進行不能 → ✅ 解決（2026-09-10, PR #53。原因は Controls.tsx の遅延評価される更新関数内での null 参照。詳細は CLAUDE.md）
 
 - **症状**: footballchess.io をスマホ実機（Android Chrome）で開き、COM対戦のKICKOFF表示後に画面をタッチすると暗転して進行不能になる。PC（同一ビルド）では発生しない。
 - **試したが直らなかった修正（`61085c0`、2026-07-02）**:
@@ -335,7 +335,7 @@ COM観戦（COM同士の自動対戦）は上記3種とは別枠の小さい機�
   - → **例外系のフェイルセーフで直らなかった = 原因は例外ではなく描画系/実機固有の可能性が高い**
 - **再現状況**: Playwrightのモバイルエミュレーション（Pixel 7/Chromium・iPhone 13/WebKit、dev/prodビルド、本番footballchess.io直接、チュートリアル有無、reduced-motion）では再現しない。コンソールエラー・unhandled rejectionも検出されず。回帰テストは `node e2e/mobile_battle_failsafe.mjs`（要devサーバー）。
 - **次の調査手段**: Android実機をUSB接続し、PC Chromeの `chrome://inspect` からリモートデバッグでコンソール・DOM・レイヤー状態を確認しながら再現する。フェイルセーフ導入済みのため、例外系なら `[Battle] replay chain error` ログが出るはず（出なければ描画系で確定）。
-- **サービスイン前に必ず解決すること。**
+- → 解決済み（#53）。本節の調査記録は履歴として残す。
 
 ### オンライン対戦/フレンド対戦のE2E未検証 → ✅ 解消（2026-07-02、2クライアント実接続で検証済み）
 
