@@ -81,3 +81,29 @@ export function clearTokens(): void {
 export function isLoggedIn(): boolean {
   return !!getAccessToken();
 }
+
+/**
+ * 保存中のアクセストークンの JWT `exp`（秒）をミリ秒に変換して返す。
+ * トークン無し・デコード不能・`exp` 無しは null。
+ */
+export function getAccessTokenExpiresAt(): number | null {
+  const token = getAccessToken();
+  if (!token) return null;
+  const payload = decodeJwtPayload(token);
+  const exp = payload?.exp;
+  if (typeof exp !== 'number' || !Number.isFinite(exp)) return null;
+  return exp * 1000;
+}
+
+/**
+ * アクセストークンが withinMs 以内に失効する（もしくは既に失効している）か。
+ * `exp` が取れない場合は false を返す（従来挙動を維持し、判定不能を失効扱いにしない）。
+ */
+export function isAccessTokenExpiring(withinMs = 60_000): boolean {
+  const expiresAt = getAccessTokenExpiresAt();
+  return expiresAt !== null && expiresAt - Date.now() <= withinMs;
+}
+
+export function hasRefreshToken(): boolean {
+  return !!getRefreshToken();
+}

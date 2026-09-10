@@ -269,7 +269,7 @@ function applyPreset(presetKey: string, owned: OwnedPiece[]): StarterPiece[] {
 export default function Formation({ onNavigate, onFormationConfirm, onFormationSaved, matchFlow = false }: FormationProps) {
   const device = useDeviceType();
   const isMobile = device === 'mobile' || device === 'tablet';
-  const { isLoggedIn, accessToken, requireLogin } = useAuth();
+  const { isLoggedIn, requireLogin } = useAuth();
   const { settings } = useSettings();
 
   // 手持ちコマ（ログイン=/api/pieces、ゲスト=Founding Eleven。spec v3）
@@ -302,7 +302,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
   useEffect(() => {
     let cancelled = false;
     setLoadingPieces(true);
-    fetchOwnedPieces(accessToken).then(list => {
+    fetchOwnedPieces().then(list => {
       if (cancelled) return;
       const ownedList = list.map(toOwnedPiece);
       setOwned(ownedList);
@@ -332,7 +332,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
       setLoadingPieces(false);
     });
     return () => { cancelled = true; };
-  }, [accessToken]);
+  }, [isLoggedIn]);
 
   // ── ドラフト自動保存（ゲスト/ログイン共通のリロード耐性） ──
   useEffect(() => {
@@ -347,15 +347,15 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
 
   // ── サーバー保存済みスロットの取得（ログイン時のみ） ──
   useEffect(() => {
-    if (!accessToken || loadingPieces) return;
+    if (!isLoggedIn || loadingPieces) return;
     let cancelled = false;
-    fetchTeams(accessToken).then(resp => {
+    fetchTeams().then(resp => {
       if (cancelled || !resp) return;
       setAvailableSlots(resp.availableSlots);
       setSlots(buildSlotArray(resp.slots, owned));
     });
     return () => { cancelled = true; };
-  }, [accessToken, loadingPieces, owned]);
+  }, [isLoggedIn, loadingPieces, owned]);
 
   // ── 計算値 ──
 
@@ -497,7 +497,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
 
   /** スロットへサーバー保存する。成功時true（spec v3: ゲストはログイン誘導） */
   const persistSlot = useCallback(async (idx: number): Promise<boolean> => {
-    if (!accessToken) {
+    if (!isLoggedIn) {
       requireLogin(t('formation.login_to_save'));
       return false;
     }
@@ -506,7 +506,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
       return false;
     }
     const existing = slots[idx];
-    const result = await saveTeam(accessToken, {
+    const result = await saveTeam({
       teamId: existing?.teamId,
       slotNumber: idx + 1,
       name: teamName.trim() || defaultSlotStorageName(idx + 1),
@@ -534,11 +534,11 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
     setActiveSlotIdx(idx);
     // 「セーブ = この戦術を装備」: サーバーis_active（オンライン対戦の盤面ソース）と
     // lastSetup（COM対戦・クイック対戦のソース）の両方を更新する
-    void activateTeam(accessToken, result.teamId);
+    void activateTeam(result.teamId);
     onFormationSaved?.(buildFormationData(starters, bench, teamName));
     flashSaveFeedback('saved');
     return true;
-  }, [accessToken, requireLogin, availableSlots, slots, teamName, currentPreset, starters, bench, totalCost, flashPremiumMessage, flashSaveFeedback, onFormationSaved]);
+  }, [isLoggedIn, requireLogin, availableSlots, slots, teamName, currentPreset, starters, bench, totalCost, flashPremiumMessage, flashSaveFeedback, onFormationSaved]);
 
   const handleSaveSlot = useCallback((idx: number) => {
     void persistSlot(idx);
@@ -555,15 +555,15 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
     setSelectedStarterIdx(null);
     setShowCardGrid(false);
     // 「ロード = この戦術を装備」: 以後のCOM対戦・クイック対戦・オンライン対戦がこのスロットを使う
-    if (slot.teamId && accessToken) void activateTeam(accessToken, slot.teamId);
+    if (slot.teamId && isLoggedIn) void activateTeam(slot.teamId);
     onFormationSaved?.(buildFormationData(slot.starters, slot.bench, slot.name ?? ''));
-  }, [slots, accessToken, onFormationSaved]);
+  }, [slots, isLoggedIn, onFormationSaved]);
 
   const handleDeleteSlot = useCallback((idx: number) => {
     void (async () => {
       const slot = slots[idx];
-      if (slot?.teamId && accessToken) {
-        const ok = await deleteTeam(accessToken, slot.teamId);
+      if (slot?.teamId && isLoggedIn) {
+        const ok = await deleteTeam(slot.teamId);
         if (!ok) {
           flashSaveFeedback('failed');
           return;
@@ -576,7 +576,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
       });
       if (activeSlotIdx === idx) setActiveSlotIdx(null);
     })();
-  }, [slots, accessToken, activeSlotIdx, flashSaveFeedback]);
+  }, [slots, isLoggedIn, activeSlotIdx, flashSaveFeedback]);
 
   /** 保存先スロット: アクティブスロット → 既存の先頭 → スロット1 */
   const resolveSaveTarget = useCallback((): number => {

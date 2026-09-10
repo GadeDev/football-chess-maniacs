@@ -23,6 +23,8 @@ describe('formationServer', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     clearDraft();
+    // ログイン判定はtokenStore（localStorage）を見るようになった（Issue #36）
+    localStorage.removeItem('fcms_token');
   });
 
   describe('fetchOwnedPieces', () => {
@@ -31,7 +33,7 @@ describe('formationServer', () => {
       vi.stubGlobal('fetch', vi.fn(async () =>
         new Response(JSON.stringify({ items }), { status: 200 })));
 
-      const result = await fetchOwnedPieces(null);
+      const result = await fetchOwnedPieces();
       expect(result).toHaveLength(11);
       expect(result.map(p => p.pieceId).sort((a, b) => a - b))
         .toEqual([...FOUNDING_ELEVEN_IDS].sort((a, b) => a - b));
@@ -40,7 +42,7 @@ describe('formationServer', () => {
 
     it('ゲスト: カタログ取得失敗時はローカルフォールバック', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
-      const result = await fetchOwnedPieces(null);
+      const result = await fetchOwnedPieces();
       expect(result).toEqual(FOUNDING_ELEVEN_FALLBACK);
     });
 
@@ -55,7 +57,8 @@ describe('formationServer', () => {
         return new Response(JSON.stringify({ items: [catalogItem(42)] }), { status: 200 });
       }));
 
-      const result = await fetchOwnedPieces('token-1');
+      localStorage.setItem('fcms_token', 'token-1');
+      const result = await fetchOwnedPieces();
       expect(calls.some(u => u.includes('/api/pieces/sync'))).toBe(true);
       expect(result).toHaveLength(1);
       expect(result[0].pieceId).toBe(42);
@@ -67,7 +70,8 @@ describe('formationServer', () => {
         if (url.includes('/api/pieces/sync')) return new Response('err', { status: 500 });
         return new Response(JSON.stringify({ items: [] }), { status: 200 });
       }));
-      const result = await fetchOwnedPieces('token-1');
+      localStorage.setItem('fcms_token', 'token-1');
+      const result = await fetchOwnedPieces();
       expect(result).toEqual(FOUNDING_ELEVEN_FALLBACK);
     });
   });
@@ -84,12 +88,12 @@ describe('formationServer', () => {
         slotNumber: 1, name: 'Test', formationPreset: '4-4-2',
         fieldPieces: [], benchPieces: [],
       };
-      const ok = await saveTeam('token', input);
+      const ok = await saveTeam(input);
       expect(ok).toEqual({ ok: true, teamId: 'team_x' });
       expect(requests[0].method).toBe('POST');
 
       vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })));
-      const denied = await saveTeam('token', input);
+      const denied = await saveTeam(input);
       expect(denied).toEqual({ ok: false, error: 'PREMIUM_REQUIRED' });
     });
 
@@ -100,7 +104,7 @@ describe('formationServer', () => {
         return new Response('{}', { status: 200 });
       }));
 
-      const result = await saveTeam('token', {
+      const result = await saveTeam({
         teamId: 'team_1', slotNumber: 2, name: 'Test', formationPreset: '3-5-2',
         fieldPieces: [], benchPieces: [],
       });
@@ -117,12 +121,12 @@ describe('formationServer', () => {
         requests.push({ url: String(input), method: init?.method });
         return new Response(JSON.stringify({ active_team_id: 'team_1' }), { status: 200 });
       }));
-      expect(await activateTeam('token', 'team_1')).toBe(true);
+      expect(await activateTeam('team_1')).toBe(true);
       expect(requests[0].method).toBe('PUT');
       expect(requests[0].url).toContain('/api/teams/team_1/activate');
 
       vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
-      expect(await activateTeam('token', 'team_1')).toBe(false);
+      expect(await activateTeam('team_1')).toBe(false);
     });
   });
 

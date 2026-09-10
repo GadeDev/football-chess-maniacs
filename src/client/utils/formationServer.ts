@@ -4,7 +4,8 @@
 // ゲスト向けFounding Eleven解決、編成ドラフトのlocalStorage永続化。
 // ============================================================
 
-import { apiUrl } from '../types';
+import { fcmsFetch } from '../platform/authClient';
+import { isLoggedIn } from '../platform/tokenStore';
 import { FOUNDING_ELEVEN_IDS } from '../../types/piece';
 
 /** 編成画面が扱う所持コマ（サーバー/ゲスト共通の正規化形） */
@@ -84,13 +85,12 @@ function toServerPiece(r: OwnedPieceApiRow | CatalogApiRow): ServerOwnedPiece {
  * - ゲスト: 公開カタログからFounding Eleven 11キャラを解決
  * - いずれも失敗時は FOUNDING_ELEVEN_FALLBACK
  */
-export async function fetchOwnedPieces(accessToken: string | null): Promise<ServerOwnedPiece[]> {
+export async function fetchOwnedPieces(): Promise<ServerOwnedPiece[]> {
   try {
-    if (accessToken) {
-      const headers = { Authorization: `Bearer ${accessToken}` };
+    if (isLoggedIn()) {
       // sync失敗（オフライン等）でも一覧取得は試みる
-      await fetch(apiUrl('/api/pieces/sync'), { method: 'POST', headers }).catch(() => null);
-      const res = await fetch(apiUrl('/api/pieces'), { headers });
+      await fcmsFetch('/api/pieces/sync', { method: 'POST' }).catch(() => null);
+      const res = await fcmsFetch('/api/pieces');
       if (!res.ok) throw new Error(`pieces ${res.status}`);
       const data = await res.json() as { items?: OwnedPieceApiRow[] };
       const rows = data.items ?? [];
@@ -98,7 +98,7 @@ export async function fetchOwnedPieces(accessToken: string | null): Promise<Serv
       return FOUNDING_ELEVEN_FALLBACK;
     }
 
-    const res = await fetch(apiUrl('/api/shop/catalog'));
+    const res = await fcmsFetch('/api/shop/catalog');
     if (!res.ok) throw new Error(`catalog ${res.status}`);
     const data = await res.json() as { items?: CatalogApiRow[] };
     const foundingSet = new Set<number>(FOUNDING_ELEVEN_IDS);
@@ -121,9 +121,9 @@ interface TeamsApiRow {
 }
 
 /** サーバー保存済みチーム一覧+スロット枠情報を取得する */
-export async function fetchTeams(accessToken: string): Promise<TeamsResponse | null> {
+export async function fetchTeams(): Promise<TeamsResponse | null> {
   try {
-    const res = await fetch(apiUrl('/api/teams'), { headers: { Authorization: `Bearer ${accessToken}` } });
+    const res = await fcmsFetch('/api/teams');
     if (!res.ok) return null;
     const data = await res.json() as {
       teams?: TeamsApiRow[];
@@ -163,13 +163,11 @@ export type SaveTeamResult =
   | { ok: false; error: 'PREMIUM_REQUIRED' | 'VALIDATION' | 'NETWORK' };
 
 /** スロットへ保存する（新規=POST / 上書き=PUT） */
-export async function saveTeam(accessToken: string, input: SaveTeamInput): Promise<SaveTeamResult> {
+export async function saveTeam(input: SaveTeamInput): Promise<SaveTeamResult> {
   try {
-    const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
     if (input.teamId) {
-      const res = await fetch(apiUrl(`/api/teams/${input.teamId}`), {
+      const res = await fcmsFetch(`/api/teams/${input.teamId}`, {
         method: 'PUT',
-        headers,
         body: JSON.stringify({
           name: input.name,
           formation_preset: input.formationPreset,
@@ -182,9 +180,8 @@ export async function saveTeam(accessToken: string, input: SaveTeamInput): Promi
       return { ok: true, teamId: input.teamId };
     }
 
-    const res = await fetch(apiUrl('/api/teams'), {
+    const res = await fcmsFetch('/api/teams', {
       method: 'POST',
-      headers,
       body: JSON.stringify({
         name: input.name,
         slot_number: input.slotNumber,
@@ -207,12 +204,9 @@ export async function saveTeam(accessToken: string, input: SaveTeamInput): Promi
  * オンライン対戦はサーバーが is_active チームの編成を盤面に使うため、
  * 「セーブ/ロード = その戦術を装備」を成立させるのに必須。
  */
-export async function activateTeam(accessToken: string, teamId: string): Promise<boolean> {
+export async function activateTeam(teamId: string): Promise<boolean> {
   try {
-    const res = await fetch(apiUrl(`/api/teams/${teamId}/activate`), {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await fcmsFetch(`/api/teams/${teamId}/activate`, { method: 'PUT' });
     return res.ok;
   } catch {
     return false;
@@ -220,12 +214,9 @@ export async function activateTeam(accessToken: string, teamId: string): Promise
 }
 
 /** スロットを削除する */
-export async function deleteTeam(accessToken: string, teamId: string): Promise<boolean> {
+export async function deleteTeam(teamId: string): Promise<boolean> {
   try {
-    const res = await fetch(apiUrl(`/api/teams/${teamId}`), {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await fcmsFetch(`/api/teams/${teamId}`, { method: 'DELETE' });
     return res.ok;
   } catch {
     return false;

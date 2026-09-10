@@ -5,8 +5,15 @@
 // ============================================================
 
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { getAccessToken, getUserId } from '../platform/tokenStore';
-import { onAuthChange, logout as authClientLogout } from '../platform/authClient';
+import {
+  getAccessToken,
+  getUserId,
+  getAccessTokenExpiresAt,
+  isAccessTokenExpiring,
+  hasRefreshToken,
+  clearTokens,
+} from '../platform/tokenStore';
+import { onAuthChange, logout as authClientLogout, refresh as authClientRefresh } from '../platform/authClient';
 import { consumeUniversoSsoFromHash } from '../platform/ssoFragment';
 import LoginModal from '../components/auth/LoginModal';
 
@@ -43,8 +50,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Universo Futbol からの #uf_sso= フラグメントを最初に消費してから状態を同期する
     consumeUniversoSsoFromHash();
     syncFromStore();
+
+    // 失効済みトークンで起動した場合の後始末（Issue #36）。
+    // refresh token があれば復帰を試み（結果は onAuthChange 経由で反映されるので await しない）、
+    // 無ければゲストに落とす。
+    if (getAccessToken() && isAccessTokenExpiring(0)) {
+      if (hasRefreshToken()) {
+        void authClientRefresh();
+      } else {
+        clearTokens();
+        syncFromStore();
+      }
+    }
+
     return onAuthChange(() => syncFromStore());
   }, [syncFromStore]);
+
+  // 失効60秒前に自動refreshする。refresh成功 → onAuthChange → accessToken更新 →
+  // このeffect再実行、で周回する。StrictModeの二重実行はクリーンアップで解消する
+  // （ref ガードは使わない）。
+  useEffect(() => {
+    if (!accessToken) return;
+    const expiresAt = getAccessTokenExpiresAt();
+    if (expiresAt === null) return;
+
+    const delay = Math.max(5_000, expiresAt - Date.now() - 60_000);
+    const timer = setTimeout(() => { void authClientRefresh(); }, delay);
+    return () => clearTimeout(timer);
+  }, [accessToken]);
 
   const requireLogin = useCallback((r?: string) => {
     setReason(r);
@@ -62,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [syncFromStore]);
 
   const value: AuthContextValue = {
-    isLoggedIn: !!accessToken,
+    // 文字列が残っているだけでは「ログイン中」にしない。失効していても
+    // refresh token があれば復帰できるのでログイン中として扱う（Issue #36）。
+    isLoggedIn: !!accessToken && (!isAccessTokenExpiring(0) || hasRefreshToken()),
     userId,
     accessToken,
     requireLogin,

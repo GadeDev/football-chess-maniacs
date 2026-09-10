@@ -98,7 +98,7 @@ export default function Matching({ onNavigate, onMatchFound, gameMode, authToken
     let cancelled = false;
     (async () => {
       // WS接続前に編成teamIdを解決（JOIN_QUEUEで送る）
-      teamIdRef.current = await resolveActiveTeamId(authToken);
+      teamIdRef.current = await resolveActiveTeamId();
       if (cancelled) return;
       wsConnect();
     })();

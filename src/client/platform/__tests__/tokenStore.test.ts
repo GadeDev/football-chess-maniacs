@@ -4,7 +4,10 @@
 // ============================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { saveTokens, getAccessToken, getRefreshToken, getUserId, clearTokens, isLoggedIn } from '../tokenStore';
+import {
+  saveTokens, getAccessToken, getRefreshToken, getUserId, clearTokens, isLoggedIn,
+  getAccessTokenExpiresAt, isAccessTokenExpiring, hasRefreshToken,
+} from '../tokenStore';
 
 function makeJwt(payload: Record<string, unknown>): string {
   const b64url = (obj: unknown) =>
@@ -56,5 +59,51 @@ describe('tokenStore', () => {
     expect(getRefreshToken()).toBeNull();
     expect(getUserId()).toBeNull();
     expect(isLoggedIn()).toBe(false);
+  });
+
+  describe('exp検証（Issue #36）', () => {
+    it('getAccessTokenExpiresAt: exp（秒）をミリ秒で返す', () => {
+      const exp = Math.floor(Date.now() / 1000) + 900;
+      saveTokens(makeJwt({ sub: 'u1', exp }));
+      expect(getAccessTokenExpiresAt()).toBe(exp * 1000);
+    });
+
+    it('getAccessTokenExpiresAt: expが無ければnull', () => {
+      saveTokens(makeJwt({ sub: 'u1' }));
+      expect(getAccessTokenExpiresAt()).toBeNull();
+    });
+
+    it('getAccessTokenExpiresAt: トークンが無ければnull', () => {
+      expect(getAccessTokenExpiresAt()).toBeNull();
+    });
+
+    it('isAccessTokenExpiring: 残61秒はfalse、残59秒はtrue', () => {
+      const now = Date.now();
+      saveTokens(makeJwt({ sub: 'u1', exp: Math.floor((now + 61_000) / 1000) }));
+      expect(isAccessTokenExpiring()).toBe(false);
+
+      saveTokens(makeJwt({ sub: 'u1', exp: Math.floor((now + 59_000) / 1000) }));
+      expect(isAccessTokenExpiring()).toBe(true);
+    });
+
+    it('isAccessTokenExpiring: 失効済みはtrue', () => {
+      saveTokens(makeJwt({ sub: 'u1', exp: Math.floor(Date.now() / 1000) - 10 }));
+      expect(isAccessTokenExpiring(0)).toBe(true);
+    });
+
+    it('isAccessTokenExpiring: expが取れない場合はfalse（従来挙動を維持）', () => {
+      saveTokens(makeJwt({ sub: 'u1' }));
+      expect(isAccessTokenExpiring()).toBe(false);
+
+      saveTokens('not-a-jwt');
+      expect(isAccessTokenExpiring()).toBe(false);
+    });
+
+    it('hasRefreshToken: refreshトークンの有無を返す', () => {
+      saveTokens(makeJwt({ sub: 'u1' }));
+      expect(hasRefreshToken()).toBe(false);
+      saveTokens(makeJwt({ sub: 'u1' }), 'rt-1');
+      expect(hasRefreshToken()).toBe(true);
+    });
   });
 });

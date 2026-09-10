@@ -5,15 +5,16 @@
 // ============================================================
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { apiUrl, type Page, type Position, type Cost } from '../types';
+import { type Page, type Position, type Cost } from '../types';
 import PieceIcon from '../components/board/PieceIcon';
 import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
 import { t, tn } from '../i18n';
+import { fcmsFetch } from '../platform/authClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CollectionScreenProps {
   onNavigate: (page: Page) => void;
-  authToken?: string;
 }
 
 type TabMode = 'owned' | 'catalog';
@@ -55,7 +56,9 @@ function buildFallbackCollection(): PieceEntry[] {
   return entries;
 }
 
-export default function CollectionScreen({ onNavigate, authToken }: CollectionScreenProps) {
+export default function CollectionScreen({ onNavigate }: CollectionScreenProps) {
+  // 所持フラグはログイン状態で変わるので依存に取る（BearerはfcmsFetchが付与）
+  const { isLoggedIn } = useAuth();
   const [tab, setTab] = useState<TabMode>('owned');
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>('ALL');
   const [costFilter, setCostFilter] = useState<Cost | 'ALL'>('ALL');
@@ -68,9 +71,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
     let cancelled = false;
     (async () => {
       try {
-        const headers: Record<string, string> = {};
-        if (authToken) headers.Authorization = `Bearer ${authToken}`;
-        const res = await fetch(apiUrl('/api/shop/catalog?limit=200'), { headers });
+        const res = await fcmsFetch('/api/shop/catalog?limit=200');
         if (!res.ok) throw new Error(`catalog ${res.status}`);
         const data = (await res.json()) as { items: RawCatalogItem[] };
         if (cancelled) return;
@@ -88,7 +89,7 @@ export default function CollectionScreen({ onNavigate, authToken }: CollectionSc
       }
     })();
     return () => { cancelled = true; };
-  }, [authToken]);
+  }, [isLoggedIn]);
 
   const filtered = useMemo(() => {
     let list = collection;
