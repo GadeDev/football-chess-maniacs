@@ -156,7 +156,7 @@ public/
 | ball.ts | §9-2 フェーズ2 | ✅ |
 | special.ts | §9-2 フェーズ3 | ✅ |
 | turn_processor.ts | §9-2 全フェーズ統合 | ✅ |
-| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/authClient/AuthContext/useWebSocket/ssoFragment) | ✅ 854 tests passing (+10 skip: ライブE2E) |
+| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/authClient/AuthContext/useWebSocket/ssoFragment) | ✅ 855 tests passing (+10 skip: ライブE2E) |
 | worker.ts + api/* | Hono REST API + WebSocket | ✅ |
 | durable/game_session.ts | §4-3 DO Hibernation + §7-2 WS認証 + processTurn統合 + ハーフタイム/AT/ゴールリスタート | ✅ |
 | durable/matchmaking.ts | §4-2 シャード構成マッチメイキング | ✅ |
@@ -760,7 +760,7 @@ Platform認証はJWT（JWKS署名検証）+ サービスAPIキー + HMAC応答/W
 | ✅ | ~~`callPlatformApi` にタイムアウト追加~~ — 対応済み（`AbortController` + `DEFAULT_PLATFORM_API_TIMEOUT_MS` 15秒、外部signal合成対応。2026-07-08確認） | `api/auth.ts` |
 | ✅ | ~~`/match/com` のDO大量生成リスク~~ — 対応済み（IP単位の二重レート制限: 3req/分 + 20req/時。2026-07-08確認） | `worker.ts` / `rate_limit.ts` |
 | 🟡 | Webhookにタイムスタンプ署名がある場合は5分窓のリプレイ防止を追加（現状 `delivery_id` 永続テーブル依存） | `api/webhooks.ts` |
-| ✅ | ~~クライアントの `authToken` 取得・保管経路をドキュメント化~~ — 対応済み（2026-09-10, Issue #36）: localStorage `fcms_token`/`fcms_refresh_token` に保管、`AuthContext` は exp を検証し失効60秒前に自動refresh、FCMS API は `fcmsFetch` で最新トークンを自動付与 | `AuthContext.tsx` / `authClient.ts` |
+| ✅ | ~~クライアントの `authToken` 取得・保管経路をドキュメント化~~ — 対応済み（2026-09-10, Issue #36）: localStorage `fcms_token`/`fcms_refresh_token` に保管、`AuthContext` は exp を検証し失効60秒前に自動refresh、FCMS API は `fcmsFetch` で最新トークンを自動付与。WS接続（`useWebSocket`/Battle/Matching）はトークンの値ではなく有無を依存にし、refreshによる更新で試合中に再接続しない（`tokenRef`+`hasAuthToken`、2026-09-10レビュー修正） | `AuthContext.tsx` / `authClient.ts` |
 | 🟡 | 旧通貨コードの除去は未着手。Platform課金方針に従い呼出元・互換処理を確認して整理する。通貨返金機能の新規実装は不要 | `docs/fcms_platform_commerce_policy.md` |
 
 ### 良好な点

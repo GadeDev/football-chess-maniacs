@@ -360,11 +360,14 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
   });
 
   // ── オンライン対戦 / サーバーサイドCOM: WS接続 + ゲーム初期化 ──
+  // authToken の「値」ではなく「有無」を依存に取る。値を依存にすると refresh による
+  // トークン更新（約14分ごと）のたびに試合中のWSが切断→再接続される（Issue #36）。
+  const hasAuthToken = !!authToken;
   useEffect(() => {
     if (isCom && !isServerCom) return;
     if (!matchId) return;
     // オンライン対戦はauthToken必須、サーバーサイドCOMはauthTokenなしでも接続可能
-    if (!isServerCom && !authToken) return;
+    if (!isServerCom && !hasAuthToken) return;
 
     wsConnect();
 
@@ -378,7 +381,7 @@ export default function Battle({ onNavigate, matchId, gameMode, authToken, myTea
     });
 
     return () => wsDisconnect();
-  }, [isCom, isServerCom, matchId, authToken, wsConnect, wsDisconnect, dispatch, propMyTeam]);
+  }, [isCom, isServerCom, matchId, hasAuthToken, wsConnect, wsDisconnect, dispatch, propMyTeam]);
 
   // ── COM対戦: ゲーム状態を即座に初期化 ──
   // ── 1st Halfキックオフチーム（ランダム決定、2nd Halfは逆） ──
