@@ -69,7 +69,7 @@ describe('POST /match/com-report', () => {
 
   it('matchIdがcom_プレフィックス+タイムスタンプ形式でなければ400', async () => {
     const app = makeApp();
-    for (const bad of ['gemma_com_123', 'casual_x', 'com_abc', `com_${'9'.repeat(30)}`]) {
+    for (const bad of ['server_com_123', 'casual_x', 'com_abc', `com_${'9'.repeat(30)}`]) {
       const res = await post(app, { ...validBody(), matchId: bad });
       expect(res.status, bad).toBe(400);
     }

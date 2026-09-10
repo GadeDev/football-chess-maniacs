@@ -5,7 +5,7 @@
 import type { Board, Order, OrderType, Piece, Position, Cost, Team } from '../engine/types';
 import { getMovementRange } from '../engine/movement';
 import type { TurnInput, RawOrder, PieceInfo } from '../middleware/validation';
-import type { Difficulty, Era } from '../ai/prompt_builder';
+import type { Difficulty, Era } from '../ai/types';
 import { boardContext } from '../engine/hex_utils';
 
 // ================================================================

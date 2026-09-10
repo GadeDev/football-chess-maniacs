@@ -10,7 +10,7 @@ import { validateTurnInput, type TurnInput, type PieceInfo } from '../middleware
 import { WebSocketRateLimiter } from '../middleware/rate_limit';
 import { processTurn, hasGoal, getFoulEvent } from '../engine/turn_processor';
 import type { Order, Team } from '../engine/types';
-import type { Difficulty, Era } from '../ai/prompt_builder';
+import type { Difficulty, Era } from '../ai/types';
 import {
   type GameState, type WsAttachment, type FormationFieldPiece, type BenchFieldPiece,
   TURN_TIMEOUT_MS, DISCONNECT_GRACE_MS, MAX_NONCE_HISTORY,
@@ -416,7 +416,7 @@ export class GameSession extends DurableObject<Env['Bindings']> {
     let awayOrders: Order[];
 
     if (state.isComMatch && !awayInput) {
-      awayOrders = await generateComOrders(state, this.env);
+      awayOrders = await generateComOrders(state);
     } else {
       awayOrders = (awayInput?.orders ?? []).map(rawOrderToEngine);
     }

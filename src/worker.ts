@@ -10,7 +10,6 @@ import { secureHeaders } from 'hono/secure-headers';
 import teamRoutes from './api/team';
 import matchRoutes from './api/match';
 import replayRoutes from './api/replay';
-import aiRoutes from './api/ai';
 import piecesRoutes from './api/pieces';
 import rankingRoutes from './api/ranking';
 import shopRoutes from './api/shop';
@@ -39,8 +38,6 @@ export interface Env {
     R2: R2Bucket;
     // Queues
     MATCH_RESULT_QUEUE: Queue;
-    // Workers AI
-    AI: Ai;
     // Service Bindings
     PLATFORM?: Fetcher;
     // Vars
@@ -52,7 +49,6 @@ export interface Env {
     PLATFORM_SAVE_SLOT_SKU?: string;
     PLATFORM_SUBSCRIPTION_SKU?: string;
     SUBSCRIPTION_SAVE_SLOT_BONUS?: string;
-    AI_MODEL_ID: string;
     // Secrets
     PLATFORM_JWKS_URL: string;
     PLATFORM_GAME_SERVER_TOKEN: string;
@@ -236,14 +232,6 @@ shopApp.use('*', async (c, next) => {
 });
 shopApp.route('/', shopRoutes);
 app.route('/api/shop', shopApp);
-
-// ── AI エンドポイント ──
-// /turn はログイン不要COM対戦用にレート制限のみ。
-// /test は api/ai.ts 内でサービスキー必須。
-const aiApp = new Hono<Env>();
-aiApp.use('*', rateLimitMiddleware(RATE_LIMITS.restApi));
-aiApp.route('/', aiRoutes);
-app.route('/api/ai', aiApp);
 
 // ── REST API（JWT認証 + レート制限が必要なルート） ──
 const api = new Hono<Env>();

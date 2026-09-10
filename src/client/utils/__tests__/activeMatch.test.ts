@@ -24,10 +24,10 @@ describe('activeMatch (sessionStorage)', () => {
     expect(loadActiveMatch()).toBeNull();
   });
 
-  it('COMセッション（com_/gemma_com_）は保存されない', () => {
+  it('COMセッション（com_/server_com_）は保存されない', () => {
     saveActiveMatch({ matchId: 'com_123', team: 'home', gameMode: 'casual' });
     expect(loadActiveMatch()).toBeNull();
-    saveActiveMatch({ matchId: 'gemma_com_123', team: 'home', gameMode: 'casual' });
+    saveActiveMatch({ matchId: 'server_com_123', team: 'home', gameMode: 'casual' });
     expect(loadActiveMatch()).toBeNull();
   });
 

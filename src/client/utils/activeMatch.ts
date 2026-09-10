@@ -18,7 +18,7 @@ const KEY = 'fcms_active_match';
 
 /** COMセッションは復帰対象外（クライアント内完結 or comSessionToken認証のため） */
 function isResumableMatchId(matchId: string): boolean {
-  return !matchId.startsWith('com_') && !matchId.startsWith('gemma_com_');
+  return !matchId.startsWith('com_') && !matchId.startsWith('server_com_');
 }
 
 export function saveActiveMatch(info: Omit<ActiveMatchInfo, 'savedAt'>): void {

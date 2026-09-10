@@ -108,7 +108,7 @@ describe.skipIf(!IS_LIVE)('WebSocket E2E (wrangler dev)', () => {
 
   it('COM対戦: セッション作成→WS接続→ターン入力→結果受信', async () => {
     const session = await createComSession();
-    expect(session.matchId).toMatch(/^gemma_com_/);
+    expect(session.matchId).toMatch(/^server_com_/);
 
     const client = await connectWs(`${WS_BASE}/match/${session.matchId}/ws?token=${session.token}`);
 

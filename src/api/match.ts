@@ -271,8 +271,8 @@ match.post('/friend/join', async (c) => {
 });
 
 // ── COM対戦セッション作成（サーバーサイドAI用） ──
-// VITE_USE_GEMMA=true 時に Matching.tsx から呼ばれる
-// GameSession DO を作成し /init を COM パラメータ付きで呼び出す
+// GameSession DO を作成し /init を COM パラメータ付きで呼び出す。
+// AIはルールベース（Bot補完と同じ経路）。matchId は server_com_ プレフィックス。
 match.post('/com', async (c) => {
   let body: { comDifficulty?: string; comEra?: string };
   try {
@@ -282,7 +282,7 @@ match.post('/com', async (c) => {
   }
 
   const randomSuffix = crypto.randomUUID().slice(0, 12);
-  const matchId = `gemma_com_${Date.now()}_${randomSuffix}`;
+  const matchId = `server_com_${Date.now()}_${randomSuffix}`;
   const userId = `com_player_${randomSuffix}`;
   // セッショントークン: WebSocket認証に使用（推測不能なランダム値）
   const sessionToken = crypto.randomUUID();

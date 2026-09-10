@@ -510,11 +510,13 @@ src/ai/
 ├── rule_based.ts      # ルールベース最善手選択（フォールバック用）
 └── index.ts
 
-これはGemmaのフォールバックとして使うので、
-Gemmaなしでも単独で動作する必要があります。
+これは単独で COM AI の判断層として使います。
+（2026-09-10 以降、Gemma 判断層は削除されルールベースのみが動きます）
 ```
 
 ### 5-2. Gemma連携の実装
+
+> **削除済み（履歴）**: 2026-09-10 の Owner決定により Gemma 連携（`gemma_client.ts` / `prompt_builder.ts` / `output_parser.ts` / `fallback.ts` / `com_ai.ts`）は実装ごと削除しました。以下は当時の手順の記録です。
 
 **Claude Codeへの指示：**
 ```
@@ -555,6 +557,8 @@ pnpm run bootstrap
 ```
 
 ### 5-4. Gemmaのファインチューニング
+
+> **削除済み（履歴）**: 2026-09-10 の Owner決定により実施しません。棋譜学習は `docs/com_ai_spec.md` 末尾「棋譜学習（検討メモ）」を参照。
 
 **Google Colabで実行：**
 

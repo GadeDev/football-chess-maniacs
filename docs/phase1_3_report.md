@@ -26,7 +26,7 @@
 Queueメッセージ(`MATCH_RESULT_QUEUE.send()`のpayload)には試合開始時刻が含まれていない。既存のD1 UPDATEはこれを必要としないため、`endMatch()`側のpayload型は変更せず、Queue Consumer側で`SELECT created_at FROM matches WHERE id = ?`を追加で1回発行して取得する方式にした(`durable/game_session.ts`のpayload構造・GameStateには一切触れない)。この行が失敗(行が見つからない等)した場合もfinish送信をスキップするだけでD1/R2処理には影響しない。
 
 **mode判定とparticipants設計**
-指示書のランク/フレンド/COMの3種に加え、実装済みの`casual_`プレフィックス(カジュアルマッチ、対人だがElo対象外)を`mode: "casual"`・`opponent_type: "human"`・両者参加として送る決定をした。指示書には明記がないが、「レーティングロジックには触れない」制約と矛盾せず、実データがある対人戦を漏らさず送るのが契約の趣旨に沿うと判断した。matchId prefixの正規表現は`server/rating.ts`の`isRatedMatch`が既に持つ規約(`com_`/`gemma_com_`/`friend_`/`casual_`)を流用し、判定ロジックの二重実装によるドリフトを避けた。
+指示書のランク/フレンド/COMの3種に加え、実装済みの`casual_`プレフィックス(カジュアルマッチ、対人だがElo対象外)を`mode: "casual"`・`opponent_type: "human"`・両者参加として送る決定をした。指示書には明記がないが、「レーティングロジックには触れない」制約と矛盾せず、実データがある対人戦を漏らさず送るのが契約の趣旨に沿うと判断した。matchId prefixの正規表現は`server/rating.ts`の`isRatedMatch`が既に持つ規約(`com_`/`gemma_com_`（2026-09-10に`server_com_`へ改名）/`friend_`/`casual_`)を流用し、判定ロジックの二重実装によるドリフトを避けた。
 
 COM対戦は`homeUserId`/`awayUserId`のどちらかが`'com_ai'`(サーバーサイドCOM経路が常にCOMをawayとして生成する現行実装、`api/match.ts` `/match/com`)であることを検出し、COM側を`participants`から除外して人間側1名のみを送る。人間側が`com_player_*`(ゲスト擬似ID、`/match/com`が生成)なら`user_id: null, guest_session_id: <com_player_id>`、それ以外(将来認証付きCOM対戦になった場合)は`user_id`としてそのまま送る汎用的な実装にした。
 
@@ -49,11 +49,11 @@ turnLogには各ターンの「開始時刻」は保存されていない(`GameS
 - ランクマッチ(matchId無prefix)
 - カジュアルマッチ(`casual_`)
 - フレンド対戦(`friend_`)
-- **サーバーサイドCOM対戦のみ**(`gemma_com_`prefix、`VITE_USE_GEMMA=true`時のみ有効な経路)
+- **サーバーサイドCOM対戦のみ**(`gemma_com_`prefix、`VITE_USE_GEMMA=true`時のみ有効な経路。※2026-09-10にprefixは`server_com_`へ改名、`VITE_USE_GEMMA`は廃止)
 
 デフォルトのクライアントサイドCOM対戦(matchId `com_`prefix、Matching.tsxが1秒後にクライアント内で完結させる経路、大半のCOM対戦がこちら)は、GameSession DOにもQueueにも一切到達しないため、**現状の実装ではPlatformに送信されない**。これは指示書のスコープ(「Queue Consumerへの送信追加」)では解決できない構造的な制約であり、対応するにはクライアントサイドCOM経路自体をサーバー起点に変更する別タスクが必要(本作業の対象外、変更していない)。
 
-また`/match/com`(`gemma_com_`経路)は現行実装が非認証エンドポイントであるため、ログイン済みユーザーであっても常に新規の`com_player_*`ゲスト擬似IDが発行される(`api/match.ts`の既存動作、CLAUDE.mdの既知の改善余地`🟠`にも記載済み)。本実装はこの制約を尊重し、`com_player_*`は`guest_session_id`として送る設計にしている。この認証周りの是正は本作業のスコープ外(触れていない)。
+また`/match/com`(`gemma_com_`経路。※2026-09-10に`server_com_`へ改名)は現行実装が非認証エンドポイントであるため、ログイン済みユーザーであっても常に新規の`com_player_*`ゲスト擬似IDが発行される(`api/match.ts`の既存動作、CLAUDE.mdの既知の改善余地`🟠`にも記載済み)。本実装はこの制約を尊重し、`com_player_*`は`guest_session_id`として送る設計にしている。この認証周りの是正は本作業のスコープ外(触れていない)。
 
 ## 完了条件チェックリスト
 
