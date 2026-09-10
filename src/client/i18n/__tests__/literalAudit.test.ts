@@ -7,6 +7,13 @@ const CLIENT_ROOT = path.resolve(process.cwd(), 'src/client');
 const JAPANESE = /[ぁ-んァ-ヶ一-龠々ー]/;
 
 const ALLOWED_JAPANESE = new Map<string, Set<string>>([
+  // ルートのクラッシュ画面は i18n 非依存（翻訳層の不具合に巻き込まれないため）。日本語/英語併記で固定
+  ['components/ErrorBoundary.tsx', new Set([
+    'エラーが発生しました / An error occurred',
+    'この画面のスクショを送ってください。下の「再読み込み」で復帰できます。 / Please screenshot this screen. Tap Reload to recover.',
+    '再読み込み / Reload',
+    'コピー / Copy',
+  ])],
   ['pages/Battle.tsx', new Set(['現代'])],
   ['pages/Matching.tsx', new Set(['現代'])],
   ['utils/formationServer.ts', new Set([
