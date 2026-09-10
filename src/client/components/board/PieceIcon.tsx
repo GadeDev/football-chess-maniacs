@@ -35,6 +35,16 @@ export interface PieceIconProps {
 // ── 定数 ─────────────────────────────────────────────────
 const SELECTED_RING_COLOR = "#FACC15";
 
+/**
+ * GK 識別色（2026-09-10）: 画像は他ポジションと共通のまま、円盤部分の色相だけを差し替える。
+ * 味方=ティール（青とも芝の緑とも被らない）/ 敵=オレンジ（赤とも金枠とも被らない）。
+ * トークン PNG の円盤は中心 (50%, 43%)・半径 30% に収まる（実測）。
+ * `mix-blend-mode: hue` は覆い色の色相 + 元画像の彩度・明度なので、白い数字・銀/金の枠・灰色の札はそのまま残る。
+ * ※ 画像そのものの差し替えは別途検討（オーナー判断）。
+ */
+const GK_TINT: Record<Side, string> = { ally: '#14b8a6', enemy: '#f97316' };
+const GK_DISC = { cx: 0.5, cy: 0.43, r: 0.3 } as const;
+
 interface CostConfig {
   rank: string;
   size: number;
@@ -94,6 +104,7 @@ const PieceIcon = memo(function PieceIcon({
         width: renderSize,
         height: renderSize,
         cursor: onClick ? "pointer" : undefined,
+        isolation: 'isolate', // GK 色相オーバーレイの blend を盤面へ漏らさない
         ...style,
       }}
       role="img"
@@ -112,6 +123,34 @@ const PieceIcon = memo(function PieceIcon({
           pointerEvents: 'none',
         }}
       />
+
+      {/* GK 識別色: 円盤の色相だけを差し替える（svg ルートに blend を掛けるので <img> と合成される） */}
+      {position === 'GK' && (
+        <>
+          <svg
+            data-testid="gk-tint"
+            xmlns="http://www.w3.org/2000/svg"
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${svgSize} ${svgSize}`}
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', mixBlendMode: 'hue' }}
+          >
+            <circle cx={svgSize * GK_DISC.cx} cy={svgSize * GK_DISC.cy} r={svgSize * GK_DISC.r} fill={GK_TINT[side]} />
+          </svg>
+          {side === 'enemy' && (
+            /* 敵の円盤は暗い赤なので、そのまま色相を回すと茶色寄りになる。薄く明るさを足してオレンジに見せる */
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${svgSize} ${svgSize}`}
+              style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', mixBlendMode: 'screen' }}
+            >
+              <circle cx={svgSize * GK_DISC.cx} cy={svgSize * GK_DISC.cy} r={svgSize * GK_DISC.r} fill="#ffffff" opacity={0.14} />
+            </svg>
+          )}
+        </>
+      )}
 
       {/* SVG オーバーレイ（選択リング、バッジ等） — viewBox で自動スケール */}
       <svg
