@@ -47,6 +47,12 @@ export function useWebSocket(options: UseWebSocketOptions) {
   onMessageRef.current = onMessage;
   onDisconnectRef.current = onDisconnect;
   onReconnectRef.current = onReconnect;
+  // token も ref で保持し、connect の依存から外す。refresh 成功で AuthContext の
+  // accessToken が変わるたび（失効60秒前＝約14分ごと）に connect の identity が変わると、
+  // 呼び出し元の useEffect が試合中にゲームセッションWSを「切断→再接続」してしまう（Issue #36）。
+  // 接続時の鮮度は connect 内の ensureFreshAccessToken() が担う。
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
 
   const connect = useCallback(() => {
     // OPEN または CONNECTING 中は重複接続を防止
@@ -55,7 +61,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
     // 同一アカウントでフレンド対戦を2タブ検証する場合、参加側タブだけに
     // sessionStorageでAway席専用トークンが保存される。通常対戦/ホスト側はJWTを使う。
-    let connectionToken = token;
+    let connectionToken = tokenRef.current;
     try {
       const match = url.match(/\/match\/([^/?]+)\/ws$/);
       const matchId = match?.[1];
@@ -134,7 +140,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
         }
       };
     }
-  }, [url, token, autoReconnect]);
+  }, [url, autoReconnect]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
