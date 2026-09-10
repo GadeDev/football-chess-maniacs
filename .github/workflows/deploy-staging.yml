@@ -87,7 +87,11 @@ jobs:
         working-directory: src
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      - run: npm run build
+      # build:staging bakes VITE_PLATFORM_API_URL=fc-platform-api-staging into the bundle
+      # (PR #40). Plain `npm run build` would make the staging client talk to the
+      # production Platform API while the staging Worker verifies JWTs against
+      # Platform Staging, breaking every logged-in feature on staging.
+      - run: npm run build:staging
       - name: Deploy client (staging Pages project)
         run: npx --yes wrangler@4 pages deploy dist --project-name=fcms-staging --branch=main --commit-hash "$DEPLOY_SHA"
         env:
