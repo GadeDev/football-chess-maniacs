@@ -274,6 +274,10 @@ CREATE INDEX idx_timestamp ON match_records(timestamp);
 
 ## 5. Gemma学習パイプラインとの連携
 
+> **注記（2026-09-10 Owner決定）**: Gemma / Workers AI の判断層は削除しました。棋譜そのもの（R2 `replays/{matchId}.json.gz`）は
+> 将来の学習用に引き続き蓄積しますが、本節の Gemma ファインチューニング連携は現行仕様ではありません。
+> 学習の方針は `docs/com_ai_spec.md` 末尾「棋譜学習（検討メモ）」を参照。
+
 ### 5-1. 学習データ抽出（月次バッチ）
 
 ```

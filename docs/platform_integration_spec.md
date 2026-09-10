@@ -45,7 +45,7 @@ FCMS(Football Chess ManiacS)は、既にゲームエンジン・UI・AIを実装
 │  - 認証 (Register/Login/JWT)│  │  - ゲームエンジン            │
 │  - SKUカタログ               │  │  - マッチメイキングDO        │
 │  - Stripe購入フロー         │  │  - ゲームセッションDO        │
-│  - エンタイトルメント        │  │  - COM AI (Gemma)           │
+│  - エンタイトルメント        │  │  - COM AI (ルールベース)     │
 │  - フォーラム                │  │  - D1: piece_master (新)    │
 │  - フレンド/DM              │  │  - D1: user_pieces (既存)   │
 │  - ゲームWebhook発信         │  │  - D1: teams (既存)         │

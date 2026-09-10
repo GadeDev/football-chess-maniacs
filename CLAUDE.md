@@ -33,18 +33,14 @@ src/
 │   ├── turn_processor.ts     # processTurn — フェーズ0〜3 オーケストレーション
 │   ├── index.ts              # 全モジュール再エクスポート
 │   └── __tests__/
-├── ai/                       # COM AIエンジン（ルールベース + Gemma）
+├── ai/                       # COM AIエンジン（ルールベース）
 │   ├── ai_context.ts         # AI共有コンテキスト型（AiContext, DiffConfig）
 │   ├── evaluator.ts          # §4 局面評価（盤面スコアリング）
 │   ├── legal_moves.ts        # §5 合法手生成（全コマの合法手列挙）
 │   ├── rule_based.ts         # ルールベースAI オーケストレーター（AiContext作成→各AI呼出）
 │   ├── ball_holder_ai.ts     # ボール保持コマAI（シュート→パス→中継→ドリブル優先度）
 │   ├── formation_ai.ts       # フォーメーション制御AI（3ライン・プレス・攻守移動）
-│   ├── prompt_builder.ts     # §2 難易度別プロンプト生成（ビギナー/レギュラー/マニアック）
-│   ├── gemma_client.ts       # §9-1 Workers AI (Gemma) 呼び出し（タイムアウト制御）
-│   ├── output_parser.ts      # §9-3 Gemma出力のパース＋検証
-│   ├── fallback.ts           # §9-4 フォールバック制御（障害パターン別対応）
-│   ├── com_ai.ts             # §1-1 統合COM AIクラス（安全層→判断層→検証層）
+│   ├── types.ts              # AI共通型（Difficulty / Era）
 │   ├── index.ts              # 全モジュール再エクスポート
 │   └── bootstrap/            # §3 ブートストラップパイプライン
 │       ├── auto_play.ts      # ルールベースAI同士の自動対戦
@@ -55,13 +51,12 @@ src/
 ├── durable/
 │   ├── game_session.ts       # ゲームセッションDO（Hibernation API）
 │   ├── game_session_helpers.ts # DO型定義・定数・純粋関数（GameState, WsAttachment等）
-│   ├── com_ai_integration.ts # COM AI統合（Gemma 5sタイムアウト + ルールベースフォールバック）
+│   ├── com_ai_integration.ts # COM AI統合（ルールベース直呼び）
 │   └── matchmaking.ts        # マッチメイキングDO（リージョンシャード）
 ├── api/
 │   ├── auth.ts               # プラットフォーム認証・Webhook
 │   ├── team.ts               # チーム編成CRUD（D1）
 │   ├── match.ts              # マッチング・セッション接続・COM対戦DO作成
-│   ├── ai.ts                 # AI APIエンドポイント（/api/ai/test, /api/ai/turn）
 │   └── replay.ts             # リプレイ取得（R2）
 ├── middleware/
 │   ├── jwt_verify.ts         # JWT検証（JWKS）
@@ -156,7 +151,7 @@ public/
 | ball.ts | §9-2 フェーズ2 | ✅ |
 | special.ts | §9-2 フェーズ3 | ✅ |
 | turn_processor.ts | §9-2 全フェーズ統合 | ✅ |
-| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/authClient/AuthContext/useWebSocket/ssoFragment) | ✅ 855 tests passing (+10 skip: ライブE2E) |
+| ユニットテスト | 判定式全体・統合・E2E・AIモジュール・フロントエンド・i18n・DO helpers・rating・ranking・shop購入・hex_utils・special・presetTeams・match_friend・platform auth(tokenStore/authClient/AuthContext/useWebSocket/ssoFragment) | ✅ 797 tests passing (+10 skip: ライブE2E) |
 | worker.ts + api/* | Hono REST API + WebSocket | ✅ |
 | durable/game_session.ts | §4-3 DO Hibernation + §7-2 WS認証 + processTurn統合 + ハーフタイム/AT/ゴールリスタート | ✅ |
 | durable/matchmaking.ts | §4-2 シャード構成マッチメイキング | ✅ |
@@ -170,11 +165,11 @@ public/
 | ai/evaluator.ts | §4 局面評価（ボール位置+配置+ZOC支配+得点差） | ✅ |
 | ai/legal_moves.ts | §5 合法手生成（移動/ドリブル/パス/シュート/交代） | ✅ |
 | ai/rule_based.ts | フォーメーション維持型AI（3ライン制御・2手パスルート・プレス守備） | ✅ |
-| ai/prompt_builder.ts | §2 難易度別プロンプト（ビギナー/レギュラー/マニアック + 7時代） | ✅ |
-| ai/gemma_client.ts | §9-1 Workers AI呼び出し（500msタイムアウト） | ✅ |
-| ai/output_parser.ts | §9-3 Gemma出力パース＋検証（コードブロック除去対応） | ✅ |
-| ai/fallback.ts | §9-4 フォールバック制御（4障害パターン対応） | ✅ |
-| ai/com_ai.ts | §1-1 統合COM AI（安全層→判断層→検証層パイプライン） | ✅ |
+| ai/prompt_builder.ts | §2 難易度別プロンプト（ビギナー/レギュラー/マニアック + 7時代） | 🗑 2026-09-10 削除 |
+| ai/gemma_client.ts | §9-1 Workers AI呼び出し（500msタイムアウト） | 🗑 2026-09-10 削除 |
+| ai/output_parser.ts | §9-3 Gemma出力パース＋検証（コードブロック除去対応） | 🗑 2026-09-10 削除 |
+| ai/fallback.ts | §9-4 フォールバック制御（4障害パターン対応） | 🗑 2026-09-10 削除 |
+| ai/com_ai.ts | §1-1 統合COM AI（安全層→判断層→検証層パイプライン） | 🗑 2026-09-10 削除 |
 | ai/bootstrap/* | §3-1 Phase 1 自動対戦＋学習データ生成（JSONL出力） | ✅ |
 | Formation.tsx | 編成画面v2（手持ちコマ制・プリセット6種・セーブスロット10枠・ミニピッチ配置・onFormationConfirm引継ぎ） | ✅ |
 | COM対戦フロー | モード選択→即マッチング→バトル初期化→processTurn全判定→ターン進行 | ✅ |
@@ -278,6 +273,7 @@ public/
 | 課金方針転換（2026-09-09, PR #42, 正本 `docs/fcms_platform_commerce_policy.md`） | Owner決定: 課金・決済はPlatformで行い、INGOT（ゲーム内通貨・通貨パック・残高・換算・通貨消費購入）を仕様から削除。旧INGOTサービス手順書を削除。**仕様文書のみの変更**で、`src/api/shop.ts`（wallet/ingots/ingot-products/purchase経路）・`src/api/webhooks.ts`の通貨処理・`src/types/piece.ts`の換算関数・関連テストは残存（除去は別タスク。Platformへの商品導線と購入権利のゲーム内反映は維持すること）。販売商品・価格・販売開始・配備は未承認 | ✅（docsのみ） |
 | フレンド対戦 同一アカウント2タブ自己対戦（2026-09-10, PR #43/#44） | ログイン済みユーザーがタブAでルーム作成→タブBで同じルームに参加できる（旧`CANNOT_JOIN_OWN_ROOM` 400を撤廃）。`POST /match/friend/join`はhostと同一userIdの場合にAway席を合成ID `friend_self_<uuid>` に分離し、DO `/friend-auth`（`friendSessionTokens`ストレージ）へ一時トークンを登録してレスポンス`token`で返す。クライアント（`FriendMatchScreen`）は`sessionStorage['fcms_friend_ws_token:<matchId>']`（タブ単位＝ホスト側JWTを汚さない）に保存し、`useWebSocket`が`/match/:id/ws`接続時にJWTより優先。別ユーザーの通常参加はJWT経路のまま（`token`なし）。Platform戦績では`friend_self_*`を`com_player_*`と同様にゲスト参加扱い（`platform_match_report.ts`）。App.tsxはフレンド対戦前に`comAuthToken`をクリア。**用途は自己テスト**（`friend_`はレート対象外）。`match_friend.test.ts`は旧400テストが未更新で赤だったのを新仕様（200+token/合成ID/DO 2回到達/D1 away_user_id）の検証に置換（2026-09-10, PR #49） | ✅ |
 | Staging自動デプロイ（2026-07-16〜17 env整備 PR #39-#41 → 2026-09-10 自動化 PR #45-#48） | `.github/workflows/deploy-staging.yml`: mainへのpushで自動実行（`workflow_dispatch`で任意SHAの手動デプロイも可、GitHub `staging` environmentの`CLOUDFLARE_API_TOKEN`が必要）。`src/wrangler.toml [env.staging]`（Worker `football-chess-maniacs-staging.yanagiho.workers.dev`・D1 `fcms-staging`・KV/R2/Queueは別ID・`routes = []`・`PLATFORM_API_BASE`=Platform Staging）へWorkerをデプロイし、クライアントをPagesプロジェクト`fcms-staging`（`fcms-staging.pages.dev`）へデプロイ。D1 migrationは`continue-on-error`。**本番（footballchess.io）は対象外**で従来通り手動`wrangler deploy`/`pages deploy`。**修正（2026-09-10）**: クライアントのビルドが`npm run build`だったため`VITE_PLATFORM_API_URL`未設定→バンドルが本番Platform APIを向き、Staging WorkerのJWT検証（Platform Staging）と噛み合わずログイン系が全滅する構成だった（PR #40が作った`build:staging`をワークフローが使っていなかった）→`npm run build:staging`に変更。Staging Workerの`PLATFORM_JWKS_URL`/`PLATFORM_JWT_ISSUER`/`PLATFORM_JWT_AUDIENCE`/`PLATFORM_GAME_SERVER_TOKEN`がenv.staging用に設定済みか、Google OAuthクライアントに`fcms-staging.pages.dev`が登録済みかは要確認 | ✅（ワークフロー整備。初回成功はActionsで確認） |
+| Gemma判断層の削除（2026-09-10, Owner決定） | COM AI から Workers AI（Gemma）を撤去しルールベース一本に。削除: `gemma_client`/`prompt_builder`/`output_parser`/`fallback`/`com_ai` と `/api/ai`（`/test`・`/turn`）、`wrangler.toml` の `[ai]`・`AI_MODEL_ID`（本番/staging両方）、`VITE_USE_GEMMA`。`Difficulty`/`Era` は `src/ai/types.ts` へ移設。`toLegalMovesJson`（プロンプト専用）削除。サーバーサイドCOM（旧 `gemma_com_` → **`server_com_`**）と Bot補完は `generateComOrders` のルールベース直呼び（例外時は全コマ `stay`）。ブートストラップ自動対戦は将来の棋譜学習用に残す。棋譜学習は別途検討（`docs/com_ai_spec.md` 末尾「棋譜学習（検討メモ）」）。テスト 863 → 797（削除70件・新規3件） | ✅ |
 
 ---
 
@@ -385,12 +381,12 @@ public/
 - **共通**: タイムアウト時はデフォルト補完して自動送信（FK/PK: 中央下、CK: 高コスト順+ニア→中央→ファー）。ミニゲーム遷移時にreplaySafetyTimerをクリア
 - **FK/PK isAttacker/isKicker**: ファウルされた側(`tacklerId`から逆算)が攻撃側
 
-### COM AI構造（§1-1）
-- **安全層**: 合法手生成（数学的に正確）+ 盤面評価 → 50ms以内
-- **判断層**: Gemma推論（Workers AI）→ 300ms目標、500msタイムアウト
-- **検証層**: 出力パース + 合法性チェック → 10ms以内
-- フォールバック: Gemma障害時は自動でルールベース最善手に切替（プレイヤー影響ゼロ）
-- モデルID: 環境変数 `AI_MODEL_ID` から取得（コード変更なしにモデル入替可能）
+### COM AI構造（§1-1 — ルールベースのみ）
+> 2026-09-10 Owner決定: Workers AI（Gemma）の判断層は削除。COM AI はルールベース一本。
+- **安全層**: 合法手生成（`legal_moves.ts`、数学的に正確）+ 盤面評価（`evaluator.ts`）
+- **判断層**: ルールベースAI（`rule_based.ts` + `ball_holder_ai.ts` / `formation_ai.ts`）。同期・msオーダー
+- 外部推論の呼び出しは無し。例外時は全コマ `stay` の安全手（`com_ai_integration.ts`）
+- 棋譜を使った学習は別途検討（`docs/com_ai_spec.md` 末尾「棋譜学習（検討メモ）」）
 
 ### ルールベースAI（rule_based.ts）— フォーメーション維持型
 - **3ライン制御**: GK / DFライン(DF,SB) / MFライン(VO,MF,OM) / FWライン(FW,WG) の行動範囲を定義。攻撃時・守備時でシフト
@@ -451,22 +447,20 @@ public/
 - matchIdが `com_` で始まる。サーバー不要、全処理がブラウザ内で完結
 - Matching.tsxで1秒後に`onMatchFound(comMatchId)`で即座にBattle画面へ遷移
 - Battle.tsxで`INIT_MATCH` dispatchでゲーム状態をクライアント側で初期化
-- `VITE_USE_GEMMA=true` の場合は `POST /api/ai/turn` でGemma AIを呼び出し、失敗時はルールベースにフォールバック
 - **COM AIターン処理の流れ**:
   1. `handleConfirm` → プレイヤー命令を `clientOrderToEngine` でエンジン形式に変換
-  2. Gemma有効時: `fetchGemmaOrders()` → 失敗時 `generateRuleBasedOrders({ difficulty: comDifficulty })` にフォールバック
-  3. Gemma無効時: `generateRuleBasedOrders({ difficulty: comDifficulty })` でaway命令生成
-  4. **`processTurn(board, homeOrders, awayOrders, boardContext)` 実行** — Phase0〜3で全判定
-  5. `hasGoal()` でゴール判定 → スコア加算
-  6. `APPLY_ENGINE_RESULT` dispatch → resolving状態
+  2. `generateRuleBasedOrders({ difficulty: comDifficulty })` でaway命令生成
+  3. **`processTurn(board, homeOrders, awayOrders, boardContext)` 実行** — Phase0〜3で全判定
+  4. `hasGoal()` でゴール判定 → スコア加算
+  5. `APPLY_ENGINE_RESULT` dispatch → resolving状態
 
-#### パス2: サーバーサイドCOM（`VITE_USE_GEMMA=true` 時）
-- matchIdが `gemma_com_` で始まる。GameSession DOが全処理を管理
-- **フロー**: Matching.tsx → `POST /match/com` → GameSession DO `/init`（isComMatch=true）→ WS接続 → `TURN_INPUT` 送信 → DO内で `generateComOrders`（Gemma AI + ルールベースフォールバック）→ `TURN_RESULT` 配信
+#### パス2: サーバーサイドCOM（`server_com_`、ルールベース。Bot補完と同じ経路）
+- matchIdが `server_com_` で始まる。GameSession DOが全処理を管理
+- **フロー**: `POST /match/com` → GameSession DO `/init`（isComMatch=true）→ WS接続 → `TURN_INPUT` 送信 → DO内で `generateComOrders`（ルールベース直呼び）→ `TURN_RESULT` 配信
+- マッチメイキングのBot補完（`awayUserId='com_ai'`）も同じ `generateComOrders` を使う
 - **認証**: `crypto.randomUUID()` でセッショントークン生成、`comSessionToken` でWS認証（推測不能）
 - **トークン伝搬**: `/match/com` → `{token}` → `onMatchFound(matchId, team, token)` → `App.tsx comAuthToken` → `Battle.tsx authToken` → WS `?token=`
-- **外側タイムアウト**: `generateComOrders` に5秒の `Promise.race` ガード（Workers AIハング時のDOブロック防止）
-- サーバー接続失敗時はクライアントサイドCOMにフォールバック
+- クライアントのCOM対戦（ModeSelect経由）は常にパス1。パス2はBot補完および直接 `POST /match/com` を叩く経路
 
 - **React.StrictModeの注意**: useEffectにrefガードを入れるとStrictModeで2回目のmount時にeffectが実行されない。タイマー系のuseEffectではrefガードを使わないこと
 
@@ -480,7 +474,7 @@ public/
 - **オーバーレイ蓄積防止**: Turn X 表示をスキップ、TURN_START遅延を500msに短縮
 - **ハーフタイム自動スキップ**: 交代パネルを即スキップ（`setHalftimeReady(true)` を即実行）
 - **comGkHistory保護**: COM vs COM 時はランダム選択を学習履歴に記録しない
-- **Gemma無効**: comVsComでは`VITE_USE_GEMMA`設定に関わらず常にクライアントサイドCOM
+- **常にクライアントサイド**: comVsComはブラウザ内でルールベースAI同士を対戦させる
 - **結果画面**: 「もう一度」ボタンは`matching`画面に直接遷移（編成をスキップ）
 
 ### ボール操作UI
@@ -545,7 +539,7 @@ public/
 ### オンライン対戦（クライアント側実装済、E2Eテスト未実施）
 - **Matching.tsx**: ranked/casual時に `/match/ws` へWebSocket接続、`JOIN_QUEUE` 送信、`MATCH_FOUND` で遷移
 - **Battle.tsx**: `/match/:matchId/ws` へWebSocket接続、`TURN_INPUT` 送信、`TURN_RESULT`/`INPUT_ACCEPTED`/`RECONNECT` 等を処理
-- **サーバーサイドCOM**: `POST /match/com` → GameSession DO作成 → WS接続（`gemma_com_` prefix で判別）
+- **サーバーサイドCOM**: `POST /match/com` → GameSession DO作成 → WS接続（`server_com_` prefix で判別）
 - サーバー側は全て実装済み（Matchmaking DO / GameSession DO / API）
 - `wrangler dev --local` + `npm run dev` の並列起動でオンライン対戦テスト可能
 
@@ -569,7 +563,7 @@ public/
 ## テスト
 
 ```bash
-npm test              # vitest run（全825テスト + 10 E2Eスキップ）
+npm test              # vitest run（全797テスト + 10 E2Eスキップ）
 npm run test:watch
 npm run dev           # Vite dev server（localhost:5173）
 npm run bootstrap:small  # AI自動対戦テスト（10試合）
@@ -735,10 +729,9 @@ LIVE_E2E=1 npx vitest run src/online/__tests__/ws_e2e_live.test.ts  # Terminal 2
 - `tsconfig.json`: target ES2022, module ESNext, moduleResolution bundler, jsx react-jsx, strict
 - `vitest.config.ts`: globals: false, environment: node, jsdom for `src/client/**/__tests__/**`
 - `vite.config.ts`: root=src/client, React plugin, 出力=dist/
-- `wrangler.toml`: `[ai] binding = "AI"`, `AI_MODEL_ID = "@cf/google/gemma-3-12b-it"`, DO=`new_sqlite_classes`（Free plan必須）
+- `wrangler.toml`: DO=`new_sqlite_classes`（Free plan必須）。Workers AI バインディングは使わない（2026-09-10 削除）
 - **本番URL**: `https://footballchess.io`（Worker custom domain。API以外のGETはPages本体へプロキシ）/ Worker直: `https://football-chess-maniacs.yanagiho.workers.dev` / Pages直: `https://football-chess-maniacs.pages.dev`
 - **Staging URL**: Worker `https://football-chess-maniacs-staging.yanagiho.workers.dev` / Pages `https://fcms-staging.pages.dev`（`wrangler deploy --env staging` + `npm run build:staging` → `pages deploy dist --project-name=fcms-staging`。GitHub Actions `deploy-staging.yml`がmain pushで自動実行）
-- `VITE_USE_GEMMA=true`: クライアント側のGemma AI呼び出しを有効化（.env.localで設定）
 
 ---
 
