@@ -117,9 +117,11 @@ describe('POST /friend/join', () => {
       body: JSON.stringify({ roomId: 'abc123', teamId: 'team-b' }),
     }, env);
     expect(res.status).toBe(200);
-    const data = await res.json() as { matchId: string; team: string };
+    const data = await res.json() as { matchId: string; team: string; token?: string };
     expect(data.matchId).toMatch(/^friend_/);
     expect(data.team).toBe('away');
+    // 別ユーザーの通常参加ではJWT経路のまま（自己対戦用トークンは発行しない）
+    expect(data).not.toHaveProperty('token');
     expect(gameSession.initCalls).toHaveLength(1);
     expect(db.inserted).toHaveLength(1);
   });
@@ -137,18 +139,37 @@ describe('POST /friend/join', () => {
     expect(data.error).toBe('ROOM_NOT_FOUND');
   });
 
-  it('自分のルームには参加できない(400 CANNOT_JOIN_OWN_ROOM)', async () => {
+  it('自分のルームに参加すると自己対戦になり、Away席用の一時トークンを発行する(#43)', async () => {
     const kv = makeFakeKv();
-    await kv.put('friend_room:ABC123', JSON.stringify({ hostUserId: 'host1', hostTeamId: 'default', createdAt: Date.now() }));
-    const { app, env } = makeApp('host1', kv, makeFakeDb(), makeFakeGameSession());
+    await kv.put('friend_room:ABC123', JSON.stringify({ hostUserId: 'host1', hostTeamId: 'team-a', createdAt: Date.now() }));
+    const db = makeFakeDb();
+    const gameSession = makeFakeGameSession();
+    const { app, env } = makeApp('host1', kv, db, gameSession);
     const res = await app.request('/friend/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId: 'ABC123' }),
     }, env);
-    expect(res.status).toBe(400);
-    const data = await res.json() as { error: string };
-    expect(data.error).toBe('CANNOT_JOIN_OWN_ROOM');
+    expect(res.status).toBe(200);
+    const data = await res.json() as { matchId: string; team: string; token?: string };
+    expect(data.matchId).toMatch(/^friend_/);
+    expect(data.team).toBe('away');
+    // 自己対戦のAway席はJWTではなくこのトークンでWS認証する（DO側は20〜200文字を要求）
+    expect(typeof data.token).toBe('string');
+    expect(data.token!.length).toBeGreaterThanOrEqual(20);
+
+    // DOには /init → /friend-auth の順で2回到達する
+    expect(gameSession.initCalls).toHaveLength(2);
+    const init = gameSession.initCalls[0] as { homeUserId: string; awayUserId: string };
+    expect(init.homeUserId).toBe('host1');
+    expect(init.awayUserId).toMatch(/^friend_self_/);
+    const friendAuth = gameSession.initCalls[1] as { userId: string; token: string };
+    expect(friendAuth.userId).toBe(init.awayUserId);
+    expect(friendAuth.token).toBe(data.token);
+
+    // D1のaway_user_idも合成IDで記録し、ホストのuserIdを両席に使い回さない
+    expect(db.inserted).toHaveLength(1);
+    expect((db.inserted[0] as unknown[])[2]).toBe(init.awayUserId);
   });
 
   it('すでに使用済みのルームは409 ROOM_ALREADY_USED', async () => {
