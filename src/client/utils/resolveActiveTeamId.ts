@@ -2,12 +2,16 @@
 // resolveActiveTeamId.ts — マッチング/フレンド対戦に渡す編成teamIdを解決
 // ============================================================
 
+import { loadDraft } from './formationServer';
+import { MATCH_LINEUP_PREFIX } from '../../lib/matchLineup';
 import { fcmsFetch } from '../platform/authClient';
 
 /**
- * is_active なチーム → 無ければ先頭 → 無ければ 'default'（サーバーは固定4-4-2にフォールバック）。
+ * 現在の編成を対戦専用のスナップショットとして送る。未編成なら保存済み → default。
  */
 export async function resolveActiveTeamId(): Promise<string> {
+  const draft = loadDraft();
+  if (draft?.starters.length === 11) return MATCH_LINEUP_PREFIX + JSON.stringify({ starters: draft.starters, bench: draft.bench });
   try {
     const res = await fcmsFetch('/api/teams');
     if (!res.ok) return 'default';

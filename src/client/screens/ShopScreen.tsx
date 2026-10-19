@@ -11,7 +11,6 @@ import BackButton from '../components/ui/BackButton';
 import HeaderBack from '../components/ui/HeaderBack';
 import { t } from '../i18n';
 import { useLocale } from '../i18n/useLocale';
-import { buildPlatformShopUrl } from '../platform/config';
 import { fcmsFetch } from '../platform/authClient';
 import { useAuth } from '../contexts/AuthContext';
 import { LEGAL_TERMS_APPLICABILITY_KEY } from '../components/LegalFooter';
@@ -75,7 +74,7 @@ export default function ShopScreen({ onNavigate }: ShopScreenProps) {
 
   // 所持フラグはログイン状態で変わるので、ログイン状態を依存に取る。
   // Bearer は fcmsFetch が tokenStore の最新トークンから付与する。
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, requireLogin } = useAuth();
 
   // カタログ取得（API → 失敗時フォールバック）
   useEffect(() => {
@@ -106,9 +105,10 @@ export default function ShopScreen({ onNavigate }: ShopScreenProps) {
     };
   }, [isLoggedIn]);
 
-  const handleOpenPlatformShop = useCallback((itemId?: string) => {
-    window.location.href = buildPlatformShopUrl(itemId);
-  }, []);
+  const handleOpenPlatformShop = useCallback((_itemId?: string) => {
+    if (!isLoggedIn) requireLogin('shop');
+    else onNavigate('formation');
+  }, [isLoggedIn, requireLogin, onNavigate]);
 
   useEffect(() => {
     if (!toast) return;
@@ -175,7 +175,7 @@ export default function ShopScreen({ onNavigate }: ShopScreenProps) {
         }}>
           {visible.map((item) => {
             const isSS = item.cost >= 2.5;
-            const canBuy = !item.owned;
+            const canBuy = !item.owned && item.cost >= 2.5;
             return (
               <div key={item.pieceId} style={{
                 background: isSS ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.04)',
@@ -206,7 +206,7 @@ export default function ShopScreen({ onNavigate }: ShopScreenProps) {
                     color: canBuy ? '#fff' : '#666',
                     fontSize: 12, fontWeight: 'bold', cursor: canBuy ? 'pointer' : 'default',
                   }}>
-                    {t('shop.buy_on_platform')}
+                    {t(canBuy ? 'shop.buy_on_platform' : 'shop.sales_ended')}
                   </button>
                 )}
               </div>
