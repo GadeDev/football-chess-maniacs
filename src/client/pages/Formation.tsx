@@ -598,21 +598,18 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
    * 主ボタン: 対戦へ。
    * - 対戦フロー（matchFlow）: この編成でマッチングへ直行
    * - 通常フロー: 編成を装備して対戦タイプ選択（ModeSelect）へ
-   * どちらもログイン中なら先にスロット自動保存（オンライン対戦はサーバーのis_activeチームを使うため）。
-   * 保存失敗（枠ロック等）でもフローは止めない（COM対戦はクライアントデータで動作する）
+   * 保存枠とは別に、現在の編成を試合の入力として渡す。
    */
   const handleGoBattle = useCallback(() => {
-    void (async () => {
-      if (isLoggedIn) await persistSlot(resolveSaveTarget());
-      const data = buildFormationData(starters, bench, teamName);
-      if (matchFlow && onFormationConfirm) {
-        onFormationConfirm(data);
-      } else {
-        onFormationSaved?.(data);
-        onNavigate('modeSelect');
-      }
-    })();
-  }, [isLoggedIn, persistSlot, resolveSaveTarget, starters, bench, teamName, matchFlow, onFormationConfirm, onFormationSaved, onNavigate]);
+    // Matchmaking uses a validated match snapshot; saving remains an explicit subscriber action.
+    const data = buildFormationData(starters, bench, teamName);
+    if (matchFlow && onFormationConfirm) {
+      onFormationConfirm(data);
+    } else {
+      onFormationSaved?.(data);
+      onNavigate('modeSelect');
+    }
+  }, [starters, bench, teamName, matchFlow, onFormationConfirm, onFormationSaved, onNavigate]);
 
   // ── レンダリング ──
 

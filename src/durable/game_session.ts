@@ -3,6 +3,7 @@
 // 1試合 = 1DO。WebSocket Hibernation API対応。
 // ============================================================
 
+import { MATCH_LINEUP_PREFIX, readMatchLineup } from '../lib/matchLineup';
 import { DurableObject } from 'cloudflare:workers';
 import type { Env } from '../worker';
 import { verifyWebSocketToken } from '../middleware/jwt_verify';
@@ -186,8 +187,8 @@ export class GameSession extends DurableObject<Env['Bindings']> {
     }
 
     // 各チームの編成を D1 から読み込む（未指定/不正時は null → 固定4-4-2にフォールバック）
-    const homeTeam = await this.loadTeam(body.homeTeamId);
-    const awayTeam = await this.loadTeam(body.awayTeamId);
+    const homeTeam = await this.loadTeam(body.homeTeamId, body.homeUserId);
+    const awayTeam = await this.loadTeam(body.awayTeamId, body.awayUserId);
     const homeField = homeTeam.field;
     const awayField = awayTeam.field;
     const homeBench = homeTeam.bench;
@@ -241,15 +242,18 @@ export class GameSession extends DurableObject<Env['Bindings']> {
    * D1 teams から編成（field_pieces）とベンチ（bench_pieces）を読み込む。
    * teamId 未指定/存在しない/不正JSON/盤面化不能なら null（→ 固定4-4-2にフォールバック / ベンチなし）。
    */
-  private async loadTeam(teamId?: string): Promise<{
+  private async loadTeam(teamId: string | undefined, userId: string): Promise<{
     field: FormationFieldPiece[] | null;
     bench: BenchFieldPiece[] | null;
   }> {
     if (!teamId || typeof teamId !== 'string') return { field: null, bench: null };
     try {
+      if (teamId.startsWith(MATCH_LINEUP_PREFIX)) {
+        return await readMatchLineup(this.env.DB, userId, teamId) ?? { field: null, bench: null };
+      }
       const row = await this.env.DB
-        .prepare('SELECT field_pieces, bench_pieces FROM teams WHERE id = ?')
-        .bind(teamId)
+        .prepare('SELECT field_pieces, bench_pieces FROM teams WHERE id = ? AND user_id = ?')
+        .bind(teamId, userId)
         .first<{ field_pieces: string; bench_pieces: string }>();
       if (!row?.field_pieces) return { field: null, bench: null };
       const parsedField = JSON.parse(row.field_pieces);
