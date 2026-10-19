@@ -10,7 +10,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../worker';
 import { callPlatformApi, getBearerToken, getPlatformGameId, PlatformApiError } from './auth';
-import { costToDisplay, itemIdToPieceId, pieceIdToItemId, skuToPieceId, SHELF_NAMES } from '../types/piece';
+import { costToDisplay, pieceIdToItemId, SHELF_NAMES } from '../types/piece';
 import type { PieceMaster, ShopCatalogItem } from '../types/piece';
 
 const shop = new Hono<{
@@ -324,10 +324,10 @@ shop.get('/catalog', async (c) => {
       nationality: p.nationality,
       summary_ja: p.summary_ja,
       image_url: p.image_url,
-      is_owned: ownedSet.has(p.piece_id),
+      is_owned: ownedSet.has(p.piece_id) || Boolean(userId && p.cost >= 2.5),
       product_id: product?.product_id ?? null,
-      ingot_price: product?.ingot_price ?? null,
-      is_on_sale: product?.is_on_sale ?? false,
+      ingot_price: null,
+      is_on_sale: false,
       platform_configured: product?.platform_configured ?? false,
     };
   });
@@ -393,114 +393,7 @@ shop.get('/ingot-products', async (c) => {
  * 互換: piece_id 入力時は piece_master.sku → Platform product に解決してから購入する。
  * 成功時は granted_items を user_pieces_v2 に即時同期（webhook 後着でも INSERT OR IGNORE で冪等）。
  */
-shop.post('/purchase', async (c) => {
-  const userId = c.get('userId');
-  const userToken = getBearerToken(c.req.header('Authorization'));
-  if (!userId || !userToken) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-
-  let body: { piece_id?: unknown; product_id?: unknown };
-  try {
-    body = await c.req.json<{ piece_id?: unknown; product_id?: unknown }>();
-  } catch {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'Invalid JSON' }, 400);
-  }
-
-  const hasPieceId = typeof body.piece_id === 'number' && Number.isInteger(body.piece_id);
-  const hasProductId = typeof body.product_id === 'string' && body.product_id.length > 0;
-  if (!hasPieceId && !hasProductId) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'piece_id or product_id is required' }, 400);
-  }
-
-  // product_id の解決（piece_id 入力時は piece_master.sku 経由で Platform product を探す）
-  let productId = hasProductId ? (body.product_id as string) : '';
-  const requestedPieceId: number | null = hasPieceId ? (body.piece_id as number) : null;
-
-  if (!productId) {
-    const pieceId = body.piece_id as number;
-    const piece = await c.env.DB.prepare(
-      'SELECT piece_id, sku, is_purchasable FROM piece_master WHERE piece_id = ?',
-    )
-      .bind(pieceId)
-      .first<{ piece_id: number; sku: string; is_purchasable: number }>();
-
-    if (!piece) {
-      return c.json({ error: 'INVALID_PIECE_ID', message: 'Piece not found' }, 400);
-    }
-    if (!piece.is_purchasable) {
-      return c.json({ error: 'NOT_PURCHASABLE', message: 'This piece cannot be purchased' }, 400);
-    }
-
-    let product: PieceProductInfo | undefined;
-    try {
-      product = buildPieceProductMap(await fetchGameProducts(c.env)).get(piece.sku);
-    } catch (e) {
-      console.error('[shop] Failed to resolve Platform product for purchase:', e);
-      return c.json({ error: 'PLATFORM_UNAVAILABLE', message: 'Could not reach Platform' }, 502);
-    }
-    if (!product || !product.platform_configured) {
-      return c.json({ error: 'PRODUCT_NOT_CONFIGURED', message: 'Piece is not on sale on Platform' }, 503);
-    }
-    productId = product.product_id;
-  }
-
-  // Platform 購入（INGOT 減算 + 付与を原子的に確定）
-  let result: {
-    purchase_id?: string;
-    status?: string;
-    balance_after?: number;
-    granted_items?: Array<{ item_ref_id: string; quantity?: number; inventory_item_id?: string }>;
-  };
-  try {
-    result = await callPlatformApi(c.env, '/v1/commerce/items/purchase', {
-      method: 'POST',
-      authMode: 'user',
-      userToken,
-      idempotencyKey: crypto.randomUUID(),
-      body: JSON.stringify({ product_id: productId }),
-    });
-  } catch (e) {
-    if (e instanceof PlatformApiError) {
-      const mapped = mapItemsPurchaseError(e);
-      return c.json({ error: mapped.error, message: mapped.message ?? 'Platform purchase failed' }, mapped.status);
-    }
-    console.error('[shop] items/purchase error:', e);
-    return c.json({ error: 'PLATFORM_UNAVAILABLE', message: 'Failed to reach Platform' }, 502);
-  }
-
-  // 付与アイテムを user_pieces_v2 に同期（item_ref_id=SKU, inventory_item_id=entitlement_id）
-  const now = new Date().toISOString();
-  const grantedPieceIds: number[] = [];
-  for (const item of result.granted_items ?? []) {
-    const pid = itemIdToPieceId(item.item_ref_id) ?? skuToPieceId(item.item_ref_id);
-    if (pid === null) continue;
-    try {
-      await c.env.DB.prepare(
-        'INSERT OR IGNORE INTO user_pieces_v2 (user_id, piece_id, source, entitlement_id, acquired_at) VALUES (?, ?, ?, ?, ?)',
-      )
-        .bind(userId, pid, 'purchase', item.inventory_item_id ?? null, now)
-        .run();
-      grantedPieceIds.push(pid);
-    } catch (e) {
-      console.error('[shop] Failed to sync granted piece (will reconcile via webhook):', e);
-    }
-  }
-
-  // 所持コマキャッシュ無効化
-  await c.env.KV.delete(`owned_pieces:${userId}`);
-
-  const pieceId = requestedPieceId ?? grantedPieceIds[0] ?? null;
-  return c.json(
-    {
-      piece_id: pieceId,
-      balance: result.balance_after ?? null,
-      granted_pieces: grantedPieceIds,
-      purchase_id: result.purchase_id,
-    },
-    201,
-  );
-});
+shop.post('/purchase', (c) => c.json({ error: 'INDIVIDUAL_SALES_ENDED', message: 'Ace pieces are available with a free account.' }, 410));
 
 /**
  * POST /api/shop/ingots

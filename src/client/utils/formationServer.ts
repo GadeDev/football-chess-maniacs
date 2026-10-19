@@ -141,7 +141,7 @@ export async function fetchTeams(): Promise<TeamsResponse | null> {
         isActive: t.is_active,
       })),
       maxSlots: data.max_slots ?? 10,
-      availableSlots: data.available_slots ?? 1,
+      availableSlots: data.available_slots ?? 0,
     };
   } catch {
     return null;

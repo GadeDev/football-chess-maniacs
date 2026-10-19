@@ -32,10 +32,10 @@ pieces.get('/', async (c) => {
       p.piece_id, p.sku, p.name_ja, p.name_en, p.position, p.cost,
       p.era, p.era_shelf, p.family, p.nationality, p.is_founding,
       p.summary_ja, p.image_url, p.image_status,
-      u.source, u.entitlement_id, u.acquired_at
-    FROM user_pieces_v2 u
-    JOIN piece_master p ON u.piece_id = p.piece_id
-    WHERE u.user_id = ?
+      COALESCE(u.source, 'registration') AS source, u.entitlement_id, u.acquired_at
+    FROM piece_master p
+    LEFT JOIN user_pieces_v2 u ON u.piece_id = p.piece_id AND u.user_id = ?
+    WHERE u.piece_id IS NOT NULL OR p.cost >= 2.5
     ORDER BY p.piece_id ASC
   `)
     .bind(userId)
@@ -54,7 +54,7 @@ pieces.get('/', async (c) => {
 pieces.get('/count', async (c) => {
   const userId = c.get('userId');
   const result = await c.env.DB.prepare(
-    'SELECT COUNT(*) as cnt FROM user_pieces_v2 WHERE user_id = ?',
+    'SELECT COUNT(*) as cnt FROM piece_master p LEFT JOIN user_pieces_v2 u ON u.piece_id = p.piece_id AND u.user_id = ? WHERE u.piece_id IS NOT NULL OR p.cost >= 2.5',
   )
     .bind(userId)
     .first<{ cnt: number }>();
@@ -129,7 +129,7 @@ pieces.post('/sync', async (c) => {
 
   // 合計数を取得
   const countResult = await c.env.DB.prepare(
-    'SELECT COUNT(*) as cnt FROM user_pieces_v2 WHERE user_id = ?',
+    'SELECT COUNT(*) as cnt FROM piece_master p LEFT JOIN user_pieces_v2 u ON u.piece_id = p.piece_id AND u.user_id = ? WHERE u.piece_id IS NOT NULL OR p.cost >= 2.5',
   )
     .bind(userId)
     .first<{ cnt: number }>();

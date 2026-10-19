@@ -295,7 +295,7 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
   const [activeSlotIdx, setActiveSlotIdx] = useState<number | null>(null);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [premiumMessage, setPremiumMessage] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState(1);
+  const [availableSlots, setAvailableSlots] = useState(0);
   const [saveFeedback, setSaveFeedback] = useState<'saved' | 'failed' | null>(null);
 
   // ── 所持コマロード + ドラフト復元 ──
@@ -347,7 +347,8 @@ export default function Formation({ onNavigate, onFormationConfirm, onFormationS
 
   // ── サーバー保存済みスロットの取得（ログイン時のみ） ──
   useEffect(() => {
-    if (!isLoggedIn || loadingPieces) return;
+    if (!isLoggedIn) { setAvailableSlots(0); setSlots(Array(MAX_SLOTS).fill(null)); return; }
+    if (loadingPieces) return;
     let cancelled = false;
     fetchTeams().then(resp => {
       if (cancelled || !resp) return;

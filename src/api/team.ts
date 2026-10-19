@@ -9,11 +9,11 @@ import { callPlatformApi, getBearerToken } from './auth';
 
 const team = new Hono<{ Bindings: Env['Bindings']; Variables: { userId: string } }>();
 
-const BASE_SAVE_SLOTS = 1;
+const BASE_SAVE_SLOTS = 0;
 const MAX_SAVE_SLOTS = 10;
 const DEFAULT_SAVE_SLOT_SKU = 'fcms_save_slots_9';
 const DEFAULT_SUBSCRIPTION_SKU = 'uf_subscription_monthly_premium';
-const DEFAULT_SUBSCRIPTION_BONUS_SLOTS = 3;
+
 
 /** チーム編成レコード（v2: slot_number/is_active/formation_preset追加） */
 interface TeamComposition {
@@ -96,15 +96,10 @@ async function getLocalOwnedPieceIds(
   userId: string,
 ): Promise<Set<number>> {
   const result = await db
-    .prepare('SELECT piece_id FROM user_pieces_v2 WHERE user_id = ?')
+    .prepare('SELECT piece_id FROM user_pieces_v2 WHERE user_id = ? UNION SELECT piece_id FROM piece_master WHERE cost >= 2.5')
     .bind(userId)
     .all<{ piece_id: number }>();
   return new Set(result.results.map((r) => r.piece_id));
-}
-
-function positiveInt(value: string | undefined, fallback: number): number {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 0 ? n : fallback;
 }
 
 function saveSlotSku(env: Env['Bindings']): string {
@@ -113,10 +108,6 @@ function saveSlotSku(env: Env['Bindings']): string {
 
 function subscriptionSku(env: Env['Bindings']): string {
   return env.PLATFORM_SUBSCRIPTION_SKU || DEFAULT_SUBSCRIPTION_SKU;
-}
-
-function subscriptionBonusSlots(env: Env['Bindings']): number {
-  return positiveInt(env.SUBSCRIPTION_SAVE_SLOT_BONUS, DEFAULT_SUBSCRIPTION_BONUS_SLOTS);
 }
 
 /** Platform Entitlement check。障害時はfalseに倒し、保存枠の新規書き込みを保守的に止める。 */
@@ -154,7 +145,7 @@ async function getSaveSlotAccess(env: Env['Bindings'], userToken: string | null)
     checkEntitlementSku(env, userToken, saveSlotSku(env)),
     checkEntitlementSku(env, userToken, subscriptionSku(env)),
   ]);
-  const subscriptionExtraSlots = subscriptionActive ? subscriptionBonusSlots(env) : 0;
+  const subscriptionExtraSlots = subscriptionActive ? MAX_SAVE_SLOTS : 0;
   const availableSlots = saveSlotEntitlementActive
     ? MAX_SAVE_SLOTS
     : Math.min(MAX_SAVE_SLOTS, BASE_SAVE_SLOTS + subscriptionExtraSlots);

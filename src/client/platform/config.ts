@@ -38,6 +38,8 @@ export function getGoogleClientId(): string {
 export function buildPlatformShopUrl(itemId?: string): string {
   const url = new URL(getPlatformShopUrl());
   url.searchParams.set('game_id', PLATFORM_GAME_ID);
-  if (itemId) url.searchParams.set('item_id', itemId);
+  if (itemId === 'formation_save_slot') {
+    url.searchParams.set('subscription_sku', 'uf_subscription_monthly_premium');
+  } else if (itemId) url.searchParams.set('item_id', itemId);
   return url.toString();
 }

@@ -144,7 +144,7 @@ describe('team save slot entitlements', () => {
     vi.unstubAllGlobals();
   });
 
-  it('global subscription unlocks base slot + configured bonus slots', async () => {
+  it('subscription unlocks all ten slots regardless of legacy bonus config', async () => {
     const state: FakeState = { teams: [], owned: new Set() };
     const db = makeDb(state);
     const app = makeApp(db);
@@ -157,14 +157,14 @@ describe('team save slot entitlements', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
       max_slots: 10,
-      available_slots: 4,
+      available_slots: 10,
       subscription_active: true,
       save_slot_entitlement_active: false,
-      subscription_extra_slots: 3,
+      subscription_extra_slots: 10,
     });
   });
 
-  it('allows new saves inside subscription bonus slots and rejects higher slots', async () => {
+  it('allows the tenth save slot and rejects an eleventh', async () => {
     const state: FakeState = {
       teams: [],
       owned: new Set(Array.from({ length: 20 }, (_, i) => i + 1)),
@@ -176,17 +176,24 @@ describe('team save slot entitlements', () => {
     const ok = await app.request('/', {
       method: 'POST',
       headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Slot 4', slot_number: 4, fieldPieces: makeFieldPieces(), benchPieces: [] }),
+      body: JSON.stringify({ name: 'Slot 10', slot_number: 10, fieldPieces: makeFieldPieces(), benchPieces: [] }),
     }, env(db));
     expect(ok.status).toBe(201);
 
     const locked = await app.request('/', {
       method: 'POST',
       headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Slot 5', slot_number: 5, fieldPieces: makeFieldPieces(), benchPieces: [] }),
+      body: JSON.stringify({ name: 'Slot 11', slot_number: 11, fieldPieces: makeFieldPieces(), benchPieces: [] }),
     }, env(db));
-    expect(locked.status).toBe(403);
-    await expect(locked.json()).resolves.toMatchObject({ error: 'PREMIUM_REQUIRED', available_slots: 4 });
+    expect(locked.status).toBe(400);
+  });
+
+  it('free registration cannot save even the first slot', async () => {
+    const state: FakeState = { teams: [], owned: new Set(Array.from({ length: 20 }, (_, i) => i + 1)) };
+    const db = makeDb(state); const app = makeApp(db);
+    stubEntitlementCheck(new Set());
+    const res = await app.request('/', { method: 'POST', headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Free', slot_number: 1, fieldPieces: makeFieldPieces(), benchPieces: [] }) }, env(db));
+    expect(res.status).toBe(403); expect(state.teams).toHaveLength(0);
   });
 
   it('keeps expired subscription slots readable but blocks overwrite', async () => {
@@ -214,7 +221,7 @@ describe('team save slot entitlements', () => {
     }, env(db));
     expect(list.status).toBe(200);
     const listBody = await list.json() as { teams: unknown[]; available_slots: number };
-    expect(listBody.available_slots).toBe(1);
+    expect(listBody.available_slots).toBe(0);
     expect(listBody.teams).toHaveLength(1);
 
     const update = await app.request('/team-locked', {
@@ -223,7 +230,7 @@ describe('team save slot entitlements', () => {
       body: JSON.stringify({ name: 'Overwrite' }),
     }, env(db));
     expect(update.status).toBe(403);
-    await expect(update.json()).resolves.toMatchObject({ error: 'PREMIUM_REQUIRED', available_slots: 1 });
+    await expect(update.json()).resolves.toMatchObject({ error: 'PREMIUM_REQUIRED', available_slots: 0 });
   });
 });
 
