@@ -4,7 +4,7 @@
 // GrassrootsFootball (threejs-client/src/auth/platformClient.js) を移植。
 // ============================================================
 
-import { getPlatformApiUrl } from './config';
+import { getPlatformApiUrl, PLATFORM_GAME_ID } from './config';
 import { saveTokens, getAccessToken, getRefreshToken, clearTokens, isAccessTokenExpiring } from './tokenStore';
 import { apiUrl } from '../types';
 
@@ -74,7 +74,8 @@ export async function register(email: string, password: string): Promise<AuthRes
     const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
-      body: JSON.stringify({ email, password }),
+      // KPI-01: Platform が「どの作品から入会したか」を数えるための印（数えるだけ。ログインには使わない）
+      body: JSON.stringify({ email, password, entry_game: PLATFORM_GAME_ID }),
     });
     const data = await res.json().catch(() => null) as TokenResponse | null;
     if (!res.ok || !data) return { ok: false, errorCode: getApiErrorCode(data, res.status) };
@@ -93,7 +94,7 @@ export async function loginWithGoogle(idToken: string, locale?: string): Promise
     const res = await fetch(`${getPlatformApiUrl()}${API_PREFIX}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': createIdempotencyKey() },
-      body: JSON.stringify(locale ? { id_token: idToken, locale } : { id_token: idToken }),
+      body: JSON.stringify(locale ? { id_token: idToken, locale, entry_game: PLATFORM_GAME_ID } : { id_token: idToken, entry_game: PLATFORM_GAME_ID }),
     });
     const data = await res.json().catch(() => null) as TokenResponse | null;
     if (!res.ok || !data) return { ok: false, errorCode: getApiErrorCode(data, res.status) };
